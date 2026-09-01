@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Atomic commitments across independent websites, coordinated in the browser.",
+  "description": "WebMCP tells an agent what a site can do. Nothing tells it what a site can take back. Concord is that missing layer, and the first agent that cannot overpromise.",
   "scripts": {
     "dev": "node server.mjs",
     "probe": "node tools/probe.mjs",

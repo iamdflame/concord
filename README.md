@@ -1,25 +1,34 @@
 # Concord
 
-**Two independent websites cannot agree on anything.**
+### WebMCP tells an agent what a site can *do*. Nothing tells it what a site can *take back*.
 
-No shared coordinator, no contract, no trust between them. That is not a
-technical detail — it is why Booking.com, Expedia, Amazon Marketplace and every
-other marketplace exists. They are the intermediary two parties need because
-there is nowhere neutral to transact, and they charge 15–30% for standing
-there.
+Concord is that missing layer — and the first agent that is structurally
+incapable of overpromising.
 
-So everyone knows you cannot book a flight on one site and a hotel on another
-*atomically*, where a failure at the hotel reverses the flight. Both vendors
-would need to share a transaction coordinator, and they never will.
+**Live: <https://concord-coordinator.vercel.app>** · [SPEC.md](SPEC.md) ·
+[THREAT-MODEL.md](THREAT-MODEL.md) · `npx concord-verify`
 
-That assumption was never retested, because until now there was no neutral
-execution context holding both parties' authenticated sessions at once.
-**A browser tab is now that context.** WebMCP puts both vendors' typed,
-executable capabilities in one place, under the user's authority, with
-cancellation as a first-class primitive.
+---
 
-Concord is the protocol that uses it: multi-vendor commitments made atomic with
-no API partnership, no backend, and no intermediary taking margin.
+`inputSchema` describes a tool's shape. `readOnlyHint` describes whether it has
+an effect. **Nothing in WebMCP describes whether that effect can be reversed** —
+and an agent acting across several sites needs exactly that. Booking a flight on
+one site and a hotel on another, it cannot know, before it starts, whether
+failing halfway leaves you with a charge nobody can take back.
+
+Today that gap is filled by a marketplace: an intermediary both sites have a
+contract with, which is why one sits between almost every pair of businesses an
+agent might transact with, charging 15–30% to stand there.
+
+Concord is a convention over WebMCP by which a site declares its **commitment
+surface** — *hold and release*, *commit and compensate*, or *irreversible* — and
+an in-browser coordinator that computes what can honestly be promised across
+several such sites **before contacting any of them**, then refuses when the
+honest answer is that atomicity is not available at any price.
+
+The intermediary does not disappear. It becomes yours: disposable, margin-free,
+and unable to misreport what happened, because every statement in the receipt is
+signed by the counterparty rather than by it.
 
 ## The agent that cannot overpromise
 
@@ -390,6 +399,11 @@ kernel/{labels,policy,dispatch,transcript,monitor}.*   Ring 0, the substrate
 mail/ ledger/ pay/  :5174-6                            its three processes
 experiments/tool-synthesis/                            a documented negative result
 ```
+
+## For judges
+
+**[SUBMISSION.md](SUBMISSION.md)** — the four required answers, the objections
+answered before they are raised, and every link in one place.
 
 ## The protocol, written down
 
