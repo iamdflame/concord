@@ -21,6 +21,55 @@ cancellation as a first-class primitive.
 Concord is the protocol that uses it: multi-vendor commitments made atomic with
 no API partnership, no backend, and no intermediary taking margin.
 
+## The agent that cannot overpromise
+
+The reason this matters now is agents. An agent that can spend your money across
+sites is what everyone is racing to ship and nobody can ship safely, and the
+blocker was never capability — models have been calling tools for a while. The
+blocker is that **an agent cannot make a promise it is able to keep.** It says
+"I've booked your trip" having booked half of it, because nothing underneath it
+can compute what is actually being risked.
+
+Concord computes exactly that, and publishes it as four WebMCP tools:
+
+```js
+document.modelContext.registerTool({ name: 'concord_propose_commitment', … })
+document.modelContext.registerTool({ name: 'concord_explain_guarantee',  … })
+document.modelContext.registerTool({ name: 'concord_commit',             … })
+document.modelContext.registerTool({ name: 'concord_list_vendors',       … })
+```
+
+That is the entire surface an agent gets, and it is a fence rather than an
+instruction:
+
+- **nothing here spends anything.** There is no `send_funds`. The only effectful
+  tool is `commit`, and it will only run a plan the ladder already guaranteed;
+- **`commit` refuses a proposal that has not been explained**, so nobody is ever
+  committed to something they were not first told the shape of;
+- **a refused plan yields nothing committable at all.**
+
+An agent cannot overpromise here because the words for it do not exist. Ask for
+a flight, a visa fee and an entry permit — two things nobody can take back — and
+it answers:
+
+> I cannot do that as one commitment, and I would rather say so than half-do it.
+>
+> visa and permit are both irreversible. If the second fails, nothing can undo
+> the first, so this plan cannot be made atomic.
+>
+> Nothing has been contacted. Ask for them separately and I will do each one.
+
+There is no "go ahead" button on that answer, because there is no proposal to
+press it against. Saying no is the thing agents structurally cannot do today,
+and here it is the ordinary path.
+
+The agent in the page is small on purpose. It has no privileged access and uses
+Chrome's built-in model when the browser has one, or reads the request directly
+when it does not — and says which in the transcript. Replace it with ChatGPT
+driving the same registered tools and nothing about the safety story changes.
+That is the point: the constraint is the shape of the surface, not anybody's
+prompt.
+
 ```bash
 npm run dev            # seven origins
 npm run concord        # the coordinator
@@ -120,14 +169,15 @@ overwritten by the key of the asking and recovery quietly found nothing.
 
 ## The participants
 
-Three independent businesses with no relationship to each other, each at a
-different rung. None has an API with another; none knows the others exist.
+Four independent businesses with no relationship to each other. None has an API
+with another; none knows the others exist.
 
 | | | |
 |---|---|---|
 | **Northwind Air** `:5177` | reservable | Holds a seat 15 minutes, then tickets or releases it |
 | **Rowan House** `:5178` | compensable | Books and charges immediately; cancels with a full refund |
 | **Consular Fee** `:5179` | irreversible | Declares no `compensate`, because inventing one would be a lie |
+| **Entry Permit** `:5180` | irreversible | A second one, so the refusal is real rather than staged |
 
 Each answers one question through a `concord.protocol` tool — *what can you
 commit to* — and everything else is derived from the answers.

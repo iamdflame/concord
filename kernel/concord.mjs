@@ -14,9 +14,12 @@ import { runSaga, OUTCOME } from '/concord/saga.mjs';
 import { buildReceipt, verifyReceipt } from '/concord/receipt.mjs';
 import { Journal, IndexedStore, LocalStore } from '/concord/journal.mjs';
 import { recover } from '/concord/recover.mjs';
+import { publishAgentTools } from './agent-tools.mjs';
+import { makeReader, turn } from './agent.mjs';
 
-const FLY = 'http://localhost:5177', STAY = 'http://localhost:5178', VISA = 'http://localhost:5179';
-const ALL = [FLY, STAY, VISA];
+const FLY = 'http://localhost:5177', STAY = 'http://localhost:5178';
+const VISA = 'http://localhost:5179', PERMIT = 'http://localhost:5180';
+const ALL = [FLY, STAY, VISA, PERMIT];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[<>&"']/g, (c) =>
   ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -25,6 +28,7 @@ const INPUTS = {
   fly:  { route: 'LOS-LHR', date: '2026-10-04' },
   stay: { nights: 3, city: 'London' },
   visa: { applicant: 'D. Flame', country: 'GB' },
+  permit: { applicant: 'D. Flame', country: 'GB' },
 };
 
 // A second irreversible vendor, declared but never contacted. It exists so the
@@ -35,11 +39,11 @@ const PHANTOM = {
   protocol: { steps: { execute: { tool: 'pay_permit' } }, irreversible: true }, tools: {},
 };
 
-const SCENARIOS = [
-  { key: 'trip',    label: 'Flight + hotel + visa', ids: ['fly', 'stay', 'visa'], extra: [] },
-  { key: 'nofee',   label: 'Flight + hotel only',   ids: ['fly', 'stay'],         extra: [] },
-  { key: 'hold',    label: 'Flight only',           ids: ['fly'],                 extra: [] },
-  { key: 'refused', label: 'Two irreversible',      ids: ['fly', 'visa'],         extra: [PHANTOM] },
+const PROMPTS = [
+  'Book me London for three nights — flight, hotel and the visa fee.',
+  'A flight and a hotel, nothing I cannot take back.',
+  'Just hold me a seat.',
+  'Flight, visa fee and the entry permit.',
 ];
 
 /**
@@ -61,10 +65,10 @@ function fatal(err, context) {
         <div class="verdict refused">${esc(context)}</div>
         <p>${esc(detail)}</p>
       </div><div class="caveats">
-        <div class="caveat"><b>!</b><span>Concord needs its three vendor origins running.
+        <div class="caveat"><b>!</b><span>Concord needs its four vendor origins running.
           Start them with <code>npm run dev</code> and reload — they are separate origins on
-          ports 5177, 5178 and 5179, and the coordinator deliberately cannot proceed without
-          hearing from all of them.</span></div>
+          ports 5177 to 5180, and the coordinator deliberately cannot proceed without hearing
+          from all of them.</span></div>
         <div class="caveat"><b>!</b><span>Nothing was contacted and nothing is outstanding.
           A commitment that cannot be planned is never started.</span></div>
       </div></div>
@@ -111,65 +115,144 @@ try {
   fatal(err, 'A vendor would not say what it can commit to');
   throw err;
 }
-let current = SCENARIOS[0];
-let planned = null;
 let running = false;
+let surfaceEventSink = () => {};
+
+// The four tools an agent may reach, registered over WebMCP. The in-page agent
+// below drives these; so can ChatGPT's, through the same registration.
+await publishAgentTools({
+  ctx,
+  participants: withInputs(discovered, INPUTS),
+  inputs: INPUTS,
+  journal,
+  bind: (participants) => {
+    const call = bind(ctx, participants);
+    return crashAfter ? killAfter(call, crashAfter) : call;
+  },
+  onEvent: (e) => surfaceEventSink(e),
+});
 
 $('pcount').textContent = String(discovered.length);
 $('sub').textContent = 'declarations read';
 
-// ── the promise ─────────────────────────────────────────────────────────────
-function participantsFor(scenario) {
-  return withInputs(
-    [...discovered.filter((p) => scenario.ids.includes(p.id)), ...scenario.extra],
-    INPUTS);
-}
+// ── the promise, as the agent was told it ─────────────────────────────────
+let proposal = null;      // what the agent last proposed, awaiting a decision
 
-function renderPlan() {
-  const participants = participantsFor(current);
-  planned = plan(participants);
-  const byId = new Map(participants.map((p) => [p.id, p]));
+function showPromise(promise) {
+  proposal = promise;
+  const box = $('promiseBox');
+  const refused = !promise?.committable;
+  box.hidden = false;
 
-  const refused = planned.guarantee === GUARANTEE.REFUSED;
   $('verdict').textContent = {
-    [GUARANTEE.ATOMIC]: 'Fully atomic',
-    [GUARANTEE.COMPENSATED]: 'Atomic by compensation',
-    [GUARANTEE.BOUNDED]: 'Atomic up to a final commit',
-    [GUARANTEE.REFUSED]: 'No honest promise available',
-  }[planned.guarantee];
-  $('verdict').className = `verdict ${planned.guarantee}`;
-  // describe() opens with the same phrase as the headline; showing both reads
-  // as a stutter, so the headline keeps it and the paragraph carries the rest.
-  $('explain').textContent = refused ? planned.refusal : describe(planned).replace(/^[^.]+\.\s*/, '');
+    atomic: 'All-or-nothing up to the final confirm',
+    compensated: 'Atomic by compensation',
+    bounded: 'Atomic up to a final commit',
+    refused: 'No honest promise available',
+  }[promise.guarantee] ?? promise.guarantee;
+  $('verdict').className = `verdict ${promise.guarantee}`;
+  $('explain').textContent = promise.summary;
 
-  const stepsOf = (p) => Object.entries(p.protocol.steps).map(([k, v]) => v.tool).join(' → ');
-  $('ladder').innerHTML = planned.order.map((id, i) => {
-    const rung = planned.rungs.find((r) => r.id === id);
+  const byId = new Map(discovered.map((p) => [p.id, p]));
+  $('ladder').innerHTML = promise.order.map((id, i) => {
     const p = byId.get(id);
-    const ponr = planned.pointOfNoReturn === i;
-    return `<div class="rung r${rung.rung}">
+    const steps = Object.values(p?.protocol?.steps ?? {}).map((v) => v.tool)
+      .filter((t) => t !== 'concord.status').join(' → ');
+    const rung = p?.protocol?.steps?.reserve ? 3 : p?.protocol?.steps?.compensate ? 2 : 1;
+    return `<div class="rung r${rung}">
       <span class="n">${i + 1}</span>
-      <span class="who">${esc(p.title)}</span>
+      <span class="who">${esc(p?.title ?? id)}</span>
       <span class="bar"><i></i></span>
-      <span class="steps">${esc(stepsOf(p))}${ponr ? ' <span class="ponr">◀ POINT OF NO RETURN</span>' : ''}</span>
+      <span class="steps">${esc(steps)}${promise.pointOfNoReturn === id
+        ? ' <span class="ponr">◀ POINT OF NO RETURN</span>' : ''}</span>
     </div>`;
   }).join('');
 
-  $('caveats').innerHTML = planned.caveats.map((c) => `<div class="caveat"><b>!</b><span>${esc(c)}</span></div>`).join('');
-  $('commit').disabled = refused || running;
-  $('commit').textContent = refused ? 'Refused' : 'Commit';
+  $('caveats').innerHTML = (promise.caveats ?? [])
+    .map((c) => `<div class="caveat"><b>!</b><span>${esc(c)}</span></div>`).join('');
+
+  // The gate. There is no way to commit anything the agent has not been given
+  // permission for, and none at all for something the ladder refused.
+  $('commit').hidden = refused;
+  $('crash').hidden = refused;
+  $('commit').disabled = false;
 }
 
-$('scenarios').innerHTML = SCENARIOS.map((s) =>
-  `<button data-key="${s.key}" aria-pressed="${s.key === current.key}">${esc(s.label)}</button>`).join('');
-$('scenarios').addEventListener('click', (e) => {
-  const key = e.target.closest('button')?.dataset.key;
-  if (!key || running) return;
-  current = SCENARIOS.find((s) => s.key === key);
-  for (const b of $('scenarios').children) b.setAttribute('aria-pressed', String(b.dataset.key === key));
-  $('run').innerHTML = '<p class="hint">Nothing has been contacted yet.</p>';
+function clearPromise() {
+  proposal = null;
+  $('promiseBox').hidden = true;
+  $('commit').hidden = true;
+  $('crash').hidden = true;
+}
+
+// ── the conversation ──────────────────────────────────────────────────────
+const reader = await makeReader();
+$('brain').textContent = reader.kind;
+
+function say(who, text, extra = {}) {
+  $('transcript').insertAdjacentHTML('beforeend',
+    `<div class="msg ${who}"><div class="who">${who === 'you' ? 'you' : 'agent'}</div>` +
+    `<p>${esc(text)}</p>${extra.calls ?? ''}</div>`);
+  $('transcript').scrollTop = $('transcript').scrollHeight;
+}
+
+/** Every tool the agent touches is shown, including the ones that refuse it. */
+function noteCall(name, refused) {
+  const last = $('transcript').lastElementChild;
+  if (!last) return;
+  let strip = last.querySelector('.calls');
+  if (!strip) { last.insertAdjacentHTML('beforeend', '<div class="calls"></div>'); strip = last.querySelector('.calls'); }
+  const cls = refused ? 'no' : name === 'concord_commit' ? 'eff' : '';
+  strip.insertAdjacentHTML('beforeend', `<span class="call ${cls}">${esc(name)}${refused ? ' · refused' : ''}</span>`);
+}
+
+let awaitingGo = null;
+
+async function callTool(name, args) {
+  const tool = (await ctx.getTools()).find((t) => t.name === name);
+  if (!tool) throw new Error(`${name} is not published`);
+  const raw = await ctx.executeTool(tool, JSON.stringify(args));
+  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  const value = parsed?.structuredContent ?? parsed;
+  noteCall(name, Boolean(value?.refused));
+  return value;
+}
+
+async function ask(text) {
+  say('you', text);
+  clearPromise();
+  $('run').innerHTML = '';
   $('outcome').innerHTML = '';
-  renderPlan();
+  $('receipt').innerHTML = '';
+
+  try {
+    const out = await turn({
+      text, reader, tool: callTool, say,
+      confirm: (promise) => new Promise((resolve) => {
+        showPromise(promise);
+        awaitingGo = resolve;
+        say('agent', 'Say go ahead and I will do it. Nothing has been contacted yet.');
+      }),
+    });
+    if (out) await reportOutcome(out);
+    else { clearPromise(); running = false; }
+  } catch (err) {
+    say('agent', `I could not finish that: ${err.message}`);
+  }
+  awaitingGo = null;
+}
+
+$('prompts').innerHTML = PROMPTS.map((p) => `<button type="button">${esc(p)}</button>`).join('');
+$('prompts').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (b) { $('q').value = b.textContent; $('q').focus(); }
+});
+$('ask').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = $('q').value.trim();
+  if (!text || awaitingGo) return;
+  $('q').value = '';
+  ask(text);
 });
 
 // ── execution ───────────────────────────────────────────────────────────────
@@ -201,11 +284,21 @@ let crashAfter = null;
 /** Stops the coordinator dead after n calls, the way a closed tab would. */
 function killAfter(call, n) {
   let seen = 0;
-  return async (...args) => {
+  const wrapped = async (...args) => {
     const result = await call(...args);
-    if (++seen >= n) { const e = new Error('the coordinator stopped'); e.fatal = true; throw e; }
+    // Status probes are not steps; counting them would kill it in the wrong place.
+    if (args[3]?.step !== 'status' && ++seen >= n) {
+      const e = new Error('the coordinator stopped');
+      e.fatal = true;
+      throw e;
+    }
     return result;
   };
+  // The receipt is assembled from what the underlying call collected, so those
+  // have to survive the wrapper.
+  wrapped.attestations = call.attestations;
+  wrapped.vendors = call.vendors;
+  return wrapped;
 }
 
 async function showPending() {
@@ -225,8 +318,11 @@ async function showPending() {
 
   $('resolve').addEventListener('click', async () => {
     $('resolve').disabled = true;
-    const fresh = participantsFor(current);
-    const reports = await recover({ journal, participants: fresh, call: bind(ctx, fresh) });
+    // Rebuilt from every vendor present, never from whatever is on screen: a
+    // recovery scoped to the current selection blamed an absent vendor for
+    // being unaskable and stranded its charge.
+    const all = withInputs(discovered, INPUTS);
+    const reports = await recover({ journal, participants: all, call: bind(ctx, all) });
     const r = reports[0];
     $('pending').innerHTML = `<div class="pending" style="border-color:var(--ok)">
       <b style="color:var(--ok)">Resolved — ${esc(r?.outcome ?? 'nothing outstanding')}</b>
@@ -240,32 +336,35 @@ async function showPending() {
 async function commit() {
   running = true;
   $('commit').disabled = true;
+  $('crash').disabled = true;
   $('outcome').innerHTML = '';
   $('run').innerHTML = '';
 
-  const participants = participantsFor(current);
-  const call = bind(ctx, participants);
   let phase = null;
+  const onEvent = (e) => {
+    const group = PHASE[e.type];
+    if (group && group !== phase) {
+      phase = group;
+      const tone = group === 'unwinding' ? 'warn' : group === 'the irreversible step' ? 'err' : 'on';
+      $('run').insertAdjacentHTML('beforeend',
+        `<div class="phase"><div class="phase-h"><i class="dot ${tone}"></i><span class="lbl">${group}</span></div></div>`);
+    }
+    if (['plan', 'done', 'proposed', 'explained'].includes(e.type)) return;
+    ($('run').lastElementChild ?? $('run')).insertAdjacentHTML('beforeend', line(e));
+  };
+  surfaceEventSink = onEvent;
 
-  const out = await runSaga({
-    plan: planned,
-    participants,
-    journal,
-    call: crashAfter ? killAfter(call, crashAfter) : call,
-    retryDelayMs: 260,
-    onEvent(e) {
-      const group = PHASE[e.type];
-      if (group && group !== phase) {
-        phase = group;
-        const tone = group === 'unwinding' ? 'warn' : group === 'the irreversible step' ? 'err' : 'on';
-        $('run').insertAdjacentHTML('beforeend',
-          `<div class="phase"><div class="phase-h"><i class="dot ${tone}"></i><span class="lbl">${group}</span></div></div>`);
-      }
-      if (['plan', 'done'].includes(e.type)) return;
-      ($('run').lastElementChild ?? $('run')).insertAdjacentHTML('beforeend', line(e));
-    },
-  });
+  // Release the agent's turn: it is waiting on the human, and it is the agent
+  // that calls concord_commit -- not this button. The button is consent.
+  const go = awaitingGo;
+  awaitingGo = null;
+  if (go) go(true);
 
+  await new Promise((r) => setTimeout(r, 60));
+}
+
+/** Draw the outcome and receipt once the agent's commit returns. */
+async function reportOutcome(out) {
   const headline = {
     [OUTCOME.COMMITTED]: 'Committed across every vendor',
     [OUTCOME.UNWOUND]: 'Nothing stands — every reversible step was reversed',
@@ -274,30 +373,27 @@ async function commit() {
   }[out.outcome];
 
   const body = out.outcome === OUTCOME.IN_DOUBT
-    ? `<p>${out.stranded?.map(esc).join('<br>') ?? esc(out.cause)}</p>`
+    ? `<p>${out.stranded?.map(esc).join('<br>') ?? esc(out.cause ?? '')}</p>`
     : out.outcome === OUTCOME.UNWOUND
-      ? `<p>${esc(out.cause)}. The vendors above show the reversals.</p>`
-      : `<p>${esc(planned.order.join(', '))} — settled together.</p>`;
+      ? `<p>${esc(out.cause ?? '')}. The vendors above show the reversals.</p>`
+      : `<p>${esc((out.stands ?? []).join(', '))} — settled together.</p>`;
 
   $('outcome').innerHTML = `<div class="outcome ${out.outcome}"><b>${headline}</b>${body}` +
-    `<code>${out.journal.length} protocol events · saga ${esc(out.journal[0]?.sagaId ?? '')}</code></div>`;
+    (out.unrecorded ? `<p style="color:var(--hold)">${esc(out.unrecorded)}</p>` : '') +
+    `<code>${(out.journal ?? []).length} protocol events</code></div>`;
 
-  // The receipt is built from statements the vendors signed, which the
-  // coordinator only forwarded. It can order them and prove the ordering; it
-  // cannot write one.
-  if (call.attestations.length) {
+  if (out.attestations?.length) {
     const receipt = await buildReceipt({
-      sagaId: out.journal[0]?.sagaId, outcome: out.outcome,
-      entries: call.attestations, vendors: call.vendors,
+      sagaId: out.journal?.[0]?.sagaId, outcome: out.outcome,
+      entries: out.attestations, vendors: out.vendors,
     });
     await renderReceipt(receipt);
     globalThis.__CONCORD_RECEIPT__ = receipt;
-  } else {
-    $('receipt').innerHTML = '';
   }
 
   running = false;
-  $('commit').disabled = false;
+  $('commit').hidden = true;
+  $('crash').hidden = true;
   $('crash').disabled = false;
   crashAfter = null;
   await showPending();
@@ -356,23 +452,19 @@ $('commit').addEventListener('click', commit);
 $('crash').addEventListener('click', async () => {
   // Two calls in, the hotel has been charged and the coordinator vanishes.
   crashAfter = 2;
-  $('crash').disabled = true;
-  try { await commit(); } catch { /* the point is that nothing unwinds */ }
+  await commit();
   $('run').insertAdjacentHTML('beforeend',
     '<div class="ponr-mark">THE COORDINATOR STOPPED HERE. Nothing unwound, because nothing was ' +
-    'left running to unwind it. Reload this page.</div>');
-  await showPending();
-  $('crash').disabled = false;
+    'left running to unwind it — reload the page and it will be found.</div>');
 });
 $('reset').addEventListener('click', () => {
   for (const id of ['fly', 'stay', 'visa']) $(id).contentWindow.location.reload();
   $('run').innerHTML = '<p class="hint">Vendors reset. Nothing has been contacted.</p>';
   $('outcome').innerHTML = '';
-  setTimeout(async () => { discovered = await discover(ctx, ALL); renderPlan(); }, 900);
+  setTimeout(async () => { discovered = await discover(ctx, ALL); clearPromise(); }, 900);
 });
 
 try {
-  renderPlan();
   await showPending();
 } catch (err) {
   // plan() refuses rather than throws for an unpromisable set, so reaching here

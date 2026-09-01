@@ -25,6 +25,7 @@ const ORIGINS = {
   5177: { root: 'vendors/fly',   name: 'fly'     },
   5178: { root: 'vendors/stay',  name: 'stay'    },
   5179: { root: 'vendors/visa',  name: 'visa'    },
+  5180: { root: 'vendors/permit', name: 'permit' },
 };
 
 const TYPES = {
@@ -40,7 +41,7 @@ const TYPES = {
 // access. Without this header the browser may bucket same-site documents into
 // one agent cluster and getTools() will come back empty with no error, which
 // is a genuinely difficult failure to diagnose.
-const ALLOWED = [5173, 5174, 5175, 5176, 5177, 5178, 5179]
+const ALLOWED = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180]
   .map((p) => `"http://localhost:${p}"`).join(' ');
 
 function headers(type) {
