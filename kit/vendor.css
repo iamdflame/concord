@@ -1,0 +1,39 @@
+/* A Concord participant. Three independent businesses that have never heard of
+   each other, so each is its own product with its own colour — related only by
+   the protocol they all speak. */
+:root{
+  --ground:#0C1116; --panel:#141B22; --line:#232E38; --line-2:#1A232B;
+  --ink:#D6DEE5; --ink-2:#93A2AE; --muted:#5D6B77;
+  --ok:#3FBA86; --hold:#E8A33D; --bad:#EA5257;
+  --brand:#7FB3D5;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:14px;background:var(--ground);color:var(--ink);
+     font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace}
+body.broken{box-shadow:inset 0 0 0 2px var(--bad)}
+header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:3px}
+h1{margin:0;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--brand)}
+.rung{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;padding:2px 7px;
+      border:1px solid var(--line);border-radius:2px;color:var(--ink-2)}
+.rung.reservable{border-color:var(--ok);color:var(--ok)}
+.rung.compensable{border-color:var(--hold);color:var(--hold)}
+.rung.irreversible{border-color:var(--bad);color:var(--bad)}
+.origin{font-size:11px;color:var(--muted)}
+.note{color:var(--muted);font-size:11px;margin:6px 0 12px;max-width:60ch}
+h2{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+   margin:14px 0 8px;font-weight:600}
+.row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line-2)}
+.row:last-child{border-bottom:0}
+.num{font-variant-numeric:tabular-nums}
+.pill{font-size:9.5px;letter-spacing:.08em;padding:1px 6px;border-radius:2px;text-transform:uppercase}
+.pill.held{background:var(--hold);color:#1A1000}
+.pill.done{background:var(--ok);color:#04150F}
+.pill.gone{background:var(--line);color:var(--muted)}
+.empty{color:var(--muted);padding:8px 0}
+.sw{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2);
+    border:1px solid var(--line);border-radius:2px;padding:4px 9px;margin:0 6px 6px 0;cursor:pointer}
+.sw:has(:checked){border-color:var(--bad);color:var(--bad)}
+.ev{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--line-2);font-size:11.5px}
+.ev b{font-weight:600;min-width:104px}
+.ev span{color:var(--muted)}
+.ev.ok b{color:var(--ok)} .ev.hold b{color:var(--hold)} .ev.bad b{color:var(--bad)}

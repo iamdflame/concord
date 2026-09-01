@@ -15,10 +15,15 @@ import { extname, join, normalize } from 'node:path';
 // hats would prove nothing: the point is that composition crosses real trust
 // boundaries the browser enforces.
 const ORIGINS = {
-  5173: { root: 'kernel', name: 'kernel'  },
-  5174: { root: 'mail',   name: 'mail'    },
-  5175: { root: 'ledger', name: 'ledger'  },
-  5176: { root: 'pay',    name: 'pay'     },
+  5173: { root: 'kernel',        name: 'kernel'  },
+  5174: { root: 'mail',          name: 'mail'    },
+  5175: { root: 'ledger',        name: 'ledger'  },
+  5176: { root: 'pay',           name: 'pay'     },
+  // Concord vendors. Independent businesses with no relationship to each
+  // other, each at a different rung of the commitment ladder.
+  5177: { root: 'vendors/fly',   name: 'fly'     },
+  5178: { root: 'vendors/stay',  name: 'stay'    },
+  5179: { root: 'vendors/visa',  name: 'visa'    },
 };
 
 const TYPES = {
@@ -34,7 +39,7 @@ const TYPES = {
 // access. Without this header the browser may bucket same-site documents into
 // one agent cluster and getTools() will come back empty with no error, which
 // is a genuinely difficult failure to diagnose.
-const ALLOWED = Object.keys({ 5173: 0, 5174: 0, 5175: 0, 5176: 0 })
+const ALLOWED = [5173, 5174, 5175, 5176, 5177, 5178, 5179]
   .map((p) => `"http://localhost:${p}"`).join(' ');
 
 function headers(type) {
@@ -54,7 +59,7 @@ function serve(port) {
     if (path === '/' || path.endsWith('/')) path += 'index.html';
 
     // Shared modules live outside the per-origin roots; every origin needs them.
-    const base = /^\/(shim|shared)\//.test(path) ? '.' : root;
+    const base = /^\/(shim|shared|kit|concord)\//.test(path) ? '.' : root;
     const file = join(process.cwd(), base, normalize(path).replace(/^(\.\.[/\\])+/, ''));
 
     try {
