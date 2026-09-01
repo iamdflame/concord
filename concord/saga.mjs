@@ -50,8 +50,12 @@ export async function runSaga({
   onEvent = () => {},
   // At zero the retry loop never runs, lastError stays null, and the record
   // falls through as confirmed -- reporting COMMITTED for a call never made.
-  confirmRetries = 3,
-  retryDelayMs = 120,
+  // Under a second of retrying is not resilience. Exponential backoff with
+  // full jitter, so a coordinator retrying several vendors does not synchronise
+  // its attempts into a burst against whatever is already struggling.
+  confirmRetries = 5,
+  retryDelayMs = 250,
+  retryCapMs = 8_000,
   // A vendor that never answers used to hang the whole commitment while real
   // reservations sat outstanding. Real coordinators die from silence, not from
   // clean exceptions.
@@ -322,8 +326,21 @@ export async function runSaga({
           // can turns a crash into an invented in-doubt outcome.
           if (err.fatal) throw err;
           lastError = err;
-          emit('confirm_retry', { id: record.id, attempt, error: err.message });
-          if (attempt < confirmRetries) await sleep(retryDelayMs * attempt);
+
+          // A vendor that answered "no" has decided. Asking again is not
+          // resilience, it is refusing to hear it.
+          if (err.terminal) {
+            emit('confirm_declined', { id: record.id, error: err.message });
+            break;
+          }
+
+          if (attempt < confirmRetries) {
+            const wait = Math.round(Math.random() * Math.min(retryCapMs, retryDelayMs * 2 ** (attempt - 1)));
+            emit('confirm_retry', { id: record.id, attempt, error: err.message, waitMs: wait });
+            await sleep(wait);
+          } else {
+            emit('confirm_retry', { id: record.id, attempt, error: err.message, waitMs: 0 });
+          }
         }
       }
 

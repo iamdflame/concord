@@ -156,3 +156,34 @@ test('an expired hold is diagnosed before confirm, not discovered by failing', a
   // The hotel booking made under that hold is reversed.
   assert.ok(v.steps().includes('stay.compensate'));
 });
+
+test('a vendor that answers "no" is not asked again', async () => {
+  // Retrying a decision is not resilience; it is refusing to hear it.
+  const v = bank();
+  const declining = async (id, tool, args, opts) => {
+    if (opts.step === 'confirm') throw Object.assign(new Error('no live hold'), { terminal: true });
+    return v.call(id, tool, args, opts);
+  };
+  const ps = [reservable('fly')];
+  const out = await runSaga({ plan: plan(ps), participants: ps, call: declining, retryDelayMs: 1 });
+
+  assert.equal(out.outcome, OUTCOME.IN_DOUBT);
+  assert.equal(out.journal.filter((e) => e.type === 'confirm').length, 1,
+    'a terminal answer must be asked exactly once');
+  assert.ok(out.journal.some((e) => e.type === 'confirm_declined'));
+});
+
+test('a transient failure is retried with growing, jittered waits', async () => {
+  const v = bank({ fail: new Set(['fly.confirm']), failTimes: { 'fly.confirm': 3 } });
+  const ps = [reservable('fly')];
+  const out = await runSaga({
+    plan: plan(ps), participants: ps, call: v.call, retryDelayMs: 4, retryCapMs: 40,
+  });
+
+  assert.equal(out.outcome, OUTCOME.COMMITTED, 'it should survive three transient failures');
+  const waits = out.journal.filter((e) => e.type === 'confirm_retry').map((e) => e.waitMs);
+  assert.equal(waits.length, 3);
+  // Full jitter: each wait is somewhere in [0, cap for that attempt], so the
+  // ceiling grows even though any individual draw may not.
+  assert.ok(waits.every((w) => w >= 0 && w <= 40), `waits outside the cap: ${waits}`);
+});

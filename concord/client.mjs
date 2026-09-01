@@ -63,7 +63,8 @@ export function bind(ctx, participants) {
     // Both travel in the arguments because WebMCP has no call metadata. They
     // are declared parameters on every commitment step, not smuggled ones.
     const value = await invokeTool(ctx, tool, { ...args, idempotencyKey, sagaId, parties }, signal);
-    if (value?.error) throw new Error(value.error);
+    // The vendor answered, and the answer was no. That is settled, not slow.
+    if (value?.error) throw Object.assign(new Error(value.error), { terminal: Boolean(value.terminal) });
 
     const { attestation, ...result } = value;
     if (attestation) attestations.push(attestation);

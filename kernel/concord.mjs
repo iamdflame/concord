@@ -18,7 +18,8 @@ import { recover } from '/concord/recover.mjs';
 const FLY = 'http://localhost:5177', STAY = 'http://localhost:5178', VISA = 'http://localhost:5179';
 const ALL = [FLY, STAY, VISA];
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s).replace(/[<&]/g, (c) => ({ '<': '&lt;', '&': '&amp;' }[c]));
+const esc = (s) => String(s).replace(/[<>&"']/g, (c) =>
+  ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const INPUTS = {
   fly:  { route: 'LOS-LHR', date: '2026-10-04' },
@@ -41,9 +42,53 @@ const SCENARIOS = [
   { key: 'refused', label: 'Two irreversible',      ids: ['fly', 'visa'],         extra: [PHANTOM] },
 ];
 
-const { ctx } = await resolveModelContext();
-await awaitTools(ctx, ALL, (t) =>
-  ALL.every((o) => t.some((x) => x.origin === o && x.name === 'concord.protocol')));
+/**
+ * Say what went wrong, on the page.
+ *
+ * This module is top-level await, so anything thrown while it boots -- a vendor
+ * that will not load, one returning malformed JSON, discovery timing out --
+ * used to leave a completely blank screen with the reason only in the console.
+ * A blank page is the worst thing a first-time visitor can be handed, and it is
+ * the failure mode most likely to happen on someone else's machine.
+ */
+function fatal(err, context) {
+  const wrap = document.querySelector('.wrap');
+  const detail = String(err?.message ?? err);
+  if (wrap) {
+    wrap.innerHTML = `<div class="col" style="grid-column:1/-1">
+      <div class="promise"><div class="promise-head">
+        <span class="lbl">this coordinator could not start</span>
+        <div class="verdict refused">${esc(context)}</div>
+        <p>${esc(detail)}</p>
+      </div><div class="caveats">
+        <div class="caveat"><b>!</b><span>Concord needs its three vendor origins running.
+          Start them with <code>npm run dev</code> and reload — they are separate origins on
+          ports 5177, 5178 and 5179, and the coordinator deliberately cannot proceed without
+          hearing from all of them.</span></div>
+        <div class="caveat"><b>!</b><span>Nothing was contacted and nothing is outstanding.
+          A commitment that cannot be planned is never started.</span></div>
+      </div></div>
+      <div class="actions"><button onclick="location.reload()">Try again</button></div>
+    </div>`;
+  }
+  document.getElementById('sub').textContent = 'failed to start';
+  globalThis.__CONCORD_ERROR__ = detail;
+  console.error(context, err);
+}
+
+addEventListener('unhandledrejection', (e) => {
+  if (!globalThis.__CONCORD_READY__) fatal(e.reason, 'Something failed while starting up');
+});
+
+let ctx;
+try {
+  ({ ctx } = await resolveModelContext());
+  await awaitTools(ctx, ALL, (t) =>
+    ALL.every((o) => t.some((x) => x.origin === o && x.name === 'concord.protocol')));
+} catch (err) {
+  fatal(err, 'The vendors could not be reached');
+  throw err;
+}
 
 // Intent is written here before every call, and it survives the tab. Without
 // it a coordinator that dies mid-commitment leaves real holds and real charges
@@ -56,7 +101,16 @@ const journal = new Journal(
 // recoverable. Pruning is best-effort and never blocks a commitment.
 journal.prune().catch(() => {});
 
-let discovered = await discover(ctx, ALL);
+let discovered;
+try {
+  discovered = await discover(ctx, ALL);
+  if (discovered.length < ALL.length) {
+    throw new Error(`only ${discovered.length} of ${ALL.length} vendors declared a commitment protocol`);
+  }
+} catch (err) {
+  fatal(err, 'A vendor would not say what it can commit to');
+  throw err;
+}
 let current = SCENARIOS[0];
 let planned = null;
 let running = false;
@@ -317,6 +371,13 @@ $('reset').addEventListener('click', () => {
   setTimeout(async () => { discovered = await discover(ctx, ALL); renderPlan(); }, 900);
 });
 
-renderPlan();
-await showPending();
+try {
+  renderPlan();
+  await showPending();
+} catch (err) {
+  // plan() refuses rather than throws for an unpromisable set, so reaching here
+  // means something structural -- a participant with no protocol at all.
+  fatal(err, 'This commitment could not be planned');
+  throw err;
+}
 globalThis.__CONCORD_READY__ = true;

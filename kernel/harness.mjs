@@ -5,7 +5,8 @@ export function createSuite(name) {
   const rows = document.getElementById('rows');
   const results = [];
 
-  const esc = (s) => String(s).replace(/[<&]/g, (c) => ({ '<': '&lt;', '&': '&amp;' }[c]));
+  const esc = (s) => String(s).replace(/[<>&"']/g, (c) =>
+    ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function record(id, ok, assertion, observed, soft = false) {
     const state = ok ? 'pass' : soft ? 'warn' : 'fail';

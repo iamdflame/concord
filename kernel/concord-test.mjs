@@ -19,7 +19,7 @@ const VISA = 'http://localhost:5179';
 const ALL = [FLY, STAY, VISA];
 
 const { record, finish } = createSuite('CONCORD');
-const { ctx, provider } = await resolveModelContext();
+const { ctx, provider, policy: toolsPolicy } = await resolveModelContext();
 
 await awaitTools(ctx, ALL, (t) =>
   ALL.every((o) => t.some((x) => x.origin === o && x.name === 'concord.protocol')));
@@ -210,4 +210,4 @@ record('C18', (await crashJournal.incomplete()).length === 0,
   'The recovered commitment is settled, so it is not resolved twice',
   `${(await crashJournal.incomplete()).length} outstanding after recovery`);
 
-finish({ provider, guarantee: full.guarantee, receiptRoot: receipt.root });
+finish({ provider, policy: toolsPolicy, guarantee: full.guarantee, receiptRoot: receipt.root });

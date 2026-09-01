@@ -144,10 +144,23 @@ export async function participant({ id, title, protocol, steps, state, render })
           return { ...prior, replayed: true };
         }
         if (failing.has(step)) {
+          // Broken on purpose stands in for "cannot right now", which is a
+          // transient condition. It throws, so the coordinator may retry it.
           log(`${step} refused`, 'broken on purpose by the operator', 'bad');
           throw new Error(`${id} cannot ${step} right now`);
         }
-        const result = await spec.run(args);
+
+        let result;
+        try {
+          result = await spec.run(args);
+        } catch (err) {
+          // A business refusal is an answer: no seats left, no live hold. It is
+          // returned rather than thrown, because retrying it cannot change it,
+          // and a coordinator that cannot tell an answer from silence retries
+          // decisions that were already final.
+          log(`${step} declined`, err.message, 'bad');
+          return { error: err.message, terminal: true };
+        }
         // Sign the bare result, so what the vendor puts its name to is exactly
         // what it did -- not the envelope the coordinator later wraps it in.
         const signed = { ...result, attestation: await attest(step, args, result) };
