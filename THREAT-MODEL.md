@@ -1,0 +1,154 @@
+# Threat model
+
+What Concord defends against, what it does not, and who has to be trusted for
+each claim to hold. Every attack described as closed was written and run against
+the implementation; several of them worked first.
+
+## Who is not trusted
+
+**The coordinator is not trusted by anybody**, including the user running it. It
+orders the calls and assembles the receipt, so it is the one party with both the
+motive and the position to misreport. Almost everything below exists because of
+that.
+
+**Participants are not trusted by each other.** They have no agreement, no
+shared coordinator, and no reason to believe anything the others say.
+
+**The agent is not trusted.** It may be a language model that has read attacker
+text. Its constraints are the shape of the tools it can reach, not its
+instructions.
+
+## Who is trusted, and for what
+
+**Each participant is trusted about itself.** It says what it can commit to and
+whether a step happened. It can lie about both (§15.1 of SPEC.md), and the
+receipt makes the lie attributable rather than preventing it.
+
+**TLS and the browser's origin model.** Key resolution rests entirely on
+fetching a document from the participant's own origin over HTTPS, and
+cross-origin tool access rests on `exposedTo`, `allow="tools"` and
+`Origin-Agent-Cluster`. If those are broken, so is this.
+
+**A participant's signing key.** Held server-side, never by the page.
+
+## Attacks that are closed
+
+Each of these was implemented and run. The verifier's response is quoted.
+
+### A coordinator alters what a participant charged
+
+Changing any field of a statement changes its leaf, so the entries no longer
+hash to the stated root.
+
+> ✗ the entries do not hash to the stated root
+
+Per-entry results are still reported, so the reader learns *which* entry moved.
+
+### A coordinator forges a statement
+
+It can sign only with a key it holds, and verification resolves the key from the
+origin the statement names. The forged entry is present in the tree and
+unsigned by the party it names — two different accusations, kept apart because
+the leaf commits to the statement and not to the signature over it.
+
+> ✗ fly reserve — in tree yes, signed NO
+
+### A coordinator names its own origin as a participant
+
+This one is the deep one, and it worked until `origin` moved inside the signed
+statement. `receipt.vendors` mapped a name to an origin and the coordinator
+wrote that map, so it could point `fly` at an origin it controlled and have its
+own signature verify as the airline's. TLS proves you reached the origin you
+asked for; only that origin's own document proves it is the party being named.
+
+> ✗ https://evil.example identifies itself as "evil", not "fly"
+
+### A coordinator stitches statements from different commitments
+
+Statements carry their `sagaId`.
+
+> ✗ a statement from commitment "s-last-month" appears in a receipt for "s-now"
+
+### A coordinator drops an inconvenient statement
+
+This worked twice. Signing the party list closed dropping a whole participant;
+it did not close dropping one of a participant's two statements, because every
+party was still represented. Each participant now signs the shape of the whole
+commitment, so the survivors testify that something is missing.
+
+> ✗ this claims to have committed, but fly.confirm has no statement — the
+> receipt does not account for the whole commitment its own participants signed
+> up to
+
+### A stolen key is used to rewrite history
+
+Keys carry a validity window. A participant publishing `compromised` with a date
+invalidates everything signed after it while leaving earlier statements
+standing — which is why the date matters and deleting the key would not do.
+
+> ✗ fly reports this key compromised since 2026-08-31, so this signature proves
+> nothing
+
+### An agent commits without disclosing what it is promising
+
+`concord_commit` refuses a proposal whose guarantee has not been read back, and
+refuses any plan the ladder would not guarantee. There is no tool on the agent's
+surface that moves money directly.
+
+### A page is compromised and asks its own backend to sign
+
+The signing endpoint signs only for its own participant at its own origin, only
+once per idempotency key, and only for same-origin requests. A compromised page
+cannot forge another party's word, and cannot go back and restate its own.
+
+## Attacks that are not closed
+
+### A participant lies about its commitment surface
+
+Declaring `compensable` and refusing to compensate is not preventable. It is
+demonstrated on purpose by Meridian Holdings. The result is IN DOUBT, the
+failure is recorded, and the participant's own signature is on the statement it
+declined to reverse.
+
+### The coordinator sees every price
+
+Selective disclosure protects participants from each other. It does not protect
+them from the coordinator, which necessarily sees everything it orders.
+
+### The result in a statement still originates in the page
+
+The signing endpoint is bounded but not closed: it signs a statement handed to
+it by its own same-origin page. Closing this means holding the participant's
+transaction record server-side and constructing the statement there. That is the
+port a production deployment has to make, and it is the difference between
+"bounded oracle" and "no oracle".
+
+### A confirm fan-out can partially commit
+
+See SPEC.md §15.2. Not a defect in the implementation; a property of the
+setting.
+
+### Browser extensions
+
+Chrome's own WebMCP guidance notes that an extension with `host_permissions`
+bypasses the tool model entirely. Nothing here changes that.
+
+### Denial of service
+
+A participant that never answers is abandoned on a deadline and its steps are
+unwound. A participant that answers slowly enough to expire another
+participant's hold can cause a commitment to fail. Neither is prevented, and
+both are reported.
+
+## Assumptions worth stating
+
+- **Clocks.** Key validity windows compare a statement's `at` against published
+  timestamps. A participant that lies about its own clock can place a statement
+  inside a window it should not be in. Its own signature is still on it.
+- **Canonicalisation.** RFC 8785 is used so that a third-party verifier reaches
+  the same bytes. A verifier that canonicalises differently will reject valid
+  receipts rather than accept invalid ones, which is the safe direction.
+- **The shim.** Where WebMCP is unavailable, a polyfill mediates cross-frame
+  calls. It checks that a reply came from the frame the request was sent to and
+  uses unguessable request ids, but it is not a browser and should not be
+  trusted as one. Native WebMCP is the intended substrate.

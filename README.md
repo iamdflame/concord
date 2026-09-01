@@ -391,6 +391,16 @@ mail/ ledger/ pay/  :5174-6                            its three processes
 experiments/tool-synthesis/                            a documented negative result
 ```
 
+## The protocol, written down
+
+- **[SPEC.md](SPEC.md)** — the convention as a protocol document: the
+  declaration, the ladder, guarantee computation, phase order, attestation, key
+  publication, the receipt, and the exact algorithm a verifier must run. Its
+  §15 is the unresolved problems, written down rather than hedged.
+- **[THREAT-MODEL.md](THREAT-MODEL.md)** — who is trusted for what, the attacks
+  that are closed with the verifier's exact response to each, and the ones that
+  are not.
+
 ## Known limits
 
 Stated here rather than left to be found.
