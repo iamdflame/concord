@@ -41,6 +41,32 @@ export async function participant({ id, title, protocol, steps, state, render })
     return { statement, keyId: signed.keyId, signature: signed.signature };
   }
 
+  // Every Concord vendor is recoverable by construction. The kit already knows
+  // which idempotency keys it has honoured, so it can answer the one question a
+  // coordinator needs after a crash -- did this ever happen -- without
+  // performing anything. A vendor that could not answer it would leave the
+  // coordinator guessing, and guessing is how money gets stranded twice.
+  await ctx.registerTool({
+    name: 'concord.status',
+    title: 'Was this step ever performed?',
+    description: 'Given an idempotency key, reports whether that step was carried out, and what it '
+      + 'returned. Performs nothing. Used to resolve a commitment interrupted mid-flight.',
+    inputSchema: {
+      type: 'object',
+      // Deliberately not called idempotencyKey. Every commitment step declares
+      // one of those for its own call, and a probe that reused the name had the
+      // key it was asking about overwritten by the key of the asking -- so the
+      // lookup always missed and recovery quietly found nothing.
+      properties: { lookupKey: { type: 'string', description: 'The idempotency key to look up' } },
+      required: ['lookupKey'],
+    },
+    annotations: { readOnlyHint: true },
+    async execute({ lookupKey }) {
+      const prior = seen.get(lookupKey);
+      return { lookupKey, happened: Boolean(prior), result: prior ?? null };
+    },
+  }, { exposedTo: [COORDINATOR] });
+
   // The commitment surface. WebMCP says what a tool is, not what it promises,
   // so this declaration is the only thing the coordinator trusts about us.
   await ctx.registerTool({
@@ -52,7 +78,12 @@ export async function participant({ id, title, protocol, steps, state, render })
     annotations: { readOnlyHint: true },
     // Declare where the key lives, not the key. Carrying the key here would
     // put it on the same channel as the claim, which anchors nothing.
-    async execute() { return { id, title, keyId, origin: location.origin, ...protocol }; },
+    async execute() {
+      return {
+        id, title, keyId, origin: location.origin, ...protocol,
+        steps: { ...protocol.steps, status: { tool: 'concord.status' } },
+      };
+    },
   }, { exposedTo: [COORDINATOR] });
 
   for (const [step, spec] of Object.entries(steps)) {

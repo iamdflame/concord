@@ -12,6 +12,8 @@ import { discover, bind, withInputs } from '/concord/client.mjs';
 import { plan, describe, GUARANTEE, RUNG } from '/concord/ladder.mjs';
 import { runSaga, OUTCOME } from '/concord/saga.mjs';
 import { buildReceipt, verifyReceipt } from '/concord/receipt.mjs';
+import { Journal, LocalStore } from '/concord/journal.mjs';
+import { recover } from '/concord/recover.mjs';
 
 const FLY = 'http://localhost:5177', STAY = 'http://localhost:5178', VISA = 'http://localhost:5179';
 const ALL = [FLY, STAY, VISA];
@@ -42,6 +44,11 @@ const SCENARIOS = [
 const { ctx } = await resolveModelContext();
 await awaitTools(ctx, ALL, (t) =>
   ALL.every((o) => t.some((x) => x.origin === o && x.name === 'concord.protocol')));
+
+// Intent is written here before every call, and it survives the tab. Without
+// it a coordinator that dies mid-commitment leaves real holds and real charges
+// with nothing anywhere that knows to undo them.
+const journal = new Journal(new LocalStore());
 
 let discovered = await discover(ctx, ALL);
 let current = SCENARIOS[0];
@@ -129,6 +136,47 @@ function line(e) {
          `<span>${esc([e.id, detail].filter(Boolean).join(' · '))}</span></div>`;
 }
 
+let crashAfter = null;
+
+/** Stops the coordinator dead after n calls, the way a closed tab would. */
+function killAfter(call, n) {
+  let seen = 0;
+  return async (...args) => {
+    const result = await call(...args);
+    if (++seen >= n) { const e = new Error('the coordinator stopped'); e.fatal = true; throw e; }
+    return result;
+  };
+}
+
+async function showPending() {
+  const outstanding = await journal.incomplete();
+  if (!outstanding.length) { $('pending').innerHTML = ''; return; }
+
+  const s = outstanding[0];
+  const lines = [...s.completed, ...s.uncertain].map((x) =>
+    `<li>${esc(x.vendor)} · ${esc(x.step)} — ${x.done ? 'happened' : 'unknown; only the vendor knows'}</li>`);
+  $('pending').innerHTML = `<div class="pending">
+    <b>An interrupted commitment was found</b>
+    <p>The coordinator stopped part-way through <code>${esc(s.sagaId)}</code>. These steps are
+    outstanding, and something real may be held or charged right now:</p>
+    <ul>${lines.join('')}</ul>
+    <button id="resolve">Ask each vendor what happened, then resolve it</button>
+  </div>`;
+
+  $('resolve').addEventListener('click', async () => {
+    $('resolve').disabled = true;
+    const fresh = participantsFor(current);
+    const reports = await recover({ journal, participants: fresh, call: bind(ctx, fresh) });
+    const r = reports[0];
+    $('pending').innerHTML = `<div class="pending" style="border-color:var(--ok)">
+      <b style="color:var(--ok)">Resolved — ${esc(r?.outcome ?? 'nothing outstanding')}</b>
+      <p>${r ? r.reversals.map((x) => `${esc(x.vendor)}.${esc(x.step)} ${x.reversed
+        ? `undone via ${esc(x.via)}` : `NOT undone — ${esc(x.why)}`}`).join('<br>') : ''}</p>
+      ${r?.unresolved.length ? `<p style="color:var(--bad)">${r.unresolved.map((u) => esc(u.why)).join('<br>')}</p>` : ''}
+    </div>`;
+  });
+}
+
 async function commit() {
   running = true;
   $('commit').disabled = true;
@@ -142,7 +190,8 @@ async function commit() {
   const out = await runSaga({
     plan: planned,
     participants,
-    call,
+    journal,
+    call: crashAfter ? killAfter(call, crashAfter) : call,
     retryDelayMs: 260,
     onEvent(e) {
       const group = PHASE[e.type];
@@ -189,6 +238,9 @@ async function commit() {
 
   running = false;
   $('commit').disabled = false;
+  $('crash').disabled = false;
+  crashAfter = null;
+  await showPending();
   globalThis.__CONCORD_LAST__ = out;
 }
 
@@ -241,6 +293,17 @@ async function renderReceipt(receipt) {
 }
 
 $('commit').addEventListener('click', commit);
+$('crash').addEventListener('click', async () => {
+  // Two calls in, the hotel has been charged and the coordinator vanishes.
+  crashAfter = 2;
+  $('crash').disabled = true;
+  try { await commit(); } catch { /* the point is that nothing unwinds */ }
+  $('run').insertAdjacentHTML('beforeend',
+    '<div class="ponr-mark">THE COORDINATOR STOPPED HERE. Nothing unwound, because nothing was ' +
+    'left running to unwind it. Reload this page.</div>');
+  await showPending();
+  $('crash').disabled = false;
+});
 $('reset').addEventListener('click', () => {
   for (const id of ['fly', 'stay', 'visa']) $(id).contentWindow.location.reload();
   $('run').innerHTML = '<p class="hint">Vendors reset. Nothing has been contacted.</p>';
@@ -249,4 +312,5 @@ $('reset').addEventListener('click', () => {
 });
 
 renderPlan();
+await showPending();
 globalThis.__CONCORD_READY__ = true;

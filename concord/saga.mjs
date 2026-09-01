@@ -41,16 +41,17 @@ export async function runSaga({
   onEvent = () => {},
   confirmRetries = 3,
   retryDelayMs = 120,
+  journal = null,
   sagaId = `saga_${Math.random().toString(36).slice(2, 10)}`,
 }) {
   const byId = new Map(participants.map((p) => [p.id, p]));
   // Rungs come from the plan, never re-derived here. Two places deciding what a
   // participant can promise is two places to disagree.
   const rungOf = new Map(planned.rungs?.map((r) => [r.id, r.rung]) ?? []);
-  const journal = [];
+  const journal_ = [];      // the event stream shown to a person
   const emit = (type, detail = {}) => {
-    const event = { seq: journal.length, type, sagaId, ...detail };
-    journal.push(event);
+    const event = { seq: journal_.length, type, sagaId, ...detail };
+    journal_.push(event);
     onEvent(event);
     return event;
   };
@@ -61,12 +62,29 @@ export async function runSaga({
   const invoke = async (id, step, args) => {
     const tool = toolFor(id, step);
     if (!tool) throw new Error(`${id} declares no "${step}" step`);
-    return call(id, tool, args, { idempotencyKey: key(id, step), step, sagaId });
+    const idempotencyKey = key(id, step);
+
+    // Intent is written before the call, never after. A log of outcomes alone
+    // cannot distinguish "about to reserve" from "never reserved", and those
+    // need opposite recoveries.
+    await journal?.intent(sagaId, id, step, idempotencyKey, args);
+    try {
+      const result = await call(id, tool, args, { idempotencyKey, step, sagaId });
+      await journal?.result(sagaId, id, step, idempotencyKey, result);
+      return result;
+    } catch (err) {
+      // A dead process writes nothing more, so a fatal error leaves the intent
+      // standing alone -- which is exactly what recovery must see: a step that
+      // may or may not have taken effect. Only a live coordinator gets to
+      // record that a call came back and failed.
+      if (!err.fatal) await journal?.failed(sagaId, id, step, idempotencyKey, err.message);
+      throw err;
+    }
   };
 
   if (planned.guarantee === GUARANTEE.REFUSED) {
     emit('refused', { refusal: planned.refusal });
-    return { outcome: OUTCOME.REFUSED, refusal: planned.refusal, journal, held: [], done: [] };
+    return { outcome: OUTCOME.REFUSED, refusal: planned.refusal, journal: journal_, held: [], done: [] };
   }
 
   emit('plan', {
@@ -110,8 +128,9 @@ export async function runSaga({
     }
 
     const outcome = failures.length ? OUTCOME.IN_DOUBT : OUTCOME.UNWOUND;
+    await journal?.settled(sagaId, outcome);
     emit('done', { outcome, cause: cause.message, failures });
-    return { outcome, cause: cause.message, failures, journal, held, done, committed };
+    return { outcome, cause: cause.message, failures, journal: journal_, held, done, committed };
   }
 
   const inputsFor = (id) => byId.get(id).input ?? {};
@@ -157,6 +176,10 @@ export async function runSaga({
           lastError = null;
           break;
         } catch (err) {
+          // Retrying is only sane against a vendor that might answer next time.
+          // A process that has died cannot retry anything, and pretending it
+          // can turns a crash into an invented in-doubt outcome.
+          if (err.fatal) throw err;
           lastError = err;
           emit('confirm_retry', { id: record.id, attempt, error: err.message });
           if (attempt < confirmRetries) await sleep(retryDelayMs * attempt);
@@ -172,17 +195,23 @@ export async function runSaga({
           ...held.filter((h) => h !== record && !h.confirmed).map((h) => `${h.id} is also unconfirmed`),
         ];
         emit('in_doubt', { id: record.id, error: lastError.message, stranded });
+        await journal?.settled(sagaId, OUTCOME.IN_DOUBT);
         emit('done', { outcome: OUTCOME.IN_DOUBT, cause: lastError.message });
         return {
           outcome: OUTCOME.IN_DOUBT, cause: lastError.message, stranded,
-          journal, held, done, committed,
+          journal: journal_, held, done, committed,
         };
       }
     }
 
+    await journal?.settled(sagaId, OUTCOME.COMMITTED);
     emit('done', { outcome: OUTCOME.COMMITTED, participants: planned.order });
-    return { outcome: OUTCOME.COMMITTED, journal, held, done, committed };
+    return { outcome: OUTCOME.COMMITTED, journal: journal_, held, done, committed };
   } catch (err) {
+    // A process that has died does not unwind -- there is nothing left running
+    // to do it. Recovery picks this up from the journal on the next start, and
+    // simulating it any other way would test a code path that cannot happen.
+    if (err.fatal) throw err;
     return unwind(err);
   }
 }

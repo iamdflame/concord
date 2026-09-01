@@ -84,6 +84,12 @@ button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .outcome p{margin:0;color:var(--ink-2);font-size:12px}
 .outcome code{color:var(--muted);font-size:11px}
 
+.pending{border:1px solid var(--hold);border-left-width:3px;border-radius:3px;background:var(--panel);
+  padding:12px 14px;margin-bottom:14px}
+.pending b{display:block;font-family:var(--sans);font-size:15px;color:var(--hold);margin-bottom:5px}
+.pending p{margin:0 0 4px;color:var(--ink-2);font-size:12px}
+.pending ul{margin:6px 0 10px;padding-left:18px;color:var(--ink-2);font-size:12px}
+.pending button{font-size:11.5px;padding:6px 12px}
 .receipt{margin-top:14px;border:1px solid var(--line);border-radius:3px;background:var(--panel);overflow:hidden}
 .receipt-head{padding:11px 14px;border-bottom:1px solid var(--line-2);display:flex;
   justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
@@ -124,8 +130,10 @@ iframe{width:100%;height:322px;border:1px solid var(--line);border-radius:2px;ba
       <div class="ladder" id="ladder"></div>
       <div class="caveats" id="caveats"></div>
     </div>
+    <div id="pending"></div>
     <div class="actions">
       <button class="go" id="commit">Commit</button>
+      <button id="crash">Commit, then kill the coordinator</button>
       <button id="reset">Reset vendors</button>
     </div>
     <span class="lbl">execution</span>

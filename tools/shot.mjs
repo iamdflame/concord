@@ -77,6 +77,8 @@ try {
       settled: document.getElementById('settled')?.textContent.trim().slice(0,70) ?? '',
       outcome: document.querySelector('.outcome b')?.textContent ?? '',
       stranded: document.querySelector('.outcome p')?.textContent?.slice(0,180) ?? '',
+      pending: document.querySelector('.pending b')?.textContent ?? '',
+      pendingDetail: document.querySelector('.pending ul, .pending p:last-of-type')?.textContent?.trim().slice(0,150) ?? '',
       receipt: document.querySelector('.rstate')?.textContent ?? '',
       receiptDetail: document.querySelector('.receipt .rfoot')?.textContent?.trim().slice(0,110) ?? '',
     })`, returnByValue: true }, sessionId);

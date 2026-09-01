@@ -10,6 +10,8 @@ import { discover, bind, withInputs } from '/concord/client.mjs';
 import { plan, describe, GUARANTEE } from '/concord/ladder.mjs';
 import { runSaga, OUTCOME } from '/concord/saga.mjs';
 import { buildReceipt, verifyReceipt, verifyOwnEntry, leafHash } from '/concord/receipt.mjs';
+import { Journal, MemoryStore } from '/concord/journal.mjs';
+import { recover } from '/concord/recover.mjs';
 
 const FLY = 'http://localhost:5177';
 const STAY = 'http://localhost:5178';
@@ -159,5 +161,42 @@ globalThis.__CONCORD_RECEIPT__ = receipt;
 record('C15', caught2.ok === false && caught2.findings.some((f) => f.included && !f.signed),
   'A statement carrying someone else\'s signature is in the tree but unsigned',
   caught2.findings.filter((f) => !f.signed).map((f) => `${f.vendor}.${f.step} unsigned`).join(', '));
+
+// ── C16-C18 ── the coordinator dies mid-commitment
+// The case that costs real money: the hotel has been charged and the process
+// stops before the reply is recorded, so only the hotel knows it happened.
+const crashParticipants = await load(['fly', 'stay', 'visa']);
+const crashJournal = new Journal(new MemoryStore());
+const liveCall = bind(ctx, crashParticipants);
+let calls = 0;
+const dyingCall = async (...args) => {
+  const out = await liveCall(...args);
+  if (++calls >= 2) { const e = new Error('the coordinator stopped'); e.fatal = true; throw e; }
+  return out;
+};
+
+let died = false;
+try {
+  await runSaga({ plan: plan(crashParticipants), participants: crashParticipants,
+    call: dyingCall, journal: crashJournal });
+} catch (err) { died = err.fatal === true; }
+
+const outstanding = await crashJournal.incomplete();
+record('C16', died && outstanding.length === 1 && outstanding[0].uncertain.length === 1,
+  'A dead coordinator unwinds nothing and leaves the interrupted step unresolved',
+  `${outstanding[0]?.completed.length ?? 0} done · ${outstanding[0]?.uncertain.length ?? 0} uncertain ` +
+  `(${outstanding[0]?.uncertain[0]?.vendor}.${outstanding[0]?.uncertain[0]?.step})`);
+
+const before = (await bind(ctx, crashParticipants)('stay', 'list_transfers', {}, {}).catch(() => null));
+const [report] = await recover({
+  journal: crashJournal, participants: crashParticipants, call: bind(ctx, crashParticipants),
+});
+record('C17', report?.outcome === 'unwound' && report.reversals.length === 2,
+  'Probing each vendor finds the charge only the vendor knew about, and reverses it',
+  report?.reversals.map((r) => `${r.vendor}.${r.step} ${r.reversed ? `via ${r.via}` : 'NOT UNDONE'}`).join(' · '));
+
+record('C18', (await crashJournal.incomplete()).length === 0,
+  'The recovered commitment is settled, so it is not resolved twice',
+  `${(await crashJournal.incomplete()).length} outstanding after recovery`);
 
 finish({ provider, guarantee: full.guarantee, receiptRoot: receipt.root });

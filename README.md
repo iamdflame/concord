@@ -72,6 +72,52 @@ idempotency key, and if that is exhausted it reports **IN DOUBT**, naming what
 is stranded and what becomes of it. Failed compensations are recorded the same
 way — someone has to fix those by hand.
 
+## Surviving the coordinator
+
+A saga held in memory is a demo. Close the tab after Rowan House has been
+charged and $567 is stranded, with nothing anywhere that knows to undo it.
+
+So intent is written **before** each call, not after. The distinction is the
+whole point: a log of outcomes cannot tell *"about to reserve"* from *"never
+reserved"*, and those need opposite recoveries.
+
+```
+intent   stay.execute   key saga_8h.stay.execute
+                        ← the coordinator dies here
+```
+
+That leaves an intent standing alone, which is exactly right — the process
+stopped between the call and the reply, so only the vendor knows whether it
+acted. Two consequences follow, and both are enforced:
+
+- **A dead process unwinds nothing.** There is nothing left running to do it.
+- **A dead process writes nothing**, including "this call failed". Only a live
+  coordinator records a failure.
+
+Recovery does not guess. The idempotency key was journalled before the call, and
+every vendor exposes `concord.status` — *did you ever honour this key* — which
+performs nothing. So the coordinator asks, and only then decides what to undo.
+
+A vendor declaring no status step is reported **unresolved**, never assumed:
+assuming it did not happen strands the charge, and assuming it did refunds a
+booking that was never made.
+
+Press **Commit, then kill the coordinator** on the coordinator page. It stops
+two calls in, with the hotel charged. Reload, and the page says an interrupted
+commitment was found and offers to resolve it:
+
+```
+Resolved — unwound
+stay.execute undone via compensate
+fly.reserve  undone via cancel
+```
+
+The exhaustive test crashes at every step boundary, both before and after the
+vendor acted, and asserts that whatever really happened was undone exactly once.
+It caught two real bugs: the confirm loop was retrying a dead process, and the
+status probe named its parameter `idempotencyKey`, so the key it asked about was
+overwritten by the key of the asking and recovery quietly found nothing.
+
 ## The participants
 
 Three independent businesses with no relationship to each other, each at a
@@ -175,8 +221,8 @@ claim is only worth as much as your ability to break it.
 ## Tests
 
 ```bash
-npm test                 # 27, pure logic — ladder, saga, receipt
-npm run probe:concord    # 15, real origins in a real browser
+npm test                 # 34, pure logic — ladder, saga, receipt, recovery
+npm run probe:concord    # 18, real origins in a real browser
 ```
 
 The protocol core is pure and tested without a browser: ordering, reverse
