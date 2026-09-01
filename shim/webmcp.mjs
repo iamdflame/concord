@@ -105,8 +105,15 @@ class ShimModelContext extends EventTarget {
     }
 
     if (msg.kind === 'tools' || msg.kind === 'result') {
-      const resolve = this.#pending.get(msg.id);
-      if (resolve) { this.#pending.delete(msg.id); resolve({ msg, source: e.source, origin: e.origin }); }
+      const waiting = this.#pending.get(msg.id);
+      // A reply is only a reply if it came back from the frame the request went
+      // to. Request ids were a public counter, so without this any frame in the
+      // tree could forge a tool result -- including a fabricated attestation --
+      // by guessing the next number.
+      if (!waiting) return;
+      if (waiting.window && e.source !== waiting.window) return;
+      this.#pending.delete(msg.id);
+      waiting.resolve({ msg, source: e.source, origin: e.origin });
       return;
     }
 
@@ -139,9 +146,9 @@ class ShimModelContext extends EventTarget {
     const replies = await Promise.all(frameTree()
       .filter((w) => w !== window)
       .map((w) => {
-        const id = `${ORIGIN}#${this.#seq++}`;
+        const id = `${ORIGIN}#${crypto.randomUUID()}`;
         const settled = new Promise((resolve) => {
-          this.#pending.set(id, resolve);
+          this.#pending.set(id, { resolve, window: w });
           setTimeout(() => { this.#pending.delete(id); resolve(null); }, 250);
         });
         try { trace('send', { kind: 'query', id }); w.postMessage({ [WIRE]: { kind: 'query', id } }, '*'); }
@@ -161,15 +168,21 @@ class ShimModelContext extends EventTarget {
   }
 
   async executeTool(tool, args = {}, options = {}) {
+    // Chrome's API takes a JSON string. Accepting both keeps one call site
+    // working against the shim and the native implementation alike.
+    if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = {}; } }
     if (tool.origin === ORIGIN && this.#local.has(tool.name)) {
       const entry = this.#local.get(tool.name);
       const signal = options.signal ?? new AbortController().signal;
       return JSON.stringify(await entry.tool.execute(args, { signal }));
     }
 
-    const id = `${ORIGIN}#${this.#seq++}`;
+    const id = `${ORIGIN}#${crypto.randomUUID()}`;
     const settled = new Promise((resolve, reject) => {
-      this.#pending.set(id, ({ msg }) => msg.ok ? resolve(msg.value) : reject(new Error(msg.error)));
+      this.#pending.set(id, {
+        window: tool.window,
+        resolve: ({ msg }) => msg.ok ? resolve(msg.value) : reject(new Error(msg.error)),
+      });
       options.signal?.addEventListener('abort', () => {
         this.#pending.delete(id);
         reject(new DOMException('tool execution aborted', 'AbortError'));

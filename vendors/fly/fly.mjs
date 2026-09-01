@@ -1,5 +1,5 @@
 // Northwind Air — the strongest rung. Nothing observable happens until confirm.
-import { participant } from '/kit/vendor.mjs';
+import { participant, esc } from '/kit/vendor.mjs';
 
 const state = { inventory: 4, holds: new Map(), tickets: [] };
 const usd = (m) => `$${(m / 100).toFixed(2)}`;
@@ -30,7 +30,7 @@ await participant({
       async run({ route, date }) {
         if (state.inventory < 1) throw new Error('no seats left on that departure');
         state.inventory -= 1;
-        const ref = `NW${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+        const ref = `NW${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
         state.holds.set(ref, { ref, route, date, minor: 74200, at: Date.now() });
         return { ref, route, minor: 74200, expiresInSeconds: 900 };
       },
@@ -70,8 +70,8 @@ await participant({
   },
   render: (s) => `<div class="row"><span>seats available</span><b class="num">${s.inventory}</b></div>`
     + [...s.holds.values()].map((h) =>
-        `<div class="row"><span>${h.ref} · ${h.route}</span><span class="pill held">held</span></div>`).join('')
+        `<div class="row"><span>${esc(h.ref)} · ${esc(h.route)}</span><span class="pill held">held</span></div>`).join('')
     + s.tickets.map((t) =>
-        `<div class="row"><span>${t.ref} · ${t.route}</span><span class="pill done">ticketed ${usd(t.minor)}</span></div>`).join('')
+        `<div class="row"><span>${esc(t.ref)} · ${esc(t.route)}</span><span class="pill done">ticketed ${usd(t.minor)}</span></div>`).join('')
     + (!s.holds.size && !s.tickets.length ? '<div class="empty">no holds, no tickets</div>' : ''),
 });

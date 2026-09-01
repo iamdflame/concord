@@ -84,9 +84,14 @@ export async function verifyInclusion(leaf, proof, root) {
 
 // ── vendor statements ───────────────────────────────────────────────────────
 
-/** Exactly what a vendor puts its name to. Nothing here is the coordinator's. */
-export function statement({ sagaId, vendor, step, idempotencyKey, result }) {
-  return { sagaId, vendor, step, idempotencyKey, result };
+/**
+ * Exactly what a vendor puts its name to. Nothing here is the coordinator's.
+ *
+ * origin and parties are the two fields that make the receipt stand on its own:
+ * the first anchors the key to the party, the second makes an omission visible.
+ */
+export function statement({ sagaId, origin, vendor, parties = [], step, idempotencyKey, result, at }) {
+  return { sagaId, origin, vendor, parties: [...parties].sort(), step, idempotencyKey, at, result };
 }
 
 export async function importVerifyKey(jwk) {
@@ -101,18 +106,33 @@ export async function importVerifyKey(jwk) {
  * proves which origin it is talking to.
  */
 export async function fetchKeys(origin) {
-  const res = await fetch(`${origin}/.well-known/concord.json`);
+  const res = await fetch(`${origin}/.well-known/concord.json`, { redirect: 'error' });
   if (!res.ok) throw new Error(`${origin} publishes no concord key document`);
   const doc = await res.json();
-  return Object.fromEntries(doc.keys.map((k) => [k.keyId, k.publicKey]));
+  if (!Array.isArray(doc?.keys)) throw new Error(`${origin} published a malformed key document`);
+  return { vendor: doc.vendor, keys: Object.fromEntries(doc.keys.map((k) => [k.keyId, k.publicKey])) };
 }
 
-/** Default resolver: ask each vendor's origin. Injectable so tests stay offline. */
+/**
+ * Default resolver: ask the origin the statement itself names.
+ *
+ * It also checks that the origin claims to be the vendor the statement says it
+ * is. TLS proves you reached the origin you asked for; only the origin's own
+ * document proves that origin is the party being named.
+ */
 export function originResolver() {
   const cache = new Map();
   return async function resolve(vendor, origin, keyId) {
-    if (!cache.has(origin)) cache.set(origin, fetchKeys(origin));
-    return (await cache.get(origin))[keyId] ?? null;
+    // A rejected promise used to be cached forever, so one transient failure
+    // poisoned that origin for the life of the verifier.
+    if (!cache.has(origin)) {
+      cache.set(origin, fetchKeys(origin).catch((err) => { cache.delete(origin); throw err; }));
+    }
+    const doc = await cache.get(origin);
+    if (doc.vendor !== vendor) {
+      throw new Error(`${origin} identifies itself as "${doc.vendor}", not "${vendor}"`);
+    }
+    return doc.keys[keyId] ?? null;
   };
 }
 
@@ -150,32 +170,69 @@ export async function buildReceipt({ sagaId, outcome, entries, vendors }) {
  */
 export async function verifyReceipt(receipt, resolve = originResolver()) {
   const findings = [];
-  const leaves = await Promise.all(receipt.entries.map(leafHash));
-  const { root } = await buildTree(leaves);
+  const complaints = [];
+  const entries = receipt.entries ?? [];
+  if (!entries.length) return { ok: false, findings: [{ ok: false, why: 'the receipt contains no statements' }] };
 
+  const leaves = await Promise.all(entries.map(leafHash));
+  const { root } = await buildTree(leaves);
   if (root !== receipt.root) {
-    findings.push({ ok: false, why: 'the entries do not hash to the stated root' });
-    return { ok: false, findings };
+    // Still report per entry below, so the reader learns which one moved rather
+    // than only that something did.
+    complaints.push('the entries do not hash to the stated root');
   }
 
-  for (const [i, entry] of receipt.entries.entries()) {
-    const { vendor } = entry.statement;
-    const where = receipt.vendors?.[vendor];
-    const included = await verifyInclusion(leaves[i], receipt.proofs[i], receipt.root);
+  // ── the receipt is one commitment, not a scrapbook ──────────────────────
+  // Nothing used to bind a statement to this saga, so a coordinator could
+  // stitch signed statements from unrelated transactions into one receipt and
+  // assert any outcome over them.
+  for (const entry of entries) {
+    if (entry.statement?.sagaId !== receipt.sagaId) {
+      complaints.push(`a statement from commitment "${entry.statement?.sagaId}" appears in a receipt for "${receipt.sagaId}"`);
+      break;
+    }
+  }
+
+  // ── nobody was left out ─────────────────────────────────────────────────
+  // Each vendor signed the full party list, so dropping an inconvenient
+  // statement leaves the survivors testifying that something is missing.
+  const declared = entries.map((e) => (e.statement?.parties ?? []).join(','));
+  if (new Set(declared).size > 1) {
+    complaints.push('the statements disagree about who was party to this commitment');
+  } else if (declared[0]) {
+    const present = new Set(entries.map((e) => e.statement.vendor));
+    const missing = declared[0].split(',').filter((v) => v && !present.has(v));
+    if (missing.length) complaints.push(`no statement from ${missing.join(', ')}, who every other vendor names as party to this`);
+  }
+
+  for (const [i, entry] of entries.entries()) {
+    const { vendor, origin } = entry.statement ?? {};
+    const included = await verifyInclusion(leaves[i], receipt.proofs?.[i] ?? [], receipt.root);
 
     let jwk = null, why = null;
     try {
-      jwk = where ? await resolve(vendor, where.origin, entry.keyId ?? where.keyId) : null;
-      if (!jwk) why = `${vendor} publishes no key ${entry.keyId ?? where?.keyId} at ${where?.origin ?? 'an unknown origin'}`;
+      // Resolved from the origin inside the signed statement. Never from
+      // receipt.vendors, which the coordinator writes and the accused party
+      // does not: that map let a coordinator name its own origin as the airline
+      // and have its own signature verify.
+      if (!origin) why = 'the statement names no origin, so its key cannot be resolved';
+      else {
+        jwk = await resolve(vendor, origin, entry.keyId);
+        if (!jwk) why = `${origin} publishes no key ${entry.keyId}`;
+      }
     } catch (err) { why = err.message; }
 
     const signed = jwk ? await verifyStatement(entry, jwk) : false;
     findings.push({
-      index: i, vendor, step: entry.statement.step, keyId: entry.keyId,
+      index: i, vendor, origin, step: entry.statement?.step, keyId: entry.keyId,
       included, signed, ok: included && signed, ...(why && { why }),
     });
   }
-  return { ok: findings.every((f) => f.ok), root, findings };
+
+  return {
+    ok: complaints.length === 0 && findings.every((f) => f.ok),
+    root, findings, complaints,
+  };
 }
 
 /**

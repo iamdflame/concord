@@ -5,6 +5,21 @@
 // the same question -- what can you commit to? -- and everything after that is
 // built from the answers.
 
+/**
+ * Chrome's imperative API takes tool arguments as a JSON **string**:
+ *
+ *   await document.modelContext.executeTool(tool, '{"text": "Buy milk"}')
+ *
+ * The shim accepted objects, so everything was green locally and every vendor
+ * call would have failed on the native API -- the one path judges actually run.
+ * Arguments go out as a string; the shim was taught to accept both.
+ */
+async function invokeTool(ctx, tool, args) {
+  const raw = await ctx.executeTool(tool, JSON.stringify(args));
+  if (typeof raw !== 'string') return raw;          // an implementation that returns values
+  try { return JSON.parse(raw); } catch { return raw; }   // …or a bare string, per the docs
+}
+
 export async function discover(ctx, origins) {
   const tools = await ctx.getTools({ fromOrigins: origins });
   const participants = [];
@@ -17,7 +32,7 @@ export async function discover(ctx, origins) {
     // deliver, which is the one failure this whole design exists to prevent.
     if (!declaration) continue;
 
-    const protocol = JSON.parse(await ctx.executeTool(declaration, {}));
+    const protocol = await invokeTool(ctx, declaration, {});
     participants.push({
       id: protocol.id,
       title: protocol.title,
@@ -40,15 +55,14 @@ export function bind(ctx, participants) {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const attestations = [];
 
-  const call = async function call(id, toolName, args, { idempotencyKey, sagaId }) {
+  const call = async function call(id, toolName, args, { idempotencyKey, sagaId, parties }) {
     const participant = byId.get(id);
     const tool = participant?.tools[toolName];
     if (!tool) throw new Error(`${id} does not expose ${toolName}`);
 
     // Both travel in the arguments because WebMCP has no call metadata. They
     // are declared parameters on every commitment step, not smuggled ones.
-    const raw = await ctx.executeTool(tool, { ...args, idempotencyKey, sagaId });
-    const value = JSON.parse(raw);
+    const value = await invokeTool(ctx, tool, { ...args, idempotencyKey, sagaId, parties });
     if (value?.error) throw new Error(value.error);
 
     const { attestation, ...result } = value;

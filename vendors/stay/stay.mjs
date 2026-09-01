@@ -1,6 +1,6 @@
 // Rowan House — compensable. The booking is real, the charge is real, and a
 // reversal is a second real event rather than an erasure of the first.
-import { participant } from '/kit/vendor.mjs';
+import { participant, esc } from '/kit/vendor.mjs';
 
 const state = { bookings: [], ledger: [] };
 const usd = (m) => `$${(m / 100).toFixed(2)}`;
@@ -28,7 +28,7 @@ await participant({
       required: ['nights'],
       async run({ nights, city }) {
         const minor = 18900 * (nights ?? 1);
-        const ref = `RH${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+        const ref = `RH${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
         state.bookings.push({ ref, nights, city, minor, status: 'booked' });
         state.ledger.push({ ref, minor, kind: 'charge' });
         return { ref, minor, nights, charged: true };
@@ -55,7 +55,7 @@ await participant({
     },
   },
   render: (s) => (s.bookings.length
-      ? s.bookings.map((b) => `<div class="row"><span>${b.ref} · ${b.nights} nights</span>` +
+      ? s.bookings.map((b) => `<div class="row"><span>${esc(b.ref)} · ${esc(b.nights)} nights</span>` +
           `<span class="pill ${b.status === 'booked' ? 'done' : 'gone'}">${b.status} ${usd(b.minor)}</span></div>`).join('')
       : '<div class="empty">no bookings</div>')
     + `<div class="row"><span>net charged</span><b class="num">${

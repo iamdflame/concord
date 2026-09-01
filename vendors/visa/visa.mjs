@@ -1,6 +1,6 @@
 // Consular Fee — the weakest rung, and the reason the ladder exists. There is
 // no cancel step here and none can be invented: a government fee is gone.
-import { participant } from '/kit/vendor.mjs';
+import { participant, esc } from '/kit/vendor.mjs';
 
 const state = { fees: [] };
 const usd = (m) => `$${(m / 100).toFixed(2)}`;
@@ -28,7 +28,7 @@ await participant({
       required: ['applicant'],
       tone: 'bad',
       async run({ applicant, country }) {
-        const ref = `CF${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+        const ref = `CF${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
         state.fees.push({ ref, applicant, country, minor: 26000 });
         return { ref, minor: 26000, refundable: false };
       },
@@ -36,7 +36,7 @@ await participant({
     },
   },
   render: (s) => (s.fees.length
-    ? s.fees.map((f) => `<div class="row"><span>${f.ref} · ${f.applicant}</span>` +
+    ? s.fees.map((f) => `<div class="row"><span>${esc(f.ref)} · ${esc(f.applicant)}</span>` +
         `<span class="pill done">${usd(f.minor)} taken</span></div>`).join('')
     : '<div class="empty">no fees taken</div>'),
 });

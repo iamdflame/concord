@@ -53,7 +53,10 @@ export async function runSaga({
   confirmRetries = 3,
   retryDelayMs = 120,
   journal = null,
-  sagaId = `saga_${Math.random().toString(36).slice(2, 10)}`,
+  // ~41 bits of Math.random over a fully public key structure. Anything that
+  // could guess a sagaId could pre-poison a vendor's dedupe map, in a protocol
+  // whose entire safety story rests on those keys.
+  sagaId = `saga_${crypto.randomUUID()}`,
 }) {
   if (!(confirmRetries >= 1)) throw new TypeError('confirmRetries must be at least 1');
 
@@ -78,7 +81,7 @@ export async function runSaga({
     if (!statusTool) return null;
     try {
       return await call(id, statusTool, { lookupKey: idempotencyKey },
-        { idempotencyKey: `${idempotencyKey}.status`, step: 'status', sagaId });
+        { idempotencyKey: `${idempotencyKey}.status`, step: 'status', sagaId, parties: planned.order });
     } catch { return null; }
   };
 

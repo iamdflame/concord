@@ -10,10 +10,19 @@ import { canonical } from '/kit/canonical.mjs';
 
 export const COORDINATOR = 'http://localhost:5173';
 
-/** Every commitment step declares these. Neither is smuggled in. */
+/** Tool arguments are attacker-controlled from this origin's point of view. */
+export const esc = (s) => String(s).replace(/[<>&"']/g, (c) =>
+  ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
+
+
+/** Every commitment step declares these. None of them is smuggled in. */
 export const KEY_PARAM = {
   idempotencyKey: { type: 'string', description: 'Stable key for this step; a repeat returns the first result' },
   sagaId: { type: 'string', description: 'The commitment this step belongs to; it is covered by the signature' },
+  parties: {
+    type: 'array', items: { type: 'string' },
+    description: 'Every vendor in this commitment. Signed, so a statement cannot be quietly dropped from the receipt',
+  },
 };
 
 export async function participant({ id, title, protocol, steps, state, render }) {
@@ -31,8 +40,21 @@ export async function participant({ id, title, protocol, steps, state, render })
 
   async function attest(step, args, result) {
     const statement = {
-      sagaId: args.sagaId ?? null, vendor: id, step,
-      idempotencyKey: args.idempotencyKey, result,
+      sagaId: args.sagaId ?? null,
+      // The vendor's own origin, inside what it signs. A verifier resolves the
+      // key from here rather than from a name-to-origin map the coordinator
+      // wrote -- that map let a coordinator point "fly" at an origin it
+      // controlled and have its own signature verify as the airline's.
+      origin: location.origin,
+      vendor: id,
+      // Who else is in this commitment. Signed, so dropping an inconvenient
+      // statement from the receipt leaves the survivors testifying that
+      // something is missing.
+      parties: [...(args.parties ?? [])].sort(),
+      step,
+      idempotencyKey: args.idempotencyKey,
+      at: new Date().toISOString(),
+      result,
     };
     const signed = await (await fetch('/_concord/sign', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -136,6 +158,11 @@ export async function participant({ id, title, protocol, steps, state, render })
   // The same switch a person flips, drivable from the embedding page so the
   // integration suite can break a vendor mid-transaction the way a judge would.
   addEventListener('message', (e) => {
+    // Only the coordinator embedding this page may flip these. Without the
+    // check, any frame in the tab could force a vendor to fail and strand
+    // money -- an unguarded control channel in a design whose whole premise is
+    // mutually distrusting origins.
+    if (e.origin !== COORDINATOR) return;
     const order = e.data?.__concord_break__;
     if (!order || !steps[order.step]) return;
     order.on ? failing.add(order.step) : failing.delete(order.step);
@@ -149,7 +176,7 @@ export async function participant({ id, title, protocol, steps, state, render })
     if (!feed) return;
     if (feed.querySelector('.empty')) feed.innerHTML = '';
     feed.insertAdjacentHTML('afterbegin',
-      `<div class="ev ${tone}"><b>${what}</b><span>${String(detail).replace(/[<&]/g, '')}</span></div>`);
+      `<div class="ev ${tone}"><b>${esc(what)}</b><span>${esc(detail)}</span></div>`);
   }
   function paint() {
     const el = document.getElementById('state');

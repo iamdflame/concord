@@ -6,7 +6,17 @@ import {
   statement, buildReceipt, verifyReceipt, verifyOwnEntry,
 } from './receipt.mjs';
 
-/** Stands in for fetching /.well-known/concord.json, so tests stay offline. */
+/**
+ * Stands in for fetching /.well-known/concord.json, so tests stay offline.
+ * Mirrors the real resolver: the origin states which vendor it is, and a
+ * mismatch is refused rather than accepted on the coordinator's say-so.
+ */
+const directory = (origins) => async (vendor, origin, keyId) => {
+  const doc = origins[origin];
+  if (!doc) throw new Error(`${origin} publishes no concord key document`);
+  if (doc.vendor !== vendor) throw new Error(`${origin} identifies itself as "${doc.vendor}", not "${vendor}"`);
+  return doc.keys[keyId] ?? null;
+};
 const resolver = (byVendor) => async (vendor, origin, keyId) =>
   byVendor[vendor]?.keyId === keyId ? byVendor[vendor].jwk : null;
 
@@ -21,9 +31,15 @@ async function sign(privateKey, stmt) {
   return btoa(String.fromCharCode(...new Uint8Array(sig)));
 }
 
-const entryFor = async (kp, vendor, step, result) => {
-  const stmt = statement({ sagaId: 's1', vendor, step, idempotencyKey: `s1.${vendor}.${step}`, result });
-  return { statement: stmt, signature: await sign(kp.pair.privateKey, stmt) };
+const entryFor = async (kp, vendor, step, result, over = {}) => {
+  const stmt = statement({
+    sagaId: over.sagaId ?? 's1',
+    origin: over.origin ?? `https://${vendor}.example`,
+    vendor, parties: over.parties ?? [vendor], step,
+    idempotencyKey: `${over.sagaId ?? 's1'}.${vendor}.${step}`,
+    at: '2026-09-01T00:00:00Z', result,
+  });
+  return { statement: stmt, keyId: over.keyId ?? `k-${vendor}`, signature: await sign(kp.pair.privateKey, stmt) };
 };
 
 test('every leaf proves inclusion, at every tree size', async () => {
@@ -49,8 +65,8 @@ test('an odd node is promoted, not hashed with a copy of itself', async () => {
 
 test('changing any entry changes the root', async () => {
   const kp = await keypair();
-  const entries = [{ ...(await entryFor(kp, 'fly', 'confirm', { minor: 74200 })), keyId: 'k-fly' }];
-  const resolve = resolver({ fly: { keyId: 'k-fly', jwk: kp.jwk } });
+  const entries = [await entryFor(kp, 'fly', 'confirm', { minor: 74200 })];
+  const resolve = directory({ 'https://fly.example': { vendor: 'fly', keys: { 'k-fly': kp.jwk } } });
   const receipt = await buildReceipt({ sagaId: 's1', outcome: 'committed', entries,
     vendors: { fly: { origin: 'https://fly.example', keyId: 'k-fly' } } });
   assert.equal((await verifyReceipt(receipt, resolve)).ok, true);
@@ -58,7 +74,8 @@ test('changing any entry changes the root', async () => {
   receipt.entries[0].statement.result.minor = 1;
   const after = await verifyReceipt(receipt, resolve);
   assert.equal(after.ok, false);
-  assert.match(after.findings[0].why ?? '', /do not hash to the stated root/);
+  // A root mismatch is a complaint about the receipt, not about one party.
+  assert.match(after.complaints.join(' '), /do not hash to the stated root/);
 });
 
 test('a vendor verifies its own entry without seeing anyone else', async () => {
@@ -125,4 +142,85 @@ test('a receipt naming a key the vendor does not publish is not verifiable', asy
   assert.equal(out.ok, false);
   assert.equal(out.findings[0].included, true);
   assert.match(out.findings[0].why, /publishes no key rotated-away/);
+});
+
+test('statements from another commitment cannot be stitched into this receipt', async () => {
+  const air = await keypair(), hotel = await keypair();
+  const receipt = await buildReceipt({ sagaId: 's1', outcome: 'committed', entries: [
+    await entryFor(air, 'fly', 'confirm', { ok: true }, { sagaId: 'last-month', parties: ['fly', 'stay'] }),
+    await entryFor(hotel, 'stay', 'execute', { ok: true }, { parties: ['fly', 'stay'] }),
+  ] });
+  const out = await verifyReceipt(receipt, directory({
+    'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } },
+    'https://stay.example': { vendor: 'stay', keys: { 'k-stay': hotel.jwk } },
+  }));
+  assert.equal(out.ok, false);
+  assert.match(out.complaints.join(' '), /from commitment "last-month" appears in a receipt for "s1"/);
+});
+
+test('a coordinator cannot name its own origin as the vendor', async () => {
+  // The deep one. TLS proves you reached the origin you asked for; only the
+  // origin's own document proves that origin is the party being named.
+  const evil = await keypair(), hotel = await keypair();
+  const receipt = await buildReceipt({ sagaId: 's1', outcome: 'committed', entries: [
+    await entryFor(evil, 'fly', 'confirm', { minor: 999999 },
+      { origin: 'https://coordinator.example', parties: ['fly', 'stay'] }),
+    await entryFor(hotel, 'stay', 'execute', { ok: true }, { parties: ['fly', 'stay'] }),
+  ] });
+  const out = await verifyReceipt(receipt, directory({
+    'https://coordinator.example': { vendor: 'coordinator', keys: { 'k-fly': evil.jwk } },
+    'https://stay.example': { vendor: 'stay', keys: { 'k-stay': hotel.jwk } },
+  }));
+  assert.equal(out.ok, false);
+  assert.match(out.findings.find((f) => !f.ok).why, /identifies itself as "coordinator", not "fly"/);
+});
+
+test('dropping a statement leaves the survivors testifying that one is missing', async () => {
+  const air = await keypair(), hotel = await keypair();
+  const parties = ['fly', 'stay'];
+  const both = [
+    await entryFor(air, 'fly', 'confirm', { ok: true }, { parties }),
+    await entryFor(hotel, 'stay', 'execute', { minor: 56700 }, { parties }),
+  ];
+  const dir = directory({
+    'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } },
+    'https://stay.example': { vendor: 'stay', keys: { 'k-stay': hotel.jwk } },
+  });
+
+  assert.equal((await verifyReceipt(await buildReceipt(
+    { sagaId: 's1', outcome: 'committed', entries: both }), dir)).ok, true);
+
+  const trimmed = await verifyReceipt(await buildReceipt(
+    { sagaId: 's1', outcome: 'committed', entries: [both[0]] }), dir);
+  assert.equal(trimmed.ok, false);
+  assert.match(trimmed.complaints.join(' '), /no statement from stay/);
+});
+
+test('statements that disagree about who took part are refused', async () => {
+  const air = await keypair(), hotel = await keypair();
+  const receipt = await buildReceipt({ sagaId: 's1', outcome: 'committed', entries: [
+    await entryFor(air, 'fly', 'confirm', { ok: true }, { parties: ['fly', 'stay'] }),
+    await entryFor(hotel, 'stay', 'execute', { ok: true }, { parties: ['fly', 'stay', 'visa'] }),
+  ] });
+  const out = await verifyReceipt(receipt, directory({
+    'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } },
+    'https://stay.example': { vendor: 'stay', keys: { 'k-stay': hotel.jwk } },
+  }));
+  assert.equal(out.ok, false);
+  assert.match(out.complaints.join(' '), /disagree about who was party/);
+});
+
+test('a root mismatch still reports per entry, not one generic failure', async () => {
+  // The README promised the receipt names the bad statement rather than
+  // collapsing into "invalid". The early return meant it collapsed.
+  const air = await keypair();
+  const receipt = await buildReceipt({ sagaId: 's1', outcome: 'committed',
+    entries: [await entryFor(air, 'fly', 'confirm', { minor: 74200 })] });
+  receipt.entries[0].statement.result.minor = 1;
+  const out = await verifyReceipt(receipt, directory({
+    'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } } }));
+  assert.equal(out.ok, false);
+  assert.match(out.complaints.join(' '), /do not hash to the stated root/);
+  assert.equal(out.findings.length, 1, 'per-entry detail must survive a root mismatch');
+  assert.equal(out.findings[0].vendor, 'fly');
 });
