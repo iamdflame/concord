@@ -405,8 +405,11 @@ experiments/tool-synthesis/                            a documented negative res
   it at your own origin; every line names the section it enforces.
 
 ```bash
-npm run conformance
+npm run conformance                                    # locally
 ```
+
+Or open **<https://concord-coordinator.vercel.app/conformance.html>** — it runs
+against the live participants, in your browser, with nothing installed.
 
 All five participants here reach **L3 — attesting**: they declare a commitment
 surface, can be asked afterwards what happened, are idempotent under a repeated

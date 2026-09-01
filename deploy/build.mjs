@@ -112,7 +112,15 @@ async function buildApp(appOrigin) {
     ['kernel/agent.mjs', 'agent.mjs'],
     ['kernel/agent-tools.mjs', 'agent-tools.mjs'],
     ['kernel/harness.mjs', 'harness.mjs'],
-  ]) await cp(join(root, from), join(bundle, to));
+    // The conformance suite ships with the deployment, so anyone can point it
+    // at these participants -- or their own -- without cloning anything.
+    ['kernel/conformance.html', 'conformance.html'],
+    ['kernel/conformance.mjs', 'conformance.mjs'],
+    ['spec/conformance.mjs', 'spec/conformance.mjs'],
+  ]) {
+    await mkdir(join(bundle, dirname(to)), { recursive: true });
+    await cp(join(root, from), join(bundle, to));
+  }
 
   // The page loads ./concord.mjs at the root of its own deployment.
   const html = (await readFile(join(bundle, 'index.html'), 'utf8'))
