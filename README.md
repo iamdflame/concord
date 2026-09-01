@@ -70,12 +70,57 @@ driving the same registered tools and nothing about the safety story changes.
 That is the point: the constraint is the shape of the surface, not anybody's
 prompt.
 
+## Live
+
+**<https://concord-coordinator.vercel.app>**
+
+Four independent businesses, each its own deployment on its own HTTPS origin —
+[Northwind Air](https://concord-fly.vercel.app),
+[Rowan House](https://concord-stay.vercel.app),
+[Consular Fee](https://concord-visa.vercel.app),
+[Entry Permit](https://concord-permit.vercel.app). Separate projects, separate
+origins, separate signing keys held by each vendor's own backend. The browser
+boundary between them is the real one; five paths on one host would have been a
+lie about the only thing this project claims.
+
+Ask it for a flight, a hotel and the visa fee. Then ask for a flight, the visa
+fee **and** the entry permit, and watch it refuse.
+
+## Running it yourself
+
 ```bash
-npm run dev            # seven origins
-npm run concord        # the coordinator
+npm run dev     # nine origins: the coordinator, four vendors, Ring 0's three
 ```
 
-Then open <http://localhost:5173/concord.html>, and break a vendor while it runs.
+Then open <http://localhost:5173/concord.html> and break a vendor while it runs.
+
+```bash
+npm test                          # the protocol, without a browser
+npm run probe:concord             # the protocol against real origins
+npm run export receipt.json       # ask the agent, consent, write the receipt out
+npm run verify receipt.json       # check it, with nothing from the coordinator
+```
+
+Those last two work against the deployment, not just localhost:
+
+```bash
+URL=https://concord-coordinator.vercel.app/ npm run export receipt.json
+npm run verify receipt.json
+```
+
+```
+  resolving fly → https://concord-fly.vercel.app/.well-known/concord.json
+  ✓ fly     reserve    in tree yes   signed yes   key in force
+  ✓ stay    execute    in tree yes   signed yes   key in force
+  ✓ visa    execute    in tree yes   signed yes   key in force
+  ✓ fly     confirm    in tree yes   signed yes   key in force
+
+VERIFIED — 4/4 statements signed by the party named and provably part of this receipt.
+```
+
+Nothing of the coordinator's is involved in that second command. It reads the
+file, fetches each vendor's key from that vendor's own origin over TLS, and
+checks every statement was signed by the party it names.
 
 ## The hard part is refusing to lie
 
@@ -271,8 +316,8 @@ claim is only worth as much as your ability to break it.
 ## Tests
 
 ```bash
-npm test                 # 34, pure logic — ladder, saga, receipt, recovery
-npm run probe:concord    # 18, real origins in a real browser
+npm test                 # 77 assertions, pure logic, no browser
+npm run probe:concord    # the protocol against real origins in a real browser
 ```
 
 The protocol core is pure and tested without a browser: ordering, reverse
