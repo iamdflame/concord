@@ -250,7 +250,11 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
     const present = new Set(entries.map((e) => e.statement.vendor));
     const missing = (plan.parties ?? []).filter((v) => !present.has(v));
     if (missing.length) {
-      complaints.push(`no statement from ${missing.join(', ')}, who every other vendor names as party to this`);
+      // A party whose step failed has nothing to sign, so silence from it is
+      // only damning when the receipt claims everything succeeded.
+      const line = `no statement from ${missing.join(', ')}, who every other vendor names as party to this`;
+      if (receipt.outcome === 'committed') complaints.push(line);
+      else notes.push(`${line} — consistent with an outcome of "${receipt.outcome}"`);
     }
 
     const seen = new Set(entries.map((e) => `${e.statement.vendor}.${e.statement.step}`));

@@ -149,6 +149,9 @@ export class AgentSurface {
       stands: out.outcome === OUTCOME.COMMITTED ? p.planned.order : [],
       cause: out.cause ?? null,
       stranded: out.stranded ?? null,
+      // A vendor that declared it could reverse something and then would not.
+      // The agent has to be able to say whose promise was broken.
+      broken: (out.failures ?? []).filter((f) => f.step === 'compensate' || f.step === 'cancel'),
       unrecorded: out.unrecorded ?? null,
       attestations: call.attestations,
       vendors: call.vendors,

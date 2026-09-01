@@ -342,3 +342,28 @@ test('an honest unwound receipt is not failed for the steps that never ran', asy
   assert.match(out.notes.join(' '), /fly\.confirm never happened/);
   assert.equal(out.complaints.length, 0);
 });
+
+test('a party that never acted is not treated as a missing statement', async () => {
+  // In an unwound commitment the vendor whose step failed has nothing to sign.
+  // Failing the receipt for its silence would make every honest failure look
+  // like a coordinator hiding something.
+  const air = await keypair();
+  const parties = ['fly', 'visa'];
+  const steps = ['fly.reserve', 'fly.confirm', 'visa.execute'];
+  const entries = [
+    await entryFor(air, 'fly', 'reserve', { ref: 'NW1' }, { parties, steps }),
+    await entryFor(air, 'fly', 'cancel', { released: true }, { parties, steps }),
+  ];
+  const dir = directory({ 'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } } });
+
+  const honest = await verifyReceipt(
+    await buildReceipt({ sagaId: 's1', outcome: 'unwound', entries }), dir);
+  assert.equal(honest.ok, true, 'an unwound commitment must still verify');
+  assert.match(honest.notes.join(' '), /no statement from visa/);
+
+  // The same silence, under a claim that everything succeeded, is not fine.
+  const claimed = await verifyReceipt(
+    await buildReceipt({ sagaId: 's1', outcome: 'committed', entries }), dir);
+  assert.equal(claimed.ok, false);
+  assert.match(claimed.complaints.join(' '), /no statement from visa/);
+});

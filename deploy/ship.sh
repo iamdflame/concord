@@ -13,7 +13,16 @@ node deploy/build.mjs
 
 # The coordinator cannot be "concord-app": that subdomain belongs to someone
 # else, and Vercel quietly deploys elsewhere rather than failing.
-project_for() { [ "$1" = "app" ] && echo "concord-coordinator" || echo "concord-$1"; }
+# The project name is not always the vendor id: "concord-app" belongs to
+# somebody else, and Meridian deploys under its own name because a URL reading
+# "shady" would tell the audience the twist before the demo does.
+project_for() {
+  case "$1" in
+    app)   echo "concord-coordinator" ;;
+    shady) echo "concord-meridian" ;;
+    *)     echo "concord-$1" ;;
+  esac
+}
 
 for dir in .deploy/concord-*; do
   id="${dir##*/concord-}"

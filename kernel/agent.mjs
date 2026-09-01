@@ -15,6 +15,7 @@ const VENDOR_WORDS = [
   { id: 'stay',   words: /\b(hotel|room|stay|night|nights|accommodation|lodging)\b/i },
   { id: 'visa',   words: /\b(visa|consular|entry fee|travel fee)\b/i },
   { id: 'permit', words: /\b(permit|entry permit)\b/i },
+  { id: 'shady',  words: /\b(meridian|allocation|holdings)\b/i },
 ];
 
 const REVERSIBLE_ONLY = /\b(refundable|reversible|can'?t take back|cannot take back|nothing irreversible|no.{0,12}non-?refundable|back out)\b/i;
@@ -120,12 +121,31 @@ export async function turn({ text, reader, tool, say, confirm }) {
   const out = await tool('concord_commit', { proposalId: proposal.proposalId });
   if (out.refused) { say('agent', out.reason); return null; }
 
+  // Name businesses the way they name themselves. "shady declared it could
+  // reverse this" reads as an internal id leaking, and this sentence is an
+  // accusation -- it should carry the name the vendor trades under.
+  const named = Object.fromEntries(vendors.map((v) => [v.id, v.title ?? v.id]));
+  const name = (id) => named[id] ?? id;
+
   // Report what stands, never what was asked for.
   const lines = {
-    committed: `Done. ${out.stands.join(', ')} — settled together.`,
+    committed: `Done. ${out.stands.map(name).join(', ')} — settled together.`,
     unwound: `Nothing stands. ${out.cause}\nEverything reversible was reversed; you have not been charged.`,
-    'in-doubt': `This did not finish cleanly, and I will not pretend otherwise.\n\n`
-      + (out.stranded?.join('\n') ?? out.cause ?? ''),
+    'in-doubt': [
+      'This did not finish cleanly, and I will not pretend otherwise.',
+      '',
+      ...(out.broken?.length
+        // The honest limit of the design, said out loud. Nothing can stop a
+        // vendor declaring a reversal it will not honour; what the receipt does
+        // is put a name and a signature on it.
+        ? [...out.broken.map((f) => `${name(f.id)} declared it could reverse this and then would `
+            + `not: "${f.error}". It still holds what it took.`),
+           '',
+           'Its own signature is on the statement saying it took it, so this is a documented '
+           + 'breach rather than a disagreement about what happened.']
+        : []),
+      ...(out.stranded ?? [out.cause].filter(Boolean)),
+    ].join('\n'),
     refused: out.cause ?? 'Refused.',
   };
   say('agent', lines[out.outcome] ?? `Outcome: ${out.outcome}`, { result: out });

@@ -28,6 +28,7 @@ const INPUTS = {
   stay: { nights: 3, city: 'London' },
   visa: { applicant: 'D. Flame', country: 'GB' },
   permit: { applicant: 'D. Flame', country: 'GB' },
+  shady:  { nights: 3, city: 'London' },
 };
 
 // A second irreversible vendor, declared but never contacted. It exists so the
@@ -43,6 +44,7 @@ const PROMPTS = [
   'A flight and a hotel, nothing I cannot take back.',
   'Just hold me a seat.',
   'Flight, visa fee and the entry permit.',
+  'A flight and an allocation with Meridian Holdings.',
 ];
 
 /**
@@ -388,7 +390,7 @@ async function reportOutcome(out) {
     ? `<p>${out.stranded?.map(esc).join('<br>') ?? esc(out.cause ?? '')}</p>`
     : out.outcome === OUTCOME.UNWOUND
       ? `<p>${esc(out.cause ?? '')}. The vendors above show the reversals.</p>`
-      : `<p>${esc((out.stands ?? []).join(', '))} — settled together.</p>`;
+      : `<p>${esc((out.stands ?? []).map((id) => TITLES[id] ?? id).join(', '))} — settled together.</p>`;
 
   $('outcome').innerHTML = `<div class="outcome ${out.outcome}"><b>${headline}</b>${body}` +
     (out.unrecorded ? `<p style="color:var(--hold)">${esc(out.unrecorded)}</p>` : '') +
