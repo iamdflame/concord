@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Concord — conformance</title>
+<style>
+  :root{--ground:#0D1216;--surface:#141B21;--line:#26313A;--ink:#DBE3E9;--muted:#71818D;
+        --accent:#E8A33D;--pass:#3FBA86;--fail:#EA5257}
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);margin:0;padding:24px;
+       font:13px/1.55 ui-monospace,Menlo,Consolas,monospace}
+  h1{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0}
+  .sub{color:var(--muted);margin:6px 0 20px;max-width:76ch}
+  .vendor{border:1px solid var(--line);border-radius:3px;background:var(--surface);
+          padding:12px 14px;margin-bottom:10px;max-width:1000px}
+  .vh{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+  .vh b{font-size:14px}
+  .lvl{font-size:10px;letter-spacing:.1em;padding:2px 8px;border-radius:2px;font-weight:600}
+  .l3{background:var(--pass);color:#04150F} .l2{background:var(--accent);color:#1A1000}
+  .l1{background:#4A5A67;color:#0B1014} .l0{background:var(--fail);color:#fff}
+  .origin{color:var(--muted);font-size:11.5px}
+  .chk{display:grid;grid-template-columns:26px 34px 190px 1fr;gap:0 10px;padding:4px 0;font-size:11.5px}
+  .ok{color:var(--pass)} .no{color:var(--fail)}
+  .sec{color:var(--muted)} .why{color:var(--muted)}
+  iframe{width:100%;height:1px;border:0;opacity:0;position:absolute;pointer-events:none}
+</style>
+<h1>Concord · conformance</h1>
+<p class="sub">Every participant present, checked against the specification rather than against this
+implementation. Each line names the section it enforces. Point it at your own origin and it will
+tell you which level you meet and what is missing — that is what a conformance suite is for.</p>
+<div id="out">running…</div>
+<div id="frames"></div>
+<script type="module" src="./conformance.mjs"></script>

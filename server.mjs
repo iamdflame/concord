@@ -92,8 +92,8 @@ function serve(port) {
 
     // Shared modules live outside the per-origin roots; every origin needs them.
     // Shared modules and the origin table live outside the per-origin roots.
-    const base = /^\/(shim|shared|kit|concord|experiments)\//.test(path)
-      || /^\/(config|origins)\.mjs$/.test(path) ? '.' : root;
+    const base = /^\/(shim|shared|kit|concord|experiments|spec)\//.test(path)
+      || /^\/(config|origins)\.mjs$/.test(path) || path.startsWith('/spec/') ? '.' : root;
     const file = join(process.cwd(), base, normalize(path).replace(/^(\.\.[/\\])+/, ''));
 
     try {

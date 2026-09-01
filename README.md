@@ -400,6 +400,20 @@ experiments/tool-synthesis/                            a documented negative res
 - **[THREAT-MODEL.md](THREAT-MODEL.md)** — who is trusted for what, the attacks
   that are closed with the verifier's exact response to each, and the ones that
   are not.
+- **[spec/conformance.mjs](spec/conformance.mjs)** — a suite that checks a live
+  participant against the specification and reports which level it meets. Point
+  it at your own origin; every line names the section it enforces.
+
+```bash
+npm run conformance
+```
+
+All five participants here reach **L3 — attesting**: they declare a commitment
+surface, can be asked afterwards what happened, are idempotent under a repeated
+key, and sign statements against a key published on their own origin. The suite
+exercises those rather than assuming them — it calls a step twice and compares,
+asks the status probe about a key it has never seen, and verifies a real
+signature against the real key document.
 
 ## Known limits
 
