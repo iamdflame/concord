@@ -101,7 +101,16 @@ export async function runSaga({
     } catch { return null; }
   };
 
-  const invoke = async (id, step, args) => {
+  /**
+   * @param mustRecord  Whether an unwritable journal should stop this call.
+   *
+   * Before a new action, yes: a step nobody recorded is one recovery can never
+   * find. While undoing one already outstanding, no -- refusing to release a
+   * hold because the release could not be logged leaves the hold standing,
+   * which is strictly worse than an unlogged release. Fail closed when taking
+   * on exposure, fail open when giving it back.
+   */
+  const invoke = async (id, step, args, { mustRecord = true } = {}) => {
     const tool = toolFor(id, step);
     if (!tool) throw new Error(`${id} declares no "${step}" step`);
     const idempotencyKey = key(id, step);
@@ -112,7 +121,20 @@ export async function runSaga({
     // Intent is written before the call, never after. A log of outcomes alone
     // cannot distinguish "about to reserve" from "never reserved", and those
     // need opposite recoveries.
-    await journal?.intent(sagaId, id, step, idempotencyKey, args);
+    //
+    // If that write fails -- a full quota is the usual reason -- the call must
+    // not proceed. An unrecorded step is one recovery can never find, so the
+    // honest move is to stop before anything happens and say why.
+    try {
+      await journal?.intent(sagaId, id, step, idempotencyKey, args);
+    } catch (err) {
+      emit('journal_failed', { id, step, error: err.message, blocked: mustRecord });
+      if (mustRecord) {
+        throw Object.assign(
+          new Error(`cannot record intent to ${step} on ${id}, so it was not attempted: ${err.message}`),
+          { vendor: id, step, journalFailure: true });
+      }
+    }
     try {
       // The signal is handed on, and the deadline is also enforced here: a
       // coordinator that trusts every vendor to honour cancellation has no
@@ -123,7 +145,7 @@ export async function runSaga({
           Object.assign(new Error(`${id} did not answer ${step} within ${callTimeoutMs}ms`),
             { timedOut: true })), { once: true })),
       ]);
-      await journal?.result(sagaId, id, step, idempotencyKey, result);
+      await journal?.result(sagaId, id, step, idempotencyKey, result).catch(() => {});
       return result;
     } catch (err) {
       // A dead process writes nothing more, so a fatal error leaves the intent
@@ -144,7 +166,7 @@ export async function runSaga({
         return probed.result;
       }
 
-      await journal?.failed(sagaId, id, step, idempotencyKey, err.message);
+      await journal?.failed(sagaId, id, step, idempotencyKey, err.message).catch(() => {});
       err.vendor = id;
       err.step = step;
       throw err;
@@ -158,7 +180,17 @@ export async function runSaga({
 
   // Record the plan before the first call, so recovery can tell a saga that
   // finished from one that stopped half way.
-  await journal?.started(sagaId, planned.rungs.map((r) => ({ vendor: r.id, rung: r.rung })));
+  //
+  // If even this cannot be written there is no recoverable commitment to be
+  // had, so nothing is contacted. Refusing before touching a vendor is the same
+  // answer the ladder gives to any plan that cannot be honestly promised.
+  try {
+    await journal?.started(sagaId, planned.rungs.map((r) => ({ vendor: r.id, rung: r.rung })));
+  } catch (err) {
+    const refusal = `the commitment log cannot be written (${err.message}), so nothing was attempted`;
+    emit('refused', { refusal });
+    return { outcome: OUTCOME.REFUSED, refusal, journal: journal_, held: [], done: [] };
+  }
 
   emit('plan', {
     guarantee: planned.guarantee,
@@ -171,6 +203,23 @@ export async function runSaga({
   const done = [];        // executed compensables — reversible
   const committed = [];   // irreversible, or confirmed — final
 
+  /**
+   * Write the terminal marker, and carry on if it cannot be written.
+   *
+   * By the time this runs, reversals have really happened. Throwing here loses
+   * that report entirely. An unwritten marker means recovery will look at this
+   * saga again, which is safe -- every reversal is idempotent under its key --
+   * so the honest outcome is to return the result and say the record is
+   * incomplete.
+   */
+  const settle = async (outcome) => {
+    try { await journal?.settled(sagaId, outcome); return null; }
+    catch (err) {
+      emit('settle_failed', { outcome, error: err.message });
+      return `the outcome could not be recorded (${err.message}); recovery will revisit this commitment`;
+    }
+  };
+
   /** Reverse everything that can be reversed, newest first. */
   async function unwind(cause) {
     emit('unwind', { cause: cause.message, reversible: held.length + done.length });
@@ -179,7 +228,7 @@ export async function runSaga({
     for (const record of [...done].reverse()) {
       try {
         emit('compensate', { id: record.id });
-        await invoke(record.id, 'compensate', { ref: record.ref });
+        await invoke(record.id, 'compensate', { ref: record.ref }, { mustRecord: false });
         record.reversed = true;
       } catch (err) {
         // A failed compensation is the worst case in any saga. It is recorded,
@@ -192,7 +241,7 @@ export async function runSaga({
     for (const record of [...held].reverse()) {
       try {
         emit('cancel', { id: record.id });
-        await invoke(record.id, 'cancel', { ref: record.ref });
+        await invoke(record.id, 'cancel', { ref: record.ref }, { mustRecord: false });
         record.released = true;
       } catch (err) {
         failures.push({ id: record.id, step: 'cancel', error: err.message });
@@ -201,9 +250,10 @@ export async function runSaga({
     }
 
     const outcome = failures.length ? OUTCOME.IN_DOUBT : OUTCOME.UNWOUND;
-    await journal?.settled(sagaId, outcome);
+    const unrecorded = await settle(outcome);
     emit('done', { outcome, cause: cause.message, failures });
-    return { outcome, cause: cause.message, failures, journal: journal_, held, done, committed };
+    return { outcome, cause: cause.message, failures, unrecorded,
+             journal: journal_, held, done, committed };
   }
 
   const inputsFor = (id) => byId.get(id).input ?? {};
@@ -286,8 +336,8 @@ export async function runSaga({
           ...held.filter((h) => h !== record && !h.confirmed).map((h) => `${h.id} is also unconfirmed`),
         ];
         emit('in_doubt', { id: record.id, error: lastError.message, stranded });
-        await journal?.settled(sagaId, OUTCOME.IN_DOUBT);
-        emit('done', { outcome: OUTCOME.IN_DOUBT, cause: lastError.message });
+        const unrecorded = await settle(OUTCOME.IN_DOUBT);
+        emit('done', { outcome: OUTCOME.IN_DOUBT, cause: lastError.message, unrecorded });
         return {
           outcome: OUTCOME.IN_DOUBT, cause: lastError.message, stranded,
           journal: journal_, held, done, committed,
@@ -295,9 +345,9 @@ export async function runSaga({
       }
     }
 
-    await journal?.settled(sagaId, OUTCOME.COMMITTED);
+    const unrecorded = await settle(OUTCOME.COMMITTED);
     emit('done', { outcome: OUTCOME.COMMITTED, participants: planned.order });
-    return { outcome: OUTCOME.COMMITTED, journal: journal_, held, done, committed };
+    return { outcome: OUTCOME.COMMITTED, unrecorded, journal: journal_, held, done, committed };
   } catch (err) {
     // A process that has died does not unwind -- there is nothing left running
     // to do it. Recovery picks this up from the journal on the next start, and

@@ -89,7 +89,7 @@ export async function recover({ journal, participants, call, onEvent = () => {} 
       // Every planned step happened. The commitment stands, and the only thing
       // missing was the marker saying so. Reversing here is what destroyed a
       // valid trip; the correct action is to finish writing the record.
-      await journal.settled(saga.sagaId, OUTCOME.COMMITTED);
+      await journal.settled(saga.sagaId, OUTCOME.COMMITTED).catch(() => {});
       emit('already_committed', { steps: expected.length });
       reports.push({
         sagaId: saga.sagaId, outcome: OUTCOME.COMMITTED, reversals: [], unresolved: [],
@@ -128,16 +128,19 @@ export async function recover({ journal, participants, call, onEvent = () => {} 
       // Recovery journals its own intent too. It condemned the saga for not
       // doing this; it does not get an exemption.
       const undoKey = stepKey(saga.sagaId, step.vendor, undoStep);
-      await journal.intent(saga.sagaId, step.vendor, undoStep, undoKey, { ref: step.result?.ref });
+      // Recovery journals its own intent, but a log it cannot write must not
+      // stop it from undoing what is already outstanding.
+      await journal.intent(saga.sagaId, step.vendor, undoStep, undoKey, { ref: step.result?.ref })
+        .catch(() => {});
       try {
         const tool = vendor.protocol.steps[undoStep].tool;
         const out = await call(step.vendor, tool, { ref: step.result?.ref ?? step.result },
           { idempotencyKey: undoKey, step: undoStep, sagaId: saga.sagaId });
-        await journal.result(saga.sagaId, step.vendor, undoStep, undoKey, out);
+        await journal.result(saga.sagaId, step.vendor, undoStep, undoKey, out).catch(() => {});
         reversals.push({ ...step, reversed: true, via: undoStep });
         emit('reversed', { vendor: step.vendor, step: step.step, via: undoStep });
       } catch (err) {
-        await journal.failed(saga.sagaId, step.vendor, undoStep, undoKey, err.message);
+        await journal.failed(saga.sagaId, step.vendor, undoStep, undoKey, err.message).catch(() => {});
         reversals.push({ ...step, reversed: false, why: err.message });
         emit('reversal_failed', { vendor: step.vendor, step: step.step, error: err.message });
       }
@@ -147,7 +150,9 @@ export async function recover({ journal, participants, call, onEvent = () => {} 
       && stands.length === 0
       && reversals.every((r) => r.reversed);
     const outcome = clean ? OUTCOME.UNWOUND : OUTCOME.IN_DOUBT;
-    await journal.settled(saga.sagaId, outcome);
+    // If the marker cannot be written the saga is simply revisited, which is
+    // safe: every reversal above is idempotent under its own key.
+    await journal.settled(saga.sagaId, outcome).catch(() => {});
     emit('recovered', {
       outcome, reversed: reversals.filter((r) => r.reversed).length,
       stands: stands.length, unresolved: unresolved.length,

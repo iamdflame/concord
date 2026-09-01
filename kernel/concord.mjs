@@ -12,7 +12,7 @@ import { discover, bind, withInputs } from '/concord/client.mjs';
 import { plan, describe, GUARANTEE, RUNG } from '/concord/ladder.mjs';
 import { runSaga, OUTCOME } from '/concord/saga.mjs';
 import { buildReceipt, verifyReceipt } from '/concord/receipt.mjs';
-import { Journal, LocalStore } from '/concord/journal.mjs';
+import { Journal, IndexedStore, LocalStore } from '/concord/journal.mjs';
 import { recover } from '/concord/recover.mjs';
 
 const FLY = 'http://localhost:5177', STAY = 'http://localhost:5178', VISA = 'http://localhost:5179';
@@ -48,7 +48,13 @@ await awaitTools(ctx, ALL, (t) =>
 // Intent is written here before every call, and it survives the tab. Without
 // it a coordinator that dies mid-commitment leaves real holds and real charges
 // with nothing anywhere that knows to undo them.
-const journal = new Journal(new LocalStore());
+const journal = new Journal(
+  typeof indexedDB !== 'undefined' ? new IndexedStore() : new LocalStore());
+
+// Settled commitments are history, not state. Left forever they eventually fill
+// the quota, and the write that fails is the one meant to make a saga
+// recoverable. Pruning is best-effort and never blocks a commitment.
+journal.prune().catch(() => {});
 
 let discovered = await discover(ctx, ALL);
 let current = SCENARIOS[0];

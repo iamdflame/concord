@@ -19,9 +19,83 @@ export class MemoryStore {
   async append(row) { this.#rows.push(row); }
   async read() { return [...this.#rows]; }
   async clear() { this.#rows = []; }
+  async prune(olderThanMs = 7 * 24 * 60 * 60 * 1000) {
+    const cutoff = Date.now() - olderThanMs;
+    const done = new Set(this.#rows
+      .filter((r) => r.phase === PHASE.SETTLED && r.at < cutoff).map((r) => r.sagaId));
+    const before = this.#rows.length;
+    this.#rows = this.#rows.filter((r) => !done.has(r.sagaId));
+    return before - this.#rows.length;
+  }
 }
 
-/** Survives a reload. A real deployment writes to its own durable store. */
+/**
+ * Survives a reload, and appends in constant time.
+ *
+ * The first version kept the whole journal in one localStorage string and
+ * re-serialised all of it on every append. Three things were wrong with that,
+ * and each gets worse the more there is to protect: it was O(n²); it was a
+ * read-modify-write, so two open tabs silently lost each other's rows; and at
+ * roughly five megabytes setItem throws, which aborted the saga from inside the
+ * write that was supposed to make it recoverable.
+ *
+ * IndexedDB appends one record per transaction, which is atomic across tabs and
+ * has room to spare.
+ */
+export class IndexedStore {
+  #db = null;
+  constructor(name = 'concord', store = 'journal') { this.name = name; this.store = store; }
+
+  async #open() {
+    if (this.#db) return this.#db;
+    this.#db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open(this.name, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(this.store)) {
+          db.createObjectStore(this.store, { keyPath: 'seq', autoIncrement: true })
+            .createIndex('sagaId', 'sagaId', { unique: false });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return this.#db;
+  }
+
+  async #tx(mode, fn) {
+    const db = await this.#open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.store, mode);
+      const out = fn(tx.objectStore(this.store));
+      tx.oncomplete = () => resolve(out?.result ?? out);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error('journal transaction aborted'));
+    });
+  }
+
+  async append(row) { await this.#tx('readwrite', (s) => s.add(row)); }
+
+  async read() {
+    const rows = await this.#tx('readonly', (s) => s.getAll());
+    return [...rows].sort((a, b) => a.seq - b.seq);
+  }
+
+  async clear() { await this.#tx('readwrite', (s) => s.clear()); }
+
+  /** Drop rows belonging to sagas that reached a terminal state long enough ago. */
+  async prune(olderThanMs = 7 * 24 * 60 * 60 * 1000) {
+    const rows = await this.read();
+    const cutoff = Date.now() - olderThanMs;
+    const done = new Set(rows.filter((r) => r.phase === PHASE.SETTLED && r.at < cutoff).map((r) => r.sagaId));
+    if (!done.size) return 0;
+    const doomed = rows.filter((r) => done.has(r.sagaId));
+    await this.#tx('readwrite', (s) => { for (const r of doomed) s.delete(r.seq); });
+    return doomed.length;
+  }
+}
+
+/** Kept for environments without IndexedDB. Same caveats as before; use sparingly. */
 export class LocalStore {
   constructor(key = 'concord.journal') { this.key = key; }
   #load() { try { return JSON.parse(localStorage.getItem(this.key) ?? '[]'); } catch { return []; } }
@@ -73,6 +147,12 @@ export class Journal {
   }
 
   async read() { return this.store.read(); }
+
+  /** Settled sagas are history, not state. Keeping them forever is how the
+   *  durability layer eventually becomes the thing that fails. */
+  async prune(olderThanMs) {
+    return this.store.prune ? this.store.prune(olderThanMs) : 0;
+  }
 
   /**
    * Sagas that started and never reached a terminal state.
