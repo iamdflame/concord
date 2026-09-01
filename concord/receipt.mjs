@@ -110,7 +110,10 @@ export async function fetchKeys(origin) {
   if (!res.ok) throw new Error(`${origin} publishes no concord key document`);
   const doc = await res.json();
   if (!Array.isArray(doc?.keys)) throw new Error(`${origin} published a malformed key document`);
-  return { vendor: doc.vendor, keys: Object.fromEntries(doc.keys.map((k) => [k.keyId, k.publicKey])) };
+  // The whole key record, not just the material: when a key was valid, and
+  // whether it has since been retired or reported stolen, decides whether a
+  // signature made with it means anything.
+  return { vendor: doc.vendor, keys: Object.fromEntries(doc.keys.map((k) => [k.keyId, k])) };
 }
 
 /**
@@ -136,7 +139,37 @@ export function originResolver() {
   };
 }
 
-export async function verifyStatement(entry, jwk) {
+/**
+ * Was this key entitled to speak at the moment the statement claims?
+ *
+ * A signature that verifies is not the same as a signature that counts. A key
+ * retired last March cannot have signed something dated this June, and one its
+ * owner has reported stolen since April says nothing about anything after that
+ * -- however cleanly the maths checks out.
+ */
+export function keyValidAt(record, when) {
+  if (!record || typeof record !== 'object') return { ok: false, why: 'no key record' };
+  const at = Date.parse(when ?? '');
+  if (!Number.isFinite(at)) return { ok: false, why: 'the statement carries no usable timestamp' };
+
+  if (record.notBefore && at < Date.parse(record.notBefore)) {
+    return { ok: false, why: `the key did not exist until ${record.notBefore}` };
+  }
+  if (record.status === 'rotated' && record.retiredAt && at > Date.parse(record.retiredAt)) {
+    return { ok: false, why: `the key was retired on ${record.retiredAt}, before this statement is dated` };
+  }
+  if (record.status === 'compromised') {
+    const since = record.compromisedSince;
+    if (!since || at >= Date.parse(since)) {
+      return { ok: false, why: `${record.vendor ?? 'the vendor'} reports this key compromised`
+        + (since ? ` since ${since}` : '') + ', so this signature proves nothing' };
+    }
+  }
+  return { ok: true, why: null };
+}
+
+export async function verifyStatement(entry, record) {
+  const jwk = record?.publicKey ?? record;
   if (!entry.signature || !jwk) return false;
   const key = await importVerifyKey(jwk);
   const bytes = new TextEncoder().encode(canonical(entry.statement));
@@ -222,10 +255,19 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
       }
     } catch (err) { why = err.message; }
 
-    const signed = jwk ? await verifyStatement(entry, jwk) : false;
+    let signed = jwk ? await verifyStatement(entry, jwk) : false;
+
+    // A key that verifies but was not entitled to sign at that moment is worse
+    // than no signature, because it looks like one.
+    let inForce = true;
+    if (signed && jwk?.publicKey) {
+      const window = keyValidAt({ ...jwk, vendor }, entry.statement?.at);
+      if (!window.ok) { inForce = false; signed = false; why = window.why; }
+    }
+
     findings.push({
       index: i, vendor, origin, step: entry.statement?.step, keyId: entry.keyId,
-      included, signed, ok: included && signed, ...(why && { why }),
+      included, signed, inForce, ok: included && signed, ...(why && { why }),
     });
   }
 

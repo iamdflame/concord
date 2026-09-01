@@ -47,15 +47,40 @@ export async function keyFor(vendor) {
   return cache.get(vendor);
 }
 
-/** What the vendor publishes about itself. Public, cacheable, no secrets. */
+/**
+ * What the vendor publishes about itself. Public, cacheable, no secrets.
+ *
+ * Keys carry a validity window and a status, because "this receipt still
+ * verifies in a year" is only true if a key compromised in month six can be
+ * said to be compromised. Without that, the holder of a stolen key can forge
+ * the entire history retroactively and no verifier has any way to object.
+ *
+ * Two kinds of withdrawal, and they mean different things to old receipts:
+ *
+ *   rotated      the key was retired in the ordinary way. Statements signed
+ *                while it was live stay valid; later ones do not.
+ *   compromised  it was in someone else's hands from `since` onward, so
+ *                nothing signed after that moment can be trusted, however
+ *                well the signature verifies.
+ *
+ * A revocation file at .keys/<vendor>.revoked.json drives this, so a vendor can
+ * declare one without redeploying.
+ */
 export async function wellKnown(vendor, origin) {
   const { keyId, publicKey, createdAt } = await keyFor(vendor);
-  return {
-    concord: 1,
-    vendor,
-    origin,
-    keys: [{ keyId, alg: 'ES256', publicKey, createdAt, status: 'active' }],
+  let withdrawal = null;
+  try { withdrawal = JSON.parse(await readFile(join(DIR, `${vendor}.revoked.json`), 'utf8')); }
+  catch { /* nothing withdrawn */ }
+
+  const key = {
+    keyId, alg: 'ES256', publicKey,
+    notBefore: createdAt,
+    status: withdrawal?.status ?? 'active',
+    ...(withdrawal?.status === 'rotated' && { retiredAt: withdrawal.at }),
+    ...(withdrawal?.status === 'compromised' && { compromisedSince: withdrawal.since ?? withdrawal.at }),
+    ...(withdrawal?.reason && { reason: withdrawal.reason }),
   };
+  return { concord: 1, vendor, origin, keys: [key] };
 }
 
 // One signature per idempotency key. A second attempt with different content

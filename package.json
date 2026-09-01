@@ -14,7 +14,8 @@
     "concord": "URL=http://localhost:5173/concord.html node tools/shot.mjs",
     "probe:concord": "URL=http://localhost:5173/concord-test.html node tools/probe.mjs",
     "test": "node --test kit/canonical.test.mjs concord/ladder.test.mjs concord/saga.test.mjs concord/receipt.test.mjs concord/recover.test.mjs concord/journal.test.mjs",
-    "verify": "node tools/verify-receipt.mjs"
+    "verify": "node tools/verify-receipt.mjs",
+    "export": "node tools/export-receipt.mjs"
   },
   "license": "MIT"
 }

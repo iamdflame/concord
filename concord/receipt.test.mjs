@@ -224,3 +224,62 @@ test('a root mismatch still reports per entry, not one generic failure', async (
   assert.equal(out.findings.length, 1, 'per-entry detail must survive a root mismatch');
   assert.equal(out.findings[0].vendor, 'fly');
 });
+
+// ── key validity ───────────────────────────────────────────────────────────
+// A signature that verifies is not the same as a signature that counts.
+
+const record = (jwk, over = {}) => ({ keyId: 'k-fly', alg: 'ES256', publicKey: jwk,
+  notBefore: '2026-01-01T00:00:00Z', status: 'active', ...over });
+
+const receiptDated = async (kp, at) => {
+  const stmt = statement({ sagaId: 's1', origin: 'https://fly.example', vendor: 'fly',
+    parties: ['fly'], step: 'confirm', idempotencyKey: 's1.fly.confirm', at, result: { ok: true } });
+  return buildReceipt({ sagaId: 's1', outcome: 'committed',
+    entries: [{ statement: stmt, keyId: 'k-fly', signature: await sign(kp.pair.privateKey, stmt) }] });
+};
+const withKey = (rec) => async (vendor, origin, keyId) =>
+  origin === 'https://fly.example' && keyId === 'k-fly' ? rec : null;
+
+test('a key retired before the statement is dated cannot have signed it', async () => {
+  const kp = await keypair();
+  const out = await verifyReceipt(await receiptDated(kp, '2026-06-01T00:00:00Z'),
+    withKey(record(kp.jwk, { status: 'rotated', retiredAt: '2026-03-01T00:00:00Z' })));
+  assert.equal(out.ok, false);
+  assert.equal(out.findings[0].inForce, false);
+  assert.match(out.findings[0].why, /retired on 2026-03-01/);
+});
+
+test('a rotated key still vouches for what it signed while it was live', async () => {
+  const kp = await keypair();
+  const out = await verifyReceipt(await receiptDated(kp, '2026-02-01T00:00:00Z'),
+    withKey(record(kp.jwk, { status: 'rotated', retiredAt: '2026-03-01T00:00:00Z' })));
+  assert.equal(out.ok, true, 'retiring a key must not invalidate honest history');
+});
+
+test('a key reported compromised proves nothing after the moment it was taken', async () => {
+  // This is what "the receipt still verifies in a year" costs: without it, the
+  // holder of a stolen key forges the whole history and no one can object.
+  const kp = await keypair();
+  const compromised = record(kp.jwk, { status: 'compromised', compromisedSince: '2026-04-01T00:00:00Z' });
+
+  const after = await verifyReceipt(await receiptDated(kp, '2026-06-01T00:00:00Z'), withKey(compromised));
+  assert.equal(after.ok, false);
+  assert.match(after.findings[0].why, /compromised since 2026-04-01/);
+
+  const before = await verifyReceipt(await receiptDated(kp, '2026-02-01T00:00:00Z'), withKey(compromised));
+  assert.equal(before.ok, true, 'statements made before the compromise still stand');
+});
+
+test('a statement dated before its key existed is refused', async () => {
+  const kp = await keypair();
+  const out = await verifyReceipt(await receiptDated(kp, '2025-06-01T00:00:00Z'), withKey(record(kp.jwk)));
+  assert.equal(out.ok, false);
+  assert.match(out.findings[0].why, /did not exist until/);
+});
+
+test('a statement with no usable timestamp cannot be placed in any key window', async () => {
+  const kp = await keypair();
+  const out = await verifyReceipt(await receiptDated(kp, undefined), withKey(record(kp.jwk)));
+  assert.equal(out.ok, false);
+  assert.match(out.findings[0].why, /no usable timestamp/);
+});
