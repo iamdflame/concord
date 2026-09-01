@@ -13,7 +13,7 @@ const PORT = 9700 + Math.floor(Math.random() * 300);
 const VERBOSE = process.env.VERBOSE === '1';
 const SITES = process.argv.slice(2);
 
-const source = await readFile(new URL('../synth/synthesize.mjs', import.meta.url), 'utf8');
+const source = await readFile(new URL('./synthesize.mjs', import.meta.url), 'utf8');
 const profile = await mkdtemp(join(tmpdir(), 'ring0synth-'));
 const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
   '--window-size=1280,900', `--user-data-dir=${profile}`, `--remote-debugging-port=${PORT}`, 'about:blank'],

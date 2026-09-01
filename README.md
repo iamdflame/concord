@@ -265,29 +265,63 @@ Node 20+, and Chrome for the probe. Chrome 149+ with the WebMCP origin trial
 ## Layout
 
 ```
-server.mjs          two origins with Origin-Agent-Cluster and Permissions-Policy
-kernel/labels.mjs   the taint lattice and provenance tracker
-kernel/policy.mjs   policy parser and evaluator
-kernel/policy.ring  the capability policy itself
-kernel/dispatch.mjs the gate every kernel tool call passes through
-kernel/monitor.html the instrument — syscall trace and time-scrub
-kernel/transcript.mjs hash-chained log and reconstruction
-kernel/origins.mjs  the three supervised processes
-kernel/             :5173 — Ring 0 and the phase suites
-mail/               :5174 — untrustedContentHint; authors none of what it returns
-ledger/             :5175 — read-only; the corroborating party
-pay/                :5176 — send_funds, irreversible, the effect being guarded
-shared/process.css  common chrome for the processes
-shim/webmcp.mjs     spec-faithful WebMCP for browsers that lack it
-shim/adapter.mjs    native-first resolution; reports which provider you got
-tools/probe.mjs     headless Chrome over CDP
+concord/ladder.mjs        the commitment ladder — what can honestly be promised
+concord/saga.mjs          the executor: phase order, deadlines, unwind
+concord/journal.mjs       write-ahead log, durable across reloads
+concord/recover.mjs       resolving a commitment its coordinator did not finish
+concord/receipt.mjs       Merkle receipts, inclusion proofs, key validity
+concord/client.mjs        binds the protocol to WebMCP
+concord/*.test.mjs        the protocol proved without a browser
+
+vendors/fly    :5177      reservable — hold, ticket, release
+vendors/stay   :5178      compensable — book and charge, cancel and refund
+vendors/visa   :5179      irreversible — declares no compensate, because there is none
+kit/vendor.mjs            what every participant gets: protocol declaration,
+                          idempotency, signing, status, break switches
+kit/keystore.mjs          signing keys, published at /.well-known/concord.json
+kit/canonical.mjs         RFC 8785 serialisation, so a stranger reaches the same bytes
+
+kernel/concord.html       :5173 — the coordinator
+kernel/concord-test.mjs   the protocol against three real origins
+server.mjs                seven origins, with Origin-Agent-Cluster and Permissions-Policy
+shim/webmcp.mjs           spec-faithful WebMCP for browsers that lack it
+shim/adapter.mjs          native-first resolution; reports which provider you got
+
+tools/export-receipt.mjs  run a commitment, write the receipt to a file
+tools/verify-receipt.mjs  check that file, with nothing from the coordinator
+tools/probe.mjs           headless Chrome over CDP
+
+kernel/{labels,policy,dispatch,transcript,monitor}.*   Ring 0, the substrate
+mail/ ledger/ pay/  :5174-6                            its three processes
+experiments/tool-synthesis/                            a documented negative result
 ```
 
-## Next
+## Known limits
 
-Phase 05 is the completeness sweep: empty states, first run, mid-flight cancel,
-refresh, a permalink to a transcript instant, keyboard-only trace navigation,
-and a live text field where anyone can write their own injection and watch the
-kernel hold.
+Stated here rather than left to be found.
+
+**The native API is unverified.** This was built against Chrome 134, which
+predates WebMCP, so every run reports `provider=shim`. `shim/adapter.mjs`
+prefers native on both spellings and arguments go out as the JSON string
+Chrome's API specifies, but nothing here has executed against the real
+implementation. Run `npm run probe:concord` on Chrome 149+ with the origin
+trial; if it prints `provider=native`, the platform claim is earned.
+
+**A confirm fan-out can partially commit.** With several reservable vendors,
+confirming is a sequence: a late failure leaves earlier confirms standing. That
+is ordinary two-phase commit and cannot be removed without a coordinator both
+sides trust, which is the thing this design says does not exist. The plan says
+so before you commit, and the outcome names exactly what stands.
+
+**The signing endpoint still takes its result from the page.** It will only sign
+for its own vendor at its own origin, and only once per idempotency key, so a
+compromised page cannot forge another party's word or restate its own. But
+closing this properly means holding the vendor's transaction record server-side
+and building the statement from it. That is the port a production deployment
+has to make.
+
+**Vendors keep their business state in the page.** Idempotency memory survives a
+reload, which is what recovery depends on; inventory and bookings do not. Real
+vendors have databases.
 
 MIT.
