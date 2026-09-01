@@ -6,7 +6,9 @@
   "description": "A capability kernel for the agentic web. Phase 01: interception proof.",
   "scripts": {
     "dev": "node server.mjs",
-    "probe": "node tools/probe.mjs"
+    "probe": "node tools/probe.mjs",
+    "probe:01": "URL=http://localhost:5173/ node tools/probe.mjs",
+    "probe:02": "URL=http://localhost:5173/phase02.html node tools/probe.mjs"
   },
   "license": "MIT"
 }

@@ -133,7 +133,12 @@ try {
       console.log(`${mark} ${id}  ${assertion}`);
       console.log(`        ${observed}`);
     }
-    console.log(`\n${out.verdict === 'PASS' ? 'PHASE 01 PASSED' : 'PHASE 01 FAILED'}` +
+    // The page names itself; the probe must not assume which suite it ran.
+    const { result: banner } = await cdp.send('Runtime.evaluate', {
+      expression: `document.getElementById('verdict')?.textContent ?? ''`,
+      returnByValue: true,
+    }, sessionId);
+    console.log(`\n${banner.value || out.verdict}` +
                 ` — provider=${out.provider}, tools-policy=${out.policy}`);
 
     if (DEBUG && out.wire?.length) {
