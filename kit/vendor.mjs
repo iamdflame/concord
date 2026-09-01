@@ -6,18 +6,37 @@
 // failure rather than a simulation of it.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
+import { canonical } from '/kit/canonical.mjs';
 
 export const COORDINATOR = 'http://localhost:5173';
 
-/** Every commitment step takes one, and a repeat must not repeat the work. */
+/** Every commitment step declares these. Neither is smuggled in. */
 export const KEY_PARAM = {
   idempotencyKey: { type: 'string', description: 'Stable key for this step; a repeat returns the first result' },
+  sagaId: { type: 'string', description: 'The commitment this step belongs to; it is covered by the signature' },
 };
 
 export async function participant({ id, title, protocol, steps, state, render }) {
   const { ctx } = await resolveModelContext();
   const seen = new Map();     // idempotency key -> the answer we already gave
   const failing = new Set();  // steps the operator has broken on purpose
+
+  // The vendor's own key, never leaving this origin. It is the reason the
+  // coordinator cannot write a receipt entry on this vendor's behalf: it can
+  // order and prove statements, but it cannot make one up.
+  const keys = await crypto.subtle.generateKey(
+    { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const publicKey = await crypto.subtle.exportKey('jwk', keys.publicKey);
+
+  async function attest(step, args, result) {
+    const statement = {
+      sagaId: args.sagaId ?? null, vendor: id, step,
+      idempotencyKey: args.idempotencyKey, result,
+    };
+    const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, keys.privateKey,
+      new TextEncoder().encode(canonical(statement)));
+    return { statement, signature: btoa(String.fromCharCode(...new Uint8Array(sig))) };
+  }
 
   // The commitment surface. WebMCP says what a tool is, not what it promises,
   // so this declaration is the only thing the coordinator trusts about us.
@@ -28,7 +47,7 @@ export async function participant({ id, title, protocol, steps, state, render })
       + 'confirm, cancel, execute or compensate, and whether anything here can be undone.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
-    async execute() { return { id, title, ...protocol }; },
+    async execute() { return { id, title, publicKey, ...protocol }; },
   }, { exposedTo: [COORDINATOR] });
 
   for (const [step, spec] of Object.entries(steps)) {
@@ -55,10 +74,13 @@ export async function participant({ id, title, protocol, steps, state, render })
           throw new Error(`${id} cannot ${step} right now`);
         }
         const result = await spec.run(args);
-        seen.set(args.idempotencyKey, result);
+        // Sign the bare result, so what the vendor puts its name to is exactly
+        // what it did -- not the envelope the coordinator later wraps it in.
+        const signed = { ...result, attestation: await attest(step, args, result) };
+        seen.set(args.idempotencyKey, signed);
         log(`${step}`, spec.summary?.(args, result) ?? '', spec.tone ?? 'ok');
         paint();
-        return result;
+        return signed;
       },
     }, { exposedTo: [COORDINATOR] });
   }

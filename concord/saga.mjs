@@ -61,7 +61,7 @@ export async function runSaga({
   const invoke = async (id, step, args) => {
     const tool = toolFor(id, step);
     if (!tool) throw new Error(`${id} declares no "${step}" step`);
-    return call(id, tool, args, { idempotencyKey: key(id, step), step });
+    return call(id, tool, args, { idempotencyKey: key(id, step), step, sagaId });
   };
 
   if (planned.guarantee === GUARANTEE.REFUSED) {

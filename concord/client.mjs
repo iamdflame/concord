@@ -29,22 +29,37 @@ export async function discover(ctx, origins) {
   return participants;
 }
 
-/** The call surface the saga executor drives, bound to a set of participants. */
+/**
+ * The call surface the saga executor drives.
+ *
+ * Attestations are lifted out here rather than handed on, so the executor keeps
+ * working in plain results and the receipt is assembled from signed statements
+ * the coordinator only ever forwards.
+ */
 export function bind(ctx, participants) {
   const byId = new Map(participants.map((p) => [p.id, p]));
+  const attestations = [];
 
-  return async function call(id, toolName, args, { idempotencyKey }) {
+  const call = async function call(id, toolName, args, { idempotencyKey, sagaId }) {
     const participant = byId.get(id);
     const tool = participant?.tools[toolName];
     if (!tool) throw new Error(`${id} does not expose ${toolName}`);
 
-    // The key travels in the arguments because WebMCP has no call metadata.
-    // It is a declared parameter on every commitment step, not a smuggled one.
-    const raw = await ctx.executeTool(tool, { ...args, idempotencyKey });
+    // Both travel in the arguments because WebMCP has no call metadata. They
+    // are declared parameters on every commitment step, not smuggled ones.
+    const raw = await ctx.executeTool(tool, { ...args, idempotencyKey, sagaId });
     const value = JSON.parse(raw);
     if (value?.error) throw new Error(value.error);
-    return value;
+
+    const { attestation, ...result } = value;
+    if (attestation) attestations.push(attestation);
+    return result;
   };
+
+  call.attestations = attestations;
+  call.publicKeys = Object.fromEntries(
+    participants.filter((p) => p.protocol?.publicKey).map((p) => [p.id, p.protocol.publicKey]));
+  return call;
 }
 
 /** Attach the inputs a plan should carry to each participant. */

@@ -77,6 +77,8 @@ try {
       settled: document.getElementById('settled')?.textContent.trim().slice(0,70) ?? '',
       outcome: document.querySelector('.outcome b')?.textContent ?? '',
       stranded: document.querySelector('.outcome p')?.textContent?.slice(0,180) ?? '',
+      receipt: document.querySelector('.rstate')?.textContent ?? '',
+      receiptDetail: document.querySelector('.receipt .rfoot')?.textContent?.trim().slice(0,110) ?? '',
     })`, returnByValue: true }, sessionId);
   console.log(state.value);
 

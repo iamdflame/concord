@@ -91,18 +91,63 @@ injection is a feature of the system, not a mode of the test harness: break the
 consular fee mid-commitment and watch the hotel refund and the seat release, on
 the vendors' own pages.
 
+## The receipt
+
+Afterwards each party knows only its own half. Northwind knows it ticketed a
+seat; Rowan House knows it charged and refunded. Neither knows what happened
+elsewhere, and neither has any reason to trust the coordinator's account — the
+coordinator is the traveller's agent, and it is the one party with a motive to
+misreport.
+
+So the receipt is not the coordinator's story. It is a Merkle tree over
+statements **each vendor signed with a key that never left its origin**. The
+coordinator can order those statements and prove the ordering. It cannot write
+one, because it never holds a vendor's key.
+
+```
+receipt root  7c67482c3a3b73eb3a09fb7a42cc29db0e33ac129f365df9f465159553ea1094   VERIFIED
+
+fly    reserve   in the tree ✓   signed by fly  ✓
+stay   execute   in the tree ✓   signed by stay ✓
+visa   execute   in the tree ✓   signed by visa ✓
+fly    confirm   in the tree ✓   signed by fly  ✓
+```
+
+The tree earns its place commercially, not just cryptographically. A vendor
+verifies its own entry through an **inclusion proof made of opaque hashes** —
+two of them here — without being shown what anyone else charged. Airlines will
+not reveal fares to hotels, and a receipt that made disclosure the price of
+verifiability would never be used.
+
+Two details worth the trouble:
+
+**A leaf commits to the statement, not to the signature over it.** Hashing both
+collapses two different accusations into one. Keeping them apart means an edited
+statement reports *the entries do not hash to the stated root*, while a borrowed
+signature reports *in the tree, but this vendor never said it* — and the receipt
+can say which party is being accused of what.
+
+**An odd node is promoted, not hashed with a copy of itself.** Duplicating the
+tail is the common shortcut, and it makes `[a,b,c]` and `[a,b,c,c]` share a
+root, which turns an inclusion proof into a forgery.
+
+The coordinator page has an *Edit one entry and re-verify* button, because the
+claim is only worth as much as your ability to break it.
+
 ## Tests
 
 ```bash
-node --test concord/ladder.test.mjs concord/saga.test.mjs   # 20, pure logic
-npm run probe:concord                                        # 10, real origins
+npm test                 # 27, pure logic — ladder, saga, receipt
+npm run probe:concord    # 15, real origins in a real browser
 ```
 
 The protocol core is pure and tested without a browser: ordering, reverse
 unwind, idempotency keys stable across retries, in-doubt reporting, failed
-compensation surfaced, and refusal *before* any vendor is contacted. The
-integration suite then proves it survives contact with three separately written
-origins, including breaking one while it runs.
+compensation surfaced, refusal *before* any vendor is contacted, inclusion at
+every tree size, and the two forgeries above. The integration suite proves it
+survives contact with three separately written origins — including breaking one
+while it runs, and confirming that a coordinator which edits a vendor's
+statement is caught by the vendor's own signature.
 
 ## Ring 0 — the substrate
 

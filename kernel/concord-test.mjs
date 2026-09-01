@@ -9,6 +9,7 @@ import { createSuite, awaitTools } from './harness.mjs';
 import { discover, bind, withInputs } from '/concord/client.mjs';
 import { plan, describe, GUARANTEE } from '/concord/ladder.mjs';
 import { runSaga, OUTCOME } from '/concord/saga.mjs';
+import { buildReceipt, verifyReceipt, verifyOwnEntry, leafHash } from '/concord/receipt.mjs';
 
 const FLY = 'http://localhost:5177';
 const STAY = 'http://localhost:5178';
@@ -61,9 +62,8 @@ record('C3', /cannot be reversed/.test(full.caveats.join(' ')) && /briefly real/
 
 // ── C4 ── the happy path, across three businesses
 const events = [];
-const ok = await runSaga({
-  plan: full, participants, call: bind(ctx, participants), onEvent: (e) => events.push(e),
-});
+const call = bind(ctx, participants);
+const ok = await runSaga({ plan: full, participants, call, onEvent: (e) => events.push(e) });
 record('C4', ok.outcome === OUTCOME.COMMITTED,
   'A three-vendor commitment completes across independent origins',
   `${ok.outcome} · ${events.filter((e) => e.type === 'confirmed' || e.type === 'committed').length} committed`);
@@ -106,9 +106,9 @@ record('C8', refused.guarantee === GUARANTEE.REFUSED && nothingRan.outcome === O
 
 // ── C9 ── idempotency is enforced by the vendor, not assumed by us
 const p3 = await load(['fly']);
-const call = bind(ctx, p3);
-const first = await call('fly', 'hold_seat', INPUTS.fly, { idempotencyKey: 'dup-key-1' });
-const again = await call('fly', 'hold_seat', INPUTS.fly, { idempotencyKey: 'dup-key-1' });
+const soloCall = bind(ctx, p3);
+const first = await soloCall('fly', 'hold_seat', INPUTS.fly, { idempotencyKey: 'dup-key-1', sagaId: 'dup' });
+const again = await soloCall('fly', 'hold_seat', INPUTS.fly, { idempotencyKey: 'dup-key-1', sagaId: 'dup' });
 record('C9', first.ref === again.ref && again.replayed === true,
   'A repeated idempotency key returns the first answer instead of doing the work twice',
   `${first.ref} then ${again.ref} (replayed=${again.replayed})`);
@@ -117,4 +117,45 @@ record('C10', describe(full).startsWith('Atomic up to a final commit'),
   'The guarantee is stated in a sentence a person can act on before committing',
   describe(full));
 
-finish({ provider, guarantee: full.guarantee });
+// ── C11-C15 ── the receipt
+record('C11', Object.keys(call.publicKeys).length === 3,
+  'Every vendor declares a public key alongside its commitment protocol',
+  Object.entries(call.publicKeys).map(([k, v]) => `${k}:${v.kty}/${v.crv}`).join(' · '));
+
+const receipt = await buildReceipt({
+  sagaId: ok.journal[0].sagaId, outcome: ok.outcome,
+  entries: call.attestations, keys: call.publicKeys,
+});
+const verified = await verifyReceipt(receipt);
+record('C12', verified.ok && receipt.entries.length === call.attestations.length,
+  'The receipt verifies: every statement signed by the vendor that made it',
+  `root ${receipt.root.slice(0, 16)}… · ${verified.findings.length} entries all signed and included`);
+
+// A vendor holds only its own entry, its proof, and the root.
+const mine = receipt.entries.findIndex((e) => e.statement.vendor === 'fly');
+const own = await verifyOwnEntry({
+  entry: receipt.entries[mine], proof: receipt.proofs[mine],
+  root: receipt.root, jwk: call.publicKeys.fly,
+});
+const leaked = JSON.stringify(receipt.proofs[mine]);
+record('C13', own.ok && !/minor|ref|RH|CF/.test(leaked),
+  'A vendor verifies its own entry without being shown what the others charged',
+  `included=${own.included} signed=${own.signed} · proof is ${receipt.proofs[mine].length} opaque hashes`);
+
+// The coordinator has every reason to misreport and no way to.
+const forged = structuredClone(receipt);
+forged.entries[mine].statement.result = { ...forged.entries[mine].statement.result, minor: 1 };
+const caught = await verifyReceipt(forged);
+record('C14', caught.ok === false,
+  'Editing a vendor\'s statement in the receipt is caught',
+  caught.findings[0]?.why ?? 'root mismatch');
+
+const reforged = structuredClone(receipt);
+const other = receipt.entries.findIndex((e) => e.statement.vendor !== 'fly');
+reforged.entries[mine].signature = reforged.entries[other].signature;
+const caught2 = await verifyReceipt(reforged);
+record('C15', caught2.ok === false && caught2.findings.some((f) => f.included && !f.signed),
+  'A statement carrying someone else\'s signature is in the tree but unsigned',
+  caught2.findings.filter((f) => !f.signed).map((f) => `${f.vendor}.${f.step} unsigned`).join(', '));
+
+finish({ provider, guarantee: full.guarantee, receiptRoot: receipt.root });

@@ -11,6 +11,7 @@ import { awaitTools } from './harness.mjs';
 import { discover, bind, withInputs } from '/concord/client.mjs';
 import { plan, describe, GUARANTEE, RUNG } from '/concord/ladder.mjs';
 import { runSaga, OUTCOME } from '/concord/saga.mjs';
+import { buildReceipt, verifyReceipt } from '/concord/receipt.mjs';
 
 const FLY = 'http://localhost:5177', STAY = 'http://localhost:5178', VISA = 'http://localhost:5179';
 const ALL = [FLY, STAY, VISA];
@@ -135,12 +136,13 @@ async function commit() {
   $('run').innerHTML = '';
 
   const participants = participantsFor(current);
+  const call = bind(ctx, participants);
   let phase = null;
 
   const out = await runSaga({
     plan: planned,
     participants,
-    call: bind(ctx, participants),
+    call,
     retryDelayMs: 260,
     onEvent(e) {
       const group = PHASE[e.type];
@@ -171,9 +173,58 @@ async function commit() {
   $('outcome').innerHTML = `<div class="outcome ${out.outcome}"><b>${headline}</b>${body}` +
     `<code>${out.journal.length} protocol events · saga ${esc(out.journal[0]?.sagaId ?? '')}</code></div>`;
 
+  // The receipt is built from statements the vendors signed, which the
+  // coordinator only forwarded. It can order them and prove the ordering; it
+  // cannot write one.
+  if (call.attestations.length) {
+    const receipt = await buildReceipt({
+      sagaId: out.journal[0]?.sagaId, outcome: out.outcome,
+      entries: call.attestations, keys: call.publicKeys,
+    });
+    await renderReceipt(receipt);
+    globalThis.__CONCORD_RECEIPT__ = receipt;
+  } else {
+    $('receipt').innerHTML = '';
+  }
+
   running = false;
   $('commit').disabled = false;
   globalThis.__CONCORD_LAST__ = out;
+}
+
+async function renderReceipt(receipt) {
+  const v = await verifyReceipt(receipt);
+  const rows = (v.findings[0]?.vendor ? v.findings : []).map((f) =>
+    `<div class="rrow"><span class="v">${esc(f.vendor)}</span><span class="s">${esc(f.step)}</span>` +
+    `<span class="s">in the tree <b class="chk${f.included ? '' : ' no'}">${f.included ? '✓' : '✗'}</b></span>` +
+    `<span class="s">signed by ${esc(f.vendor)} <b class="chk${f.signed ? '' : ' no'}">${f.signed ? '✓' : '✗'}</b></span></div>`).join('');
+
+  const broken = v.findings.find((f) => f.why);
+  const names = [...new Set(receipt.entries.map((e) => e.statement.vendor))];
+  const first = receipt.proofs[0]?.length ?? 0;
+
+  $('receipt').innerHTML = `<div class="receipt">
+    <div class="receipt-head">
+      <span><span class="lbl">receipt root</span><br><span class="root">${esc(receipt.root)}</span></span>
+      <span class="rstate ${v.ok ? 'ok' : 'bad'}">${v.ok ? 'VERIFIED' : 'FAILS VERIFICATION'}</span>
+    </div>
+    ${broken ? `<div class="rfoot" style="color:var(--bad)">${esc(broken.why)}</div>` : rows}
+    <div class="rfoot">
+      Each line is a statement its vendor signed with a key that never left its origin.
+      ${names[0] ? `${esc(names[0])} verifies its own entries from ${first} opaque hashes,
+      without being shown what the others charged.` : ''}
+      <br><button id="tamper">Edit one entry and re-verify</button>
+    </div>
+  </div>`;
+
+  $('tamper')?.addEventListener('click', async () => {
+    const copy = structuredClone(receipt);
+    // Exactly the edit a coordinator with a motive would make.
+    const i = copy.entries.findIndex((e) => e.statement.result?.minor !== undefined);
+    if (i >= 0) copy.entries[i].statement.result.minor = 1;
+    else copy.entries[0].statement.step = 'nothing';
+    await renderReceipt(copy);
+  });
 }
 
 $('commit').addEventListener('click', commit);
