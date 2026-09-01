@@ -86,27 +86,85 @@ test('crashing after a vendor acted still finds and reverses the effect', async 
   assert.deepEqual(await journal.incomplete(), [], 'a recovered saga is settled');
 });
 
+test('a saga that finished is recognised as committed, not undone', async () => {
+  // The log of a saga that completed and died before its settled marker looks
+  // identical to one that stopped half way. Treating them the same reversed a
+  // hotel booking underneath a ticketed flight and called it "nothing stands".
+  const participants = [reservable('fly'), compensable('stay')];
+  const { journal, w } = await crashAt(participants, { dieAfter: 3 });   // all 3 calls done
+
+  const [report] = await recover({ journal, participants, call: w.call });
+  assert.equal(report.outcome, OUTCOME.COMMITTED);
+  assert.deepEqual(w.reversals, [], 'a completed commitment must not be unwound');
+  assert.equal(report.stands.length, 3);
+});
+
+test('a confirmed reservation is not cancelled — it is a booking, not a hold', async () => {
+  // fly.reserve, stay.execute, fly.confirm, then die. The flight is ticketed,
+  // so releasing the seat does nothing at the vendor and lies in the report.
+  const participants = [reservable('fly'), compensable('stay'), irreversible('visa')];
+  const { journal, w } = await crashAt(participants, { dieAfter: 4 });
+
+  const [report] = await recover({ journal, participants, call: w.call });
+  assert.ok(!w.reversals.includes('fly.cancel'), 'a ticketed seat must not be released');
+  assert.ok(report.stands.some((s) => s.vendor === 'fly' && s.step === 'confirm'));
+});
+
 test('recovery is correct at every crash point, and never double-reverses', async () => {
   const participants = [reservable('fly'), compensable('stay'), irreversible('visa')];
-  const total = 4;    // reserve, execute, charge, confirm
+  const total = 4;    // fly.reserve, stay.execute, visa.execute, fly.confirm
+
+  // What the plan required. A saga holding all of these is complete.
+  const required = ['fly.reserve', 'fly.confirm', 'stay.execute', 'visa.execute'];
 
   for (let at = 1; at <= total; at++) {
     for (const when of ['dieBefore', 'dieAfter']) {
       const { journal, w } = await crashAt(participants, { [when]: at });
+
+      // Snapshot before recovery, or the reversals it performs pollute the oracle.
+      const forward = [...w.performed.keys()].map((k) => k.split('.').slice(1).join('.'));
+      const confirmed = new Set(forward.filter((s) => s.endsWith('.confirm')).map((s) => s.split('.')[0]));
+      const complete = required.every((r) => forward.includes(r));
+
+      // The correct expectation: nothing if the saga finished; otherwise every
+      // step that happened, is still reversible, and was not superseded by a
+      // confirm that turned it final.
+      const expected = complete ? [] : forward.flatMap((s) => {
+        const [vendor, step] = s.split('.');
+        if (step === 'confirm') return [];
+        if (step === 'reserve') return confirmed.has(vendor) ? [] : [`${vendor}.cancel`];
+        if (step === 'execute') return vendor === 'stay' ? ['stay.compensate'] : [];
+        return [];
+      });
+
       await recover({ journal, participants, call: w.call });
 
-      // Whatever really happened and can be undone, was undone exactly once.
-      const undoable = [...w.performed.keys()]
-        .filter((k) => /\.(reserve|execute)$/.test(k) && !k.includes('visa'));
-      const expected = undoable
-        .map((k) => k.includes('fly') ? 'fly.cancel' : 'stay.compensate');
-
       assert.deepEqual([...w.reversals].sort(), expected.sort(),
-        `${when} ${at}: reversals did not match what actually happened`);
+        `${when} ${at}: reversals did not match what should have been undone`);
       assert.equal(new Set(w.reversals).size, w.reversals.length,
         `${when} ${at}: something was reversed twice`);
     }
   }
+});
+
+test('unwinding, then crashing, then recovering does not compensate twice', async () => {
+  // The live unwind and recovery once derived the compensation key differently,
+  // so the vendor saw a key it had never seen and refunded a second time.
+  const participants = [reservable('fly'), compensable('stay'), irreversible('visa')];
+  const journal = new Journal(new MemoryStore());
+  const w = world();
+
+  // Fail the irreversible step so the live unwind runs, then recover on top.
+  const failing = async (id, tool, args, opts) => {
+    if (id === 'visa' && opts.step === 'execute') throw new Error('fee declined');
+    return w.call(id, tool, args, opts);
+  };
+  await runSaga({ plan: plan(participants), participants, call: failing, journal });
+  const afterUnwind = [...w.reversals];
+
+  await recover({ journal, participants, call: w.call });
+  assert.deepEqual(w.reversals, afterUnwind,
+    'recovery re-ran a compensation the live unwind had already performed');
 });
 
 test('an irreversible step that did happen is reported, not silently dropped', async () => {
@@ -116,8 +174,9 @@ test('an irreversible step that did happen is reported, not silently dropped', a
   const [report] = await recover({ journal, participants, call: w.call });
 
   assert.equal(report.outcome, OUTCOME.IN_DOUBT);
-  const stuck = report.reversals.find((r) => r.vendor === 'visa');
-  assert.equal(stuck.reversed, false);
+  // A step nothing can undo is not a failed reversal; it is something that
+  // stands. Reporting it as an attempted-and-failed undo implies someone tried.
+  const stuck = report.stands.find((s) => s.vendor === 'visa');
   assert.match(stuck.why, /cannot be undone/);
   assert.ok(w.reversals.includes('fly.cancel'), 'the reversible half must still be released');
 });

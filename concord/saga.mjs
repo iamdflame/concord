@@ -25,6 +25,15 @@
 
 import { GUARANTEE, RUNG } from './ladder.mjs';
 
+/**
+ * The one place a step's idempotency key is derived.
+ *
+ * The live unwind and crash recovery used to build this differently, so a saga
+ * that partly unwound and then crashed presented the vendor a key it had never
+ * seen and the compensation ran a second time. One derivation, both paths.
+ */
+export const stepKey = (sagaId, vendor, step) => `${sagaId}.${vendor}.${step}`;
+
 export const OUTCOME = {
   COMMITTED: 'committed',
   UNWOUND: 'unwound',
@@ -39,11 +48,15 @@ export async function runSaga({
   participants,
   call,
   onEvent = () => {},
+  // At zero the retry loop never runs, lastError stays null, and the record
+  // falls through as confirmed -- reporting COMMITTED for a call never made.
   confirmRetries = 3,
   retryDelayMs = 120,
   journal = null,
   sagaId = `saga_${Math.random().toString(36).slice(2, 10)}`,
 }) {
+  if (!(confirmRetries >= 1)) throw new TypeError('confirmRetries must be at least 1');
+
   const byId = new Map(participants.map((p) => [p.id, p]));
   // Rungs come from the plan, never re-derived here. Two places deciding what a
   // participant can promise is two places to disagree.
@@ -56,8 +69,18 @@ export async function runSaga({
     return event;
   };
 
-  const key = (id, step) => `${sagaId}.${id}.${step}`;
+  const key = (id, step) => stepKey(sagaId, id, step);
   const toolFor = (id, step) => byId.get(id).protocol.steps[step]?.tool;
+
+  /** Ask a vendor whether it ever honoured a key. Performs nothing. */
+  const probe = async (id, idempotencyKey) => {
+    const statusTool = byId.get(id)?.protocol?.steps?.status?.tool;
+    if (!statusTool) return null;
+    try {
+      return await call(id, statusTool, { lookupKey: idempotencyKey },
+        { idempotencyKey: `${idempotencyKey}.status`, step: 'status', sagaId });
+    } catch { return null; }
+  };
 
   const invoke = async (id, step, args) => {
     const tool = toolFor(id, step);
@@ -77,7 +100,23 @@ export async function runSaga({
       // standing alone -- which is exactly what recovery must see: a step that
       // may or may not have taken effect. Only a live coordinator gets to
       // record that a call came back and failed.
-      if (!err.fatal) await journal?.failed(sagaId, id, step, idempotencyKey, err.message);
+      if (err.fatal) throw err;
+
+      // A thrown call is not the same as a call that did not happen. A dropped
+      // reply on the consular fee used to send the whole saga into unwind while
+      // the money was actually gone, and then report that nothing stood. The
+      // status probe existed for exactly this and was only wired into crash
+      // recovery; the live path now asks too.
+      const probed = await probe(id, idempotencyKey);
+      if (probed?.happened) {
+        emit('reply_lost', { id, step, note: `${id} did perform ${step}; only the reply was lost` });
+        await journal?.result(sagaId, id, step, idempotencyKey, probed.result);
+        return probed.result;
+      }
+
+      await journal?.failed(sagaId, id, step, idempotencyKey, err.message);
+      err.vendor = id;
+      err.step = step;
       throw err;
     }
   };
@@ -86,6 +125,10 @@ export async function runSaga({
     emit('refused', { refusal: planned.refusal });
     return { outcome: OUTCOME.REFUSED, refusal: planned.refusal, journal: journal_, held: [], done: [] };
   }
+
+  // Record the plan before the first call, so recovery can tell a saga that
+  // finished from one that stopped half way.
+  await journal?.started(sagaId, planned.rungs.map((r) => ({ vendor: r.id, rung: r.rung })));
 
   emit('plan', {
     guarantee: planned.guarantee,

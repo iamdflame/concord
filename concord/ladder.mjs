@@ -34,22 +34,34 @@ export class PlanError extends Error {
   constructor(message, detail) { super(message); this.name = 'PlanError'; this.detail = detail; }
 }
 
-/** What can this participant actually promise? */
+/**
+ * What can this participant actually promise?
+ *
+ * An incomplete protocol -- reserve and cancel but no confirm, say -- is not an
+ * exceptional condition. It is the same answer as any other unpromisable plan:
+ * no honest guarantee is available. It is returned, not thrown, so there is one
+ * failure mode for one concept.
+ */
 export function classify(participant) {
   const steps = participant.protocol?.steps ?? {};
   const has = (k) => Boolean(steps[k]?.tool);
+  // Whether a crash can be resolved with this vendor at all.
+  const recoverable = has('status');
 
   if (has('reserve') && has('confirm') && has('cancel')) {
-    return { rung: RUNG.RESERVABLE, why: 'declares reserve, confirm and cancel' };
+    return { rung: RUNG.RESERVABLE, recoverable, why: 'declares reserve, confirm and cancel' };
   }
   if (has('execute') && has('compensate')) {
-    return { rung: RUNG.COMPENSABLE, why: 'declares execute and compensate' };
+    return { rung: RUNG.COMPENSABLE, recoverable, why: 'declares execute and compensate' };
   }
   if (has('execute')) {
-    return { rung: RUNG.IRREVERSIBLE, why: 'declares execute with no way back' };
+    return { rung: RUNG.IRREVERSIBLE, recoverable, why: 'declares execute with no way back' };
   }
-  throw new PlanError(`${participant.id} declares no usable commitment protocol`,
-    { participant: participant.id, steps: Object.keys(steps) });
+  return {
+    rung: null, recoverable,
+    unusable: `${participant.id} declares ${Object.keys(steps).length ? `only ${Object.keys(steps).join(', ')}` : 'no steps'}`
+      + ', which is not a commitment protocol anything can be promised over',
+  };
 }
 
 /**
@@ -102,6 +114,16 @@ export function plan(participants) {
   const classified = new Map();
   for (const p of participants) classified.set(p.id, classify(p));
 
+  const unusable = participants.filter((p) => classified.get(p.id).rung === null);
+  if (unusable.length) {
+    return {
+      guarantee: GUARANTEE.REFUSED,
+      order: participants.map((p) => p.id),
+      rungs: [], pointOfNoReturn: null, caveats: [], recoverable: false,
+      refusal: unusable.map((p) => classified.get(p.id).unusable).join('. ') + '.',
+    };
+  }
+
   const sequence = order(participants, classified);
   const rungs = sequence.map((id) => ({ id, ...classified.get(id) }));
 
@@ -145,11 +167,36 @@ export function plan(participants) {
       + 'A failure reverses it, but the effect is briefly real — a charge may appear and refund.');
   }
 
+  // Confirm is a per-vendor fan-out, so two vendors can be ticketed and a third
+  // fail. That is ordinary two-phase commit and it cannot be removed without a
+  // coordinator both sides trust, which is the thing this design says does not
+  // exist. It is said here rather than papered over.
+  const reservable = rungs.filter((r) => r.rung === RUNG.RESERVABLE);
+  if (reservable.length > 1) {
+    caveats.push(`Confirming ${reservable.length} reservations is a sequence, not an instant. `
+      + 'If a later confirm fails, the earlier ones are already final — you are told exactly '
+      + 'which, and nothing is quietly reversed underneath them.');
+  }
+
+  // Recoverability is part of the honest guarantee. A vendor that cannot be
+  // asked "did this happen" turns any interruption into a permanent unknown,
+  // and the planner used to promise atomicity over exactly that.
+  const unrecoverable = rungs.filter((r) => !r.recoverable);
+  if (unrecoverable.length) {
+    caveats.push(`${unrecoverable.map((r) => r.id).join(', ')} cannot be asked whether a step `
+      + 'happened. If this is interrupted mid-call, that vendor is a permanent unknown — '
+      + 'no one, including this coordinator, will be able to establish what stands.');
+  }
+
   const guarantee = irreversible.length ? GUARANTEE.BOUNDED
     : compensable.length ? GUARANTEE.COMPENSATED
     : GUARANTEE.ATOMIC;
 
-  return { guarantee, order: sequence, rungs, pointOfNoReturn, caveats, refusal: null };
+  return {
+    guarantee, order: sequence, rungs, pointOfNoReturn, caveats,
+    recoverable: unrecoverable.length === 0,
+    refusal: null,
+  };
 }
 
 /** One sentence a person can act on, before they commit to anything. */
@@ -157,8 +204,13 @@ export function describe(p) {
   if (p.refusal) return `Cannot be made atomic. ${p.refusal}`;
   switch (p.guarantee) {
     case GUARANTEE.ATOMIC:
-      return 'Fully atomic. Every vendor holds a reservation, and nothing is committed anywhere '
-        + 'until all of them have agreed.';
+      // Not "fully atomic". Every vendor holds a reservation and nothing
+      // commits until all have agreed -- but the confirm fan-out is sequential,
+      // so a late failure leaves earlier confirms standing. Saying otherwise
+      // would be the exact lie this design exists to refuse.
+      return 'All-or-nothing up to the final confirm. Nothing is committed anywhere until every '
+        + 'vendor has agreed; if a confirm then fails, the ones already confirmed stand and you '
+        + 'are told which.';
     case GUARANTEE.COMPENSATED:
       return 'Atomic by compensation. Some steps commit and are reversed on failure, so an effect '
         + 'may be briefly visible before it is undone.';

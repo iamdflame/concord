@@ -31,6 +31,7 @@ export class LocalStore {
 }
 
 export const PHASE = {
+  STARTED: 'started',   // the plan, recorded before the first call
   INTENT: 'intent',     // about to call; the side effect may or may not follow
   RESULT: 'result',     // the call returned, and this is what it returned
   FAILED: 'failed',     // the call threw; whether it took effect is unknown
@@ -39,6 +40,18 @@ export const PHASE = {
 
 export class Journal {
   constructor(store = new MemoryStore()) { this.store = store; }
+
+  /**
+   * The plan, written before the first call.
+   *
+   * Without it, a saga that finished every step but died before the settled
+   * marker is indistinguishable from one that died half way -- and recovery
+   * cannot tell "there is nothing to do" from "undo everything". That gap
+   * refunded a hotel for a trip that had completed.
+   */
+  async started(sagaId, steps) {
+    await this.store.append({ phase: PHASE.STARTED, sagaId, steps, at: Date.now() });
+  }
 
   /**
    * Record what we are about to do, before doing it.
@@ -73,12 +86,15 @@ export class Journal {
     const sagas = new Map();
 
     for (const row of rows) {
-      const saga = sagas.get(row.sagaId) ?? { sagaId: row.sagaId, steps: new Map(), settled: null };
+      const saga = sagas.get(row.sagaId)
+        ?? { sagaId: row.sagaId, steps: new Map(), settled: null, plan: null };
       if (row.phase === PHASE.SETTLED) saga.settled = row.outcome;
+      else if (row.phase === PHASE.STARTED) saga.plan = row.steps;
       else {
         const step = saga.steps.get(row.idempotencyKey)
-          ?? { vendor: row.vendor, step: row.step, idempotencyKey: row.idempotencyKey, args: row.args };
-        if (row.phase === PHASE.INTENT) step.intended = true;
+          ?? { vendor: row.vendor, step: row.step, idempotencyKey: row.idempotencyKey,
+               args: row.args, at: row.at };
+        if (row.phase === PHASE.INTENT) { step.intended = true; step.at = row.at; }
         if (row.phase === PHASE.RESULT) { step.done = true; step.result = row.result; }
         if (row.phase === PHASE.FAILED) { step.failed = true; step.error = row.error; }
         saga.steps.set(row.idempotencyKey, step);
@@ -90,7 +106,11 @@ export class Journal {
       .filter((s) => s.settled === null)
       .map((s) => ({
         sagaId: s.sagaId,
-        completed: [...s.steps.values()].filter((x) => x.done),
+        plan: s.plan,
+        // Ordered as they were attempted, so a reversal can run newest-first
+        // and mean it.
+        all: [...s.steps.values()].sort((a, b) => (a.at ?? 0) - (b.at ?? 0)),
+        completed: [...s.steps.values()].filter((x) => x.done).sort((a, b) => (a.at ?? 0) - (b.at ?? 0)),
         // Intent written, nothing after it. The process died mid-call, so the
         // vendor may or may not have acted. Only the vendor knows.
         uncertain: [...s.steps.values()].filter((x) => x.intended && !x.done && !x.failed),
