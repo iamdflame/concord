@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ring 0 — Phase 01</title>
+<style>
+  :root{--ground:#0D1216;--surface:#141B21;--line:#26313A;--ink:#DBE3E9;--muted:#71818D;
+        --accent:#E8A33D;--pass:#3FBA86;--fail:#EA5257;--taint:#DC5FA4}
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);margin:0;padding:24px;
+       font:13.5px/1.6 ui-monospace,Menlo,Consolas,monospace}
+  h1{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0}
+  .sub{color:var(--muted);margin:6px 0 20px;max-width:70ch}
+  #verdict{display:inline-block;padding:5px 12px;border-radius:2px;font-weight:600;
+           letter-spacing:.1em;margin-bottom:18px;background:var(--surface);color:var(--muted)}
+  #verdict[data-s="pass"]{background:var(--pass);color:#04150F}
+  #verdict[data-s="fail"]{background:var(--fail);color:#fff}
+  table{border-collapse:collapse;width:100%;max-width:1000px}
+  th{text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+     color:var(--muted);border-bottom:1px solid var(--line);padding:0 12px 8px 0;font-weight:600}
+  td{padding:9px 12px 9px 0;border-bottom:1px solid #1C252C;vertical-align:top}
+  td.id{color:var(--muted);white-space:nowrap}
+  td.st{font-weight:600;white-space:nowrap}
+  .pass{color:var(--pass)} .fail{color:var(--fail)} .warn{color:var(--accent)}
+  td.note{color:var(--muted);font-size:12.5px}
+  iframe{width:320px;height:132px;border:1px solid var(--line);border-radius:2px;margin-top:24px;display:block}
+  .cap{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-top:22px}
+</style>
+
+<h1>Ring 0 · Phase 01 · interception proof</h1>
+<p class="sub">Does a kernel origin actually stand between an agent and another origin's tools?
+Mode A dispatches across the boundary itself; Mode B registers a proxy so an external agent's
+only affordance is kernel-mediated. Everything downstream assumes both.</p>
+
+<div id="verdict">RUNNING…</div>
+
+<table>
+  <thead><tr><th style="width:52px">#</th><th style="width:88px">Result</th><th>Assertion</th><th style="width:44%">Observed</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<p class="cap">supervised process</p>
+<iframe id="workload" src="http://localhost:5174/" allow="tools" title="ledger.workload"></iframe>
+
+<script type="module" src="./phase01.mjs"></script>

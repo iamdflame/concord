@@ -1,0 +1,12 @@
+{
+  "name": "ring0",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A capability kernel for the agentic web. Phase 01: interception proof.",
+  "scripts": {
+    "dev": "node server.mjs",
+    "probe": "node tools/probe.mjs"
+  },
+  "license": "MIT"
+}
