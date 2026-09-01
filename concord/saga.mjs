@@ -23,7 +23,7 @@
 // vendor that already did the work returns the same answer instead of doing it
 // twice.
 
-import { GUARANTEE, RUNG } from './ladder.mjs';
+import { GUARANTEE, RUNG, planSummary } from './ladder.mjs';
 
 /**
  * The one place a step's idempotency key is derived.
@@ -109,6 +109,13 @@ export async function runSaga({
   };
 
   const key = (id, step) => stepKey(sagaId, id, step);
+
+  // What every participant signs alongside its own statement. Signing only its
+  // own part let a coordinator drop one of a vendor's two statements and
+  // rebuild the receipt around what was left: every party still had a
+  // statement, so nothing objected. Each vendor now attests to the shape of the
+  // whole, so the survivors testify that something is missing.
+  const plan = planSummary(planned);
   const toolFor = (id, step) => byId.get(id).protocol.steps[step]?.tool;
 
   /**
@@ -127,7 +134,7 @@ export async function runSaga({
       return await Promise.race([
         call(id, statusTool, { lookupKey: idempotencyKey },
           { idempotencyKey: `${idempotencyKey}.status`, step: 'status', sagaId,
-            parties: planned.order, signal: limit.signal }),
+            parties: planned.order, plan, signal: limit.signal }),
         limit.expired,
       ]);
     } catch { return null; }
@@ -172,7 +179,7 @@ export async function runSaga({
       // deadline at all.
       const result = await Promise.race([
         call(id, tool, args,
-          { idempotencyKey, step, sagaId, parties: planned.order, signal: limit.signal }),
+          { idempotencyKey, step, sagaId, parties: planned.order, plan, signal: limit.signal }),
         limit.expired,
       ]);
       await journal?.result(sagaId, id, step, idempotencyKey, result).catch(() => {});

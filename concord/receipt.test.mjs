@@ -17,6 +17,8 @@ const directory = (origins) => async (vendor, origin, keyId) => {
   if (doc.vendor !== vendor) throw new Error(`${origin} identifies itself as "${doc.vendor}", not "${vendor}"`);
   return doc.keys[keyId] ?? null;
 };
+const PAIR = ['fly.confirm', 'stay.execute'];
+
 const resolver = (byVendor) => async (vendor, origin, keyId) =>
   byVendor[vendor]?.keyId === keyId ? byVendor[vendor].jwk : null;
 
@@ -32,11 +34,16 @@ async function sign(privateKey, stmt) {
 }
 
 const entryFor = async (kp, vendor, step, result, over = {}) => {
+  const parties = over.parties ?? [vendor];
   const stmt = statement({
     sagaId: over.sagaId ?? 's1',
     origin: over.origin ?? `https://${vendor}.example`,
-    vendor, parties: over.parties ?? [vendor], step,
-    idempotencyKey: `${over.sagaId ?? 's1'}.${vendor}.${step}`,
+    vendor, parties,
+    // Every statement attests to the shape of the whole commitment, not just
+    // to this vendor's part of it.
+    plan: over.plan ?? { parties: [...parties].sort(), guarantee: 'atomic',
+                         steps: over.steps ?? [`${vendor}.${step}`] },
+    step, idempotencyKey: `${over.sagaId ?? 's1'}.${vendor}.${step}`,
     at: '2026-09-01T00:00:00Z', result,
   });
   return { statement: stmt, keyId: over.keyId ?? `k-${vendor}`, signature: await sign(kp.pair.privateKey, stmt) };
@@ -81,8 +88,8 @@ test('changing any entry changes the root', async () => {
 test('a vendor verifies its own entry without seeing anyone else', async () => {
   const air = await keypair(), hotel = await keypair();
   const entries = [
-    await entryFor(air, 'fly', 'confirm', { ref: 'NW1', minor: 74200 }),
-    await entryFor(hotel, 'stay', 'execute', { ref: 'RH1', minor: 56700 }),
+    await entryFor(air, 'fly', 'confirm', { ref: 'NW1', minor: 74200 }, { parties: ['fly', 'stay'], steps: PAIR }),
+    await entryFor(hotel, 'stay', 'execute', { ref: 'RH1', minor: 56700 }, { parties: ['fly', 'stay'], steps: PAIR }),
   ];
   const receipt = await buildReceipt({
     sagaId: 's1', outcome: 'committed', entries,
@@ -147,8 +154,9 @@ test('a receipt naming a key the vendor does not publish is not verifiable', asy
 test('statements from another commitment cannot be stitched into this receipt', async () => {
   const air = await keypair(), hotel = await keypair();
   const receipt = await buildReceipt({ sagaId: 's1', outcome: 'committed', entries: [
-    await entryFor(air, 'fly', 'confirm', { ok: true }, { sagaId: 'last-month', parties: ['fly', 'stay'] }),
-    await entryFor(hotel, 'stay', 'execute', { ok: true }, { parties: ['fly', 'stay'] }),
+    await entryFor(air, 'fly', 'confirm', { ok: true },
+      { sagaId: 'last-month', parties: ['fly', 'stay'], steps: PAIR }),
+    await entryFor(hotel, 'stay', 'execute', { ok: true }, { parties: ['fly', 'stay'], steps: PAIR }),
   ] });
   const out = await verifyReceipt(receipt, directory({
     'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } },
@@ -164,8 +172,8 @@ test('a coordinator cannot name its own origin as the vendor', async () => {
   const evil = await keypair(), hotel = await keypair();
   const receipt = await buildReceipt({ sagaId: 's1', outcome: 'committed', entries: [
     await entryFor(evil, 'fly', 'confirm', { minor: 999999 },
-      { origin: 'https://coordinator.example', parties: ['fly', 'stay'] }),
-    await entryFor(hotel, 'stay', 'execute', { ok: true }, { parties: ['fly', 'stay'] }),
+      { origin: 'https://coordinator.example', parties: ['fly', 'stay'], steps: PAIR }),
+    await entryFor(hotel, 'stay', 'execute', { ok: true }, { parties: ['fly', 'stay'], steps: PAIR }),
   ] });
   const out = await verifyReceipt(receipt, directory({
     'https://coordinator.example': { vendor: 'coordinator', keys: { 'k-fly': evil.jwk } },
@@ -178,9 +186,10 @@ test('a coordinator cannot name its own origin as the vendor', async () => {
 test('dropping a statement leaves the survivors testifying that one is missing', async () => {
   const air = await keypair(), hotel = await keypair();
   const parties = ['fly', 'stay'];
+  const steps = ['fly.confirm', 'stay.execute'];
   const both = [
-    await entryFor(air, 'fly', 'confirm', { ok: true }, { parties }),
-    await entryFor(hotel, 'stay', 'execute', { minor: 56700 }, { parties }),
+    await entryFor(air, 'fly', 'confirm', { ok: true }, { parties, steps }),
+    await entryFor(hotel, 'stay', 'execute', { minor: 56700 }, { parties, steps }),
   ];
   const dir = directory({
     'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } },
@@ -207,7 +216,7 @@ test('statements that disagree about who took part are refused', async () => {
     'https://stay.example': { vendor: 'stay', keys: { 'k-stay': hotel.jwk } },
   }));
   assert.equal(out.ok, false);
-  assert.match(out.complaints.join(' '), /disagree about who was party/);
+  assert.match(out.complaints.join(' '), /disagree about what this commitment was going to be/);
 });
 
 test('a root mismatch still reports per entry, not one generic failure', async () => {
@@ -233,7 +242,8 @@ const record = (jwk, over = {}) => ({ keyId: 'k-fly', alg: 'ES256', publicKey: j
 
 const receiptDated = async (kp, at) => {
   const stmt = statement({ sagaId: 's1', origin: 'https://fly.example', vendor: 'fly',
-    parties: ['fly'], step: 'confirm', idempotencyKey: 's1.fly.confirm', at, result: { ok: true } });
+    parties: ['fly'], plan: { parties: ['fly'], guarantee: 'atomic', steps: ['fly.confirm'] },
+    step: 'confirm', idempotencyKey: 's1.fly.confirm', at, result: { ok: true } });
   return buildReceipt({ sagaId: 's1', outcome: 'committed',
     entries: [{ statement: stmt, keyId: 'k-fly', signature: await sign(kp.pair.privateKey, stmt) }] });
 };
@@ -282,4 +292,53 @@ test('a statement with no usable timestamp cannot be placed in any key window', 
   const out = await verifyReceipt(await receiptDated(kp, undefined), withKey(record(kp.jwk)));
   assert.equal(out.ok, false);
   assert.match(out.findings[0].why, /no usable timestamp/);
+});
+
+test('a coordinator cannot hide one of a vendor\'s own statements', async () => {
+  // The attack the party list could not see. fly.confirm is the statement
+  // proving the flight was ticketed and charged. Drop it, rebuild the receipt
+  // around what is left, and every party is still represented -- so nothing
+  // objected, while the receipt hid that money moved.
+  const air = await keypair(), hotel = await keypair();
+  const parties = ['fly', 'stay'];
+  const steps = ['fly.reserve', 'fly.confirm', 'stay.execute'];
+  const all = [
+    await entryFor(air, 'fly', 'reserve', { ref: 'NW1' }, { parties, steps }),
+    await entryFor(hotel, 'stay', 'execute', { minor: 56700 }, { parties, steps }),
+    await entryFor(air, 'fly', 'confirm', { minor: 74200 }, { parties, steps }),
+  ];
+  const dir = directory({
+    'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } },
+    'https://stay.example': { vendor: 'stay', keys: { 'k-stay': hotel.jwk } },
+  });
+
+  assert.equal((await verifyReceipt(await buildReceipt(
+    { sagaId: 's1', outcome: 'committed', entries: all }), dir)).ok, true);
+
+  // Rebuilt properly, root and all -- the way anyone competent would do it.
+  const hidden = await buildReceipt({
+    sagaId: 's1', outcome: 'committed',
+    entries: all.filter((e) => e.statement.step !== 'confirm'),
+  });
+  const out = await verifyReceipt(hidden, dir);
+  assert.equal(out.ok, false);
+  assert.match(out.complaints.join(' '), /claims to have committed, but fly\.confirm/);
+});
+
+test('an honest unwound receipt is not failed for the steps that never ran', async () => {
+  // A commitment that unwound genuinely has no confirm statement. Failing it
+  // for that would make every honest failure look like a forgery.
+  const air = await keypair();
+  const steps = ['fly.reserve', 'fly.confirm'];
+  const entries = [
+    await entryFor(air, 'fly', 'reserve', { ref: 'NW1' }, { parties: ['fly'], steps }),
+    await entryFor(air, 'fly', 'cancel', { released: true }, { parties: ['fly'], steps }),
+  ];
+  const out = await verifyReceipt(
+    await buildReceipt({ sagaId: 's1', outcome: 'unwound', entries }),
+    directory({ 'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } } }));
+
+  assert.equal(out.ok, true, 'an unwound commitment must still verify');
+  assert.match(out.notes.join(' '), /fly\.confirm never happened/);
+  assert.equal(out.complaints.length, 0);
 });

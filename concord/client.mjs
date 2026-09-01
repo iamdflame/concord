@@ -55,14 +55,14 @@ export function bind(ctx, participants) {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const attestations = [];
 
-  const call = async function call(id, toolName, args, { idempotencyKey, sagaId, parties, signal }) {
+  const call = async function call(id, toolName, args, { idempotencyKey, sagaId, parties, plan, signal }) {
     const participant = byId.get(id);
     const tool = participant?.tools[toolName];
     if (!tool) throw new Error(`${id} does not expose ${toolName}`);
 
     // Both travel in the arguments because WebMCP has no call metadata. They
     // are declared parameters on every commitment step, not smuggled ones.
-    const value = await invokeTool(ctx, tool, { ...args, idempotencyKey, sagaId, parties }, signal);
+    const value = await invokeTool(ctx, tool, { ...args, idempotencyKey, sagaId, parties, plan }, signal);
     // The vendor answered, and the answer was no. That is settled, not slow.
     if (value?.error) throw Object.assign(new Error(value.error), { terminal: Boolean(value.terminal) });
 

@@ -90,8 +90,9 @@ export async function verifyInclusion(leaf, proof, root) {
  * origin and parties are the two fields that make the receipt stand on its own:
  * the first anchors the key to the party, the second makes an omission visible.
  */
-export function statement({ sagaId, origin, vendor, parties = [], step, idempotencyKey, result, at }) {
-  return { sagaId, origin, vendor, parties: [...parties].sort(), step, idempotencyKey, at, result };
+export function statement({ sagaId, origin, vendor, parties = [], plan = null,
+                            step, idempotencyKey, result, at }) {
+  return { sagaId, origin, vendor, parties: [...parties].sort(), plan, step, idempotencyKey, at, result };
 }
 
 export async function importVerifyKey(jwk) {
@@ -204,6 +205,10 @@ export async function buildReceipt({ sagaId, outcome, entries, vendors }) {
 export async function verifyReceipt(receipt, resolve = originResolver()) {
   const findings = [];
   const complaints = [];
+  // Things a reader must know that are not, by themselves, evidence of
+  // dishonesty. A commitment that unwound genuinely has no confirm statement,
+  // and failing it for that would make every honest failure look like a forgery.
+  const notes = [];
   const entries = receipt.entries ?? [];
   if (!entries.length) return { ok: false, findings: [{ ok: false, why: 'the receipt contains no statements' }] };
 
@@ -226,16 +231,48 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
     }
   }
 
-  // ── nobody was left out ─────────────────────────────────────────────────
-  // Each vendor signed the full party list, so dropping an inconvenient
-  // statement leaves the survivors testifying that something is missing.
-  const declared = entries.map((e) => (e.statement?.parties ?? []).join(','));
-  if (new Set(declared).size > 1) {
-    complaints.push('the statements disagree about who was party to this commitment');
-  } else if (declared[0]) {
+  // ── nothing was left out ────────────────────────────────────────────────
+  // Each vendor signed the shape of the whole commitment, so a receipt is
+  // checked against what its own participants said it was going to be. Signing
+  // only the party list was not enough: dropping one of a vendor's two
+  // statements left every party still represented, and the receipt -- rebuilt
+  // around what remained -- verified cleanly while hiding that money moved.
+  const plans = entries.map((e) => canonical(e.statement?.plan ?? null));
+  if (new Set(plans).size > 1) {
+    complaints.push('the statements disagree about what this commitment was going to be');
+  }
+
+  const plan = entries[0]?.statement?.plan ?? null;
+  if (!plan) {
+    complaints.push('no statement attests to the shape of this commitment, so it cannot be '
+      + 'shown to be complete');
+  } else {
     const present = new Set(entries.map((e) => e.statement.vendor));
-    const missing = declared[0].split(',').filter((v) => v && !present.has(v));
-    if (missing.length) complaints.push(`no statement from ${missing.join(', ')}, who every other vendor names as party to this`);
+    const missing = (plan.parties ?? []).filter((v) => !present.has(v));
+    if (missing.length) {
+      complaints.push(`no statement from ${missing.join(', ')}, who every other vendor names as party to this`);
+    }
+
+    const seen = new Set(entries.map((e) => `${e.statement.vendor}.${e.statement.step}`));
+    const REVERSALS = new Set(['cancel', 'compensate']);
+    const unaccounted = (plan.steps ?? []).filter((step) => !seen.has(step));
+
+    if (receipt.outcome === 'committed' && unaccounted.length) {
+      // A commitment claimed complete must show every step it was made of.
+      complaints.push(`this claims to have committed, but ${unaccounted.join(', ')} `
+        + `${unaccounted.length === 1 ? 'has' : 'have'} no statement — the receipt does not `
+        + 'account for the whole commitment its own participants signed up to');
+    } else if (unaccounted.length) {
+      notes.push(`${unaccounted.join(', ')} never happened — consistent with an outcome of `
+        + `"${receipt.outcome}", which does not claim they did`);
+    }
+
+    const stray = entries.filter((e) => !(plan.steps ?? []).includes(`${e.statement.vendor}.${e.statement.step}`)
+      && !REVERSALS.has(e.statement.step));
+    if (stray.length) {
+      complaints.push(`${stray.map((e) => `${e.statement.vendor}.${e.statement.step}`).join(', ')} `
+        + 'is not a step this commitment was planned to contain');
+    }
   }
 
   for (const [i, entry] of entries.entries()) {
@@ -273,7 +310,7 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
 
   return {
     ok: complaints.length === 0 && findings.every((f) => f.ok),
-    root, findings, complaints,
+    root, findings, complaints, notes,
   };
 }
 

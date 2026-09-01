@@ -22,7 +22,13 @@ export const KEY_PARAM = {
   sagaId: { type: 'string', description: 'The commitment this step belongs to; it is covered by the signature' },
   parties: {
     type: 'array', items: { type: 'string' },
-    description: 'Every vendor in this commitment. Signed, so a statement cannot be quietly dropped from the receipt',
+    description: 'Every vendor in this commitment',
+  },
+  plan: {
+    type: 'object',
+    description: 'The shape of the whole commitment — who is party to it, what guarantee was '
+      + 'computed, and every step it consists of. Signed, so no statement can be quietly '
+      + 'dropped from the receipt afterwards',
   },
 };
 
@@ -64,10 +70,12 @@ export async function participant({ id, title, protocol, steps, state, render })
       // controlled and have its own signature verify as the airline's.
       origin: location.origin,
       vendor: id,
-      // Who else is in this commitment. Signed, so dropping an inconvenient
-      // statement from the receipt leaves the survivors testifying that
-      // something is missing.
       parties: [...(args.parties ?? [])].sort(),
+      // The shape of the whole commitment, not just this vendor's part of it.
+      // Attesting only to its own part let a coordinator drop one statement and
+      // rebuild the receipt around the rest; attesting to the whole means the
+      // survivors testify that something is missing.
+      plan: args.plan ?? null,
       step,
       idempotencyKey: args.idempotencyKey,
       at: new Date().toISOString(),

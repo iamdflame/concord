@@ -23,20 +23,14 @@
 // happen strands money, and assuming it did refunds a booking never made.
 
 import { OUTCOME, stepKey } from './saga.mjs';
-import { RUNG } from './ladder.mjs';
+import { expectedSteps } from './ladder.mjs';
 
 const FORWARD = new Set(['reserve', 'execute', 'confirm']);
 
-/** Every step the plan required, derived from each participant's rung. */
-function expectedSteps(plan) {
-  if (!plan) return null;
-  const out = [];
-  for (const { vendor, rung } of plan) {
-    if (rung === RUNG.RESERVABLE) out.push(`${vendor}.reserve`, `${vendor}.confirm`);
-    else out.push(`${vendor}.execute`);
-  }
-  return out;
-}
+/** The journal records {vendor, rung}; the ladder speaks in {id, rung}. */
+const plannedSteps = (plan) => plan
+  ? expectedSteps(plan.map(({ vendor, rung }) => ({ id: vendor, rung })))
+  : null;
 
 export async function recover({ journal, participants, call, onEvent = () => {} }) {
   const byId = new Map(participants.map((p) => [p.id, p]));
@@ -81,7 +75,7 @@ export async function recover({ journal, participants, call, onEvent = () => {} 
       .sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
 
     // ── did this saga actually finish? ─────────────────────────────────────
-    const expected = expectedSteps(saga.plan);
+    const expected = plannedSteps(saga.plan);
     const doneKeys = new Set(happened.map((s) => `${s.vendor}.${s.step}`));
     const complete = expected && expected.every((k) => doneKeys.has(k));
 

@@ -199,6 +199,32 @@ export function plan(participants) {
   };
 }
 
+/**
+ * Every step a plan requires, in order.
+ *
+ * Shared by the executor, recovery and the verifier, because three places
+ * deciding what a commitment consists of is three places to disagree -- and a
+ * verifier that computes it differently from the coordinator cannot tell a
+ * missing statement from a step that never ran.
+ */
+export function expectedSteps(rungs) {
+  const out = [];
+  for (const { id, rung } of rungs) {
+    if (rung === RUNG.RESERVABLE) out.push(`${id}.reserve`, `${id}.confirm`);
+    else out.push(`${id}.execute`);
+  }
+  return out;
+}
+
+/** What every participant signs: the shape of the whole, not just its own part. */
+export function planSummary(planned) {
+  return {
+    parties: [...planned.order].sort(),
+    guarantee: planned.guarantee,
+    steps: expectedSteps(planned.rungs),
+  };
+}
+
 /** One sentence a person can act on, before they commit to anything. */
 export function describe(p) {
   if (p.refusal) return `Cannot be made atomic. ${p.refusal}`;

@@ -61,8 +61,9 @@ try {
   process.exit(2);
 }
 
-for (const complaint of out.complaints ?? []) console.log(`  ! ${complaint}`);
-if (out.complaints?.length) console.log('');
+for (const complaint of out.complaints ?? []) console.log(`  ✗ ${complaint}`);
+for (const note of out.notes ?? []) console.log(`  · ${note}`);
+if (out.complaints?.length || out.notes?.length) console.log('');
 
 const w = Math.max(...out.findings.map((f) => (f.vendor ?? '').length), 6);
 for (const f of out.findings) {
