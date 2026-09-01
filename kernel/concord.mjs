@@ -179,7 +179,7 @@ async function commit() {
   if (call.attestations.length) {
     const receipt = await buildReceipt({
       sagaId: out.journal[0]?.sagaId, outcome: out.outcome,
-      entries: call.attestations, keys: call.publicKeys,
+      entries: call.attestations, vendors: call.vendors,
     });
     await renderReceipt(receipt);
     globalThis.__CONCORD_RECEIPT__ = receipt;
@@ -214,8 +214,21 @@ async function renderReceipt(receipt) {
       ${names[0] ? `${esc(names[0])} verifies its own entries from ${first} opaque hashes,
       without being shown what the others charged.` : ''}
       <br><button id="tamper">Edit one entry and re-verify</button>
+      <button id="export">Download receipt</button>
     </div>
   </div>`;
+
+  $('export')?.addEventListener('click', () => {
+    // The receipt has to be able to leave this tab, or the vendor is still
+    // taking the coordinator's word for it. tools/verify-receipt.mjs checks
+    // this file with nothing from us but the file itself.
+    const blob = new Blob([JSON.stringify(receipt, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `receipt-${receipt.sagaId}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
 
   $('tamper')?.addEventListener('click', async () => {
     const copy = structuredClone(receipt);

@@ -6,6 +6,10 @@ import {
   statement, buildReceipt, verifyReceipt, verifyOwnEntry,
 } from './receipt.mjs';
 
+/** Stands in for fetching /.well-known/concord.json, so tests stay offline. */
+const resolver = (byVendor) => async (vendor, origin, keyId) =>
+  byVendor[vendor]?.keyId === keyId ? byVendor[vendor].jwk : null;
+
 async function keypair() {
   const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
   return { pair, jwk: await crypto.subtle.exportKey('jwk', pair.publicKey) };
@@ -45,12 +49,14 @@ test('an odd node is promoted, not hashed with a copy of itself', async () => {
 
 test('changing any entry changes the root', async () => {
   const kp = await keypair();
-  const entries = [await entryFor(kp, 'fly', 'confirm', { minor: 74200 })];
-  const receipt = await buildReceipt({ sagaId: 's1', outcome: 'committed', entries, keys: { fly: kp.jwk } });
-  assert.equal((await verifyReceipt(receipt)).ok, true);
+  const entries = [{ ...(await entryFor(kp, 'fly', 'confirm', { minor: 74200 })), keyId: 'k-fly' }];
+  const resolve = resolver({ fly: { keyId: 'k-fly', jwk: kp.jwk } });
+  const receipt = await buildReceipt({ sagaId: 's1', outcome: 'committed', entries,
+    vendors: { fly: { origin: 'https://fly.example', keyId: 'k-fly' } } });
+  assert.equal((await verifyReceipt(receipt, resolve)).ok, true);
 
   receipt.entries[0].statement.result.minor = 1;
-  const after = await verifyReceipt(receipt);
+  const after = await verifyReceipt(receipt, resolve);
   assert.equal(after.ok, false);
   assert.match(after.findings[0].why ?? '', /do not hash to the stated root/);
 });
@@ -62,7 +68,9 @@ test('a vendor verifies its own entry without seeing anyone else', async () => {
     await entryFor(hotel, 'stay', 'execute', { ref: 'RH1', minor: 56700 }),
   ];
   const receipt = await buildReceipt({
-    sagaId: 's1', outcome: 'committed', entries, keys: { fly: air.jwk, stay: hotel.jwk } });
+    sagaId: 's1', outcome: 'committed', entries,
+    vendors: { fly: { origin: 'https://fly.example', keyId: 'k-fly' },
+               stay: { origin: 'https://stay.example', keyId: 'k-stay' } } });
 
   const mine = await verifyOwnEntry({
     entry: receipt.entries[0], proof: receipt.proofs[0], root: receipt.root, jwk: air.jwk });
@@ -80,11 +88,12 @@ test('the coordinator cannot forge a statement it did not receive', async () => 
   const air = await keypair(), coordinator = await keypair();
   // The coordinator invents a favourable entry and signs it with its own key,
   // which is the only key it has. Verification is against the vendor's.
-  const forged = await entryFor(coordinator, 'fly', 'confirm', { minor: 0 });
+  const forged = { ...(await entryFor(coordinator, 'fly', 'confirm', { minor: 0 })), keyId: 'k-fly' };
   const receipt = await buildReceipt({
-    sagaId: 's1', outcome: 'committed', entries: [forged], keys: { fly: air.jwk } });
+    sagaId: 's1', outcome: 'committed', entries: [forged],
+    vendors: { fly: { origin: 'https://fly.example', keyId: 'k-fly' } } });
 
-  const out = await verifyReceipt(receipt);
+  const out = await verifyReceipt(receipt, resolver({ fly: { keyId: 'k-fly', jwk: air.jwk } }));
   assert.equal(out.ok, false);
   assert.equal(out.findings[0].included, true, 'the entry is in the tree');
   assert.equal(out.findings[0].signed, false, 'but the vendor never said it');
@@ -92,14 +101,28 @@ test('the coordinator cannot forge a statement it did not receive', async () => 
 
 test('a valid statement moved to another receipt still fails', async () => {
   const air = await keypair();
-  const real = await entryFor(air, 'fly', 'confirm', { ref: 'NW1' });
+  const real = { ...(await entryFor(air, 'fly', 'confirm', { ref: 'NW1' })), keyId: 'k-fly' };
   const receipt = await buildReceipt({
-    sagaId: 's1', outcome: 'committed', entries: [real], keys: { fly: air.jwk } });
+    sagaId: 's1', outcome: 'committed', entries: [real],
+    vendors: { fly: { origin: 'https://fly.example', keyId: 'k-fly' } } });
   // Replayed under a different saga: the signature covers sagaId, so it breaks.
   receipt.entries[0].statement.sagaId = 's2';
-  assert.equal((await verifyReceipt(receipt)).ok, false);
+  assert.equal((await verifyReceipt(receipt, resolver({ fly: { keyId: 'k-fly', jwk: air.jwk } }))).ok, false);
 });
 
 test('a receipt with no entries is refused rather than trivially valid', async () => {
-  await assert.rejects(() => buildReceipt({ sagaId: 's', outcome: 'committed', entries: [], keys: {} }));
+  await assert.rejects(() => buildReceipt({ sagaId: 's', outcome: 'committed', entries: [], vendors: {} }));
+});
+
+test('a receipt naming a key the vendor does not publish is not verifiable', async () => {
+  const air = await keypair();
+  const entry = { ...(await entryFor(air, 'fly', 'confirm', { ref: 'NW1' })), keyId: 'rotated-away' };
+  const receipt = await buildReceipt({
+    sagaId: 's1', outcome: 'committed', entries: [entry],
+    vendors: { fly: { origin: 'https://fly.example', keyId: 'rotated-away' } } });
+
+  const out = await verifyReceipt(receipt, resolver({ fly: { keyId: 'k-fly', jwk: air.jwk } }));
+  assert.equal(out.ok, false);
+  assert.equal(out.findings[0].included, true);
+  assert.match(out.findings[0].why, /publishes no key rotated-away/);
 });

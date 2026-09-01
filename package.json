@@ -13,7 +13,8 @@
     "probe:04": "URL=http://localhost:5173/phase04.html node tools/probe.mjs",
     "concord": "URL=http://localhost:5173/concord.html node tools/shot.mjs",
     "probe:concord": "URL=http://localhost:5173/concord-test.html node tools/probe.mjs",
-    "test": "node --test concord/ladder.test.mjs concord/saga.test.mjs"
+    "test": "node --test concord/ladder.test.mjs concord/saga.test.mjs",
+    "verify": "node tools/verify-receipt.mjs"
   },
   "license": "MIT"
 }

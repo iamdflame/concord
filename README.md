@@ -100,9 +100,47 @@ coordinator is the traveller's agent, and it is the one party with a motive to
 misreport.
 
 So the receipt is not the coordinator's story. It is a Merkle tree over
-statements **each vendor signed with a key that never left its origin**. The
+statements **each vendor signed with a key held by that vendor's server**. The
 coordinator can order those statements and prove the ordering. It cannot write
 one, because it never holds a vendor's key.
+
+The key is published at `/.well-known/concord.json` **on the vendor's own
+origin**, and the receipt records where to look rather than carrying the key
+itself:
+
+```json
+"vendors": { "fly": { "origin": "https://fly.example", "keyId": "e545001194dcf27a" } }
+```
+
+That is the anchor. A key handed over on the same channel as the claim it
+authenticates proves nothing; a key fetched from the vendor over TLS is bound to
+that vendor by the guarantee the web already provides. No registry, no CA of our
+own, nothing extra to run — and the receipt still verifies in a year, because
+the key outlives the tab.
+
+### Verify one yourself
+
+```bash
+npm run verify receipt.json
+```
+
+Nothing from the coordinator is involved. The verifier reads the file, fetches
+each vendor's published key from that vendor's origin, and reports per statement:
+
+```
+  ✓ fly     reserve    in tree yes   signed yes
+  ✓ stay    execute    in tree yes   signed yes
+  ✓ visa    execute    in tree yes   signed yes
+  ✓ fly     confirm    in tree yes   signed yes
+
+VERIFIED — 4/4 statements signed by the party named and provably part of this receipt.
+```
+
+A failure is a claim about a specific party rather than a generic error. Edit
+what a vendor charged and the root breaks. Give a statement someone else's
+signature and it reads `fly reserve — in tree yes, signed NO`, with the other
+three still valid: the receipt names the bad statement instead of collapsing
+into "invalid".
 
 ```
 receipt root  7c67482c3a3b73eb3a09fb7a42cc29db0e33ac129f365df9f465159553ea1094   VERIFIED

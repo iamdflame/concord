@@ -21,21 +21,24 @@ export async function participant({ id, title, protocol, steps, state, render })
   const seen = new Map();     // idempotency key -> the answer we already gave
   const failing = new Set();  // steps the operator has broken on purpose
 
-  // The vendor's own key, never leaving this origin. It is the reason the
-  // coordinator cannot write a receipt entry on this vendor's behalf: it can
-  // order and prove statements, but it cannot make one up.
-  const keys = await crypto.subtle.generateKey(
-    { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
-  const publicKey = await crypto.subtle.exportKey('jwk', keys.publicKey);
+  // The signing key belongs to this vendor's server and is published at
+  // /.well-known/concord.json on this origin. The page never holds it. That is
+  // what makes a receipt outlive the tab that produced it, and what binds the
+  // key to the party -- a verifier fetches it from the vendor over TLS rather
+  // than being handed it alongside the claim it is meant to authenticate.
+  const published = await (await fetch('/.well-known/concord.json')).json();
+  const keyId = published.keys.find((k) => k.status === 'active').keyId;
 
   async function attest(step, args, result) {
     const statement = {
       sagaId: args.sagaId ?? null, vendor: id, step,
       idempotencyKey: args.idempotencyKey, result,
     };
-    const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, keys.privateKey,
-      new TextEncoder().encode(canonical(statement)));
-    return { statement, signature: btoa(String.fromCharCode(...new Uint8Array(sig))) };
+    const signed = await (await fetch('/_concord/sign', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statement }),
+    })).json();
+    return { statement, keyId: signed.keyId, signature: signed.signature };
   }
 
   // The commitment surface. WebMCP says what a tool is, not what it promises,
@@ -47,7 +50,9 @@ export async function participant({ id, title, protocol, steps, state, render })
       + 'confirm, cancel, execute or compensate, and whether anything here can be undone.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
-    async execute() { return { id, title, publicKey, ...protocol }; },
+    // Declare where the key lives, not the key. Carrying the key here would
+    // put it on the same channel as the claim, which anchors nothing.
+    async execute() { return { id, title, keyId, origin: location.origin, ...protocol }; },
   }, { exposedTo: [COORDINATOR] });
 
   for (const [step, spec] of Object.entries(steps)) {

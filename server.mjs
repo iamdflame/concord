@@ -10,6 +10,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { wellKnown, sign } from './kit/keystore.mjs';
 
 // Three supervised processes, each a separate origin. One page wearing three
 // hats would prove nothing: the point is that composition crosses real trust
@@ -56,6 +57,33 @@ function serve(port) {
   createServer(async (req, res) => {
     const url = new URL(req.url, `http://localhost:${port}`);
     let path = decodeURIComponent(url.pathname);
+    const origin = `http://localhost:${port}`;
+
+    // A vendor publishes its signing key on its own origin. Anyone verifying a
+    // receipt fetches it from here over TLS, so the web's existing origin
+    // guarantee is what binds the key to the party -- no registry to run, and
+    // nothing for the coordinator to vouch for.
+    if (path === '/.well-known/concord.json') {
+      const body = JSON.stringify(await wellKnown(name, origin), null, 2);
+      res.writeHead(200, { ...headers(TYPES['.json']), 'Access-Control-Allow-Origin': '*',
+                           'Cache-Control': 'public, max-age=300' });
+      return res.end(body);
+    }
+
+    // The vendor's application asks its own backend to sign what it just did.
+    // Same origin, so this is the page-to-backend hop a real vendor already has.
+    if (path === '/_concord/sign' && req.method === 'POST') {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      try {
+        const { statement } = JSON.parse(Buffer.concat(chunks).toString());
+        res.writeHead(200, headers(TYPES['.json']));
+        return res.end(JSON.stringify(await sign(name, statement)));
+      } catch (err) {
+        res.writeHead(400, headers(TYPES['.json']));
+        return res.end(JSON.stringify({ error: err.message }));
+      }
+    }
     if (path === '/' || path.endsWith('/')) path += 'index.html';
 
     // Shared modules live outside the per-origin roots; every origin needs them.

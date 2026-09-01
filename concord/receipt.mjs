@@ -93,6 +93,29 @@ export async function importVerifyKey(jwk) {
   return crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, true, ['verify']);
 }
 
+/**
+ * Fetch a vendor's published keys from its own origin.
+ *
+ * This is the anchor. Nothing in the receipt asserts who a key belongs to; the
+ * verifier goes and asks the vendor, over the same transport that already
+ * proves which origin it is talking to.
+ */
+export async function fetchKeys(origin) {
+  const res = await fetch(`${origin}/.well-known/concord.json`);
+  if (!res.ok) throw new Error(`${origin} publishes no concord key document`);
+  const doc = await res.json();
+  return Object.fromEntries(doc.keys.map((k) => [k.keyId, k.publicKey]));
+}
+
+/** Default resolver: ask each vendor's origin. Injectable so tests stay offline. */
+export function originResolver() {
+  const cache = new Map();
+  return async function resolve(vendor, origin, keyId) {
+    if (!cache.has(origin)) cache.set(origin, fetchKeys(origin));
+    return (await cache.get(origin))[keyId] ?? null;
+  };
+}
+
 export async function verifyStatement(entry, jwk) {
   if (!entry.signature || !jwk) return false;
   const key = await importVerifyKey(jwk);
@@ -103,7 +126,7 @@ export async function verifyStatement(entry, jwk) {
 
 // ── the receipt ─────────────────────────────────────────────────────────────
 
-export async function buildReceipt({ sagaId, outcome, entries, keys }) {
+export async function buildReceipt({ sagaId, outcome, entries, vendors }) {
   const leaves = await Promise.all(entries.map(leafHash));
   const { root, levels } = await buildTree(leaves);
   return {
@@ -113,7 +136,10 @@ export async function buildReceipt({ sagaId, outcome, entries, keys }) {
     root,
     at: new Date().toISOString(),
     entries,
-    keys,                                  // vendor id -> public JWK, as declared
+    // Where to go and ask, not what to believe. A receipt read years from now
+    // resolves keys the same way: fetch them from the vendor that made the
+    // statement, and let the origin do the vouching.
+    vendors,
     proofs: entries.map((_, i) => proofFor(levels, i)),
   };
 }
@@ -122,7 +148,7 @@ export async function buildReceipt({ sagaId, outcome, entries, keys }) {
  * Verify the whole receipt: every statement signed by the vendor that made it,
  * and every entry provably part of this root.
  */
-export async function verifyReceipt(receipt) {
+export async function verifyReceipt(receipt, resolve = originResolver()) {
   const findings = [];
   const leaves = await Promise.all(receipt.entries.map(leafHash));
   const { root } = await buildTree(leaves);
@@ -133,15 +159,20 @@ export async function verifyReceipt(receipt) {
   }
 
   for (const [i, entry] of receipt.entries.entries()) {
+    const { vendor } = entry.statement;
+    const where = receipt.vendors?.[vendor];
     const included = await verifyInclusion(leaves[i], receipt.proofs[i], receipt.root);
-    const signed = await verifyStatement(entry, receipt.keys?.[entry.statement.vendor]);
+
+    let jwk = null, why = null;
+    try {
+      jwk = where ? await resolve(vendor, where.origin, entry.keyId ?? where.keyId) : null;
+      if (!jwk) why = `${vendor} publishes no key ${entry.keyId ?? where?.keyId} at ${where?.origin ?? 'an unknown origin'}`;
+    } catch (err) { why = err.message; }
+
+    const signed = jwk ? await verifyStatement(entry, jwk) : false;
     findings.push({
-      index: i,
-      vendor: entry.statement.vendor,
-      step: entry.statement.step,
-      included,
-      signed,
-      ok: included && signed,
+      index: i, vendor, step: entry.statement.step, keyId: entry.keyId,
+      included, signed, ok: included && signed, ...(why && { why }),
     });
   }
   return { ok: findings.every((f) => f.ok), root, findings };

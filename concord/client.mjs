@@ -57,8 +57,11 @@ export function bind(ctx, participants) {
   };
 
   call.attestations = attestations;
-  call.publicKeys = Object.fromEntries(
-    participants.filter((p) => p.protocol?.publicKey).map((p) => [p.id, p.protocol.publicKey]));
+  // Where each vendor publishes its keys, taken from its own declaration. The
+  // coordinator forwards the address; it never forwards a key.
+  call.vendors = Object.fromEntries(participants
+    .filter((p) => p.protocol?.keyId)
+    .map((p) => [p.id, { origin: p.protocol.origin ?? p.origin, keyId: p.protocol.keyId }]));
   return call;
 }
 

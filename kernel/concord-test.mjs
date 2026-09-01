@@ -118,13 +118,13 @@ record('C10', describe(full).startsWith('Atomic up to a final commit'),
   describe(full));
 
 // ── C11-C15 ── the receipt
-record('C11', Object.keys(call.publicKeys).length === 3,
-  'Every vendor declares a public key alongside its commitment protocol',
-  Object.entries(call.publicKeys).map(([k, v]) => `${k}:${v.kty}/${v.crv}`).join(' · '));
+record('C11', Object.keys(call.vendors).length === 3,
+  'Every vendor declares where its signing key is published, rather than handing one over',
+  Object.entries(call.vendors).map(([k, v]) => `${k} → ${v.origin}/.well-known · ${v.keyId}`).join(' · '));
 
 const receipt = await buildReceipt({
   sagaId: ok.journal[0].sagaId, outcome: ok.outcome,
-  entries: call.attestations, keys: call.publicKeys,
+  entries: call.attestations, vendors: call.vendors,
 });
 const verified = await verifyReceipt(receipt);
 record('C12', verified.ok && receipt.entries.length === call.attestations.length,
@@ -133,9 +133,10 @@ record('C12', verified.ok && receipt.entries.length === call.attestations.length
 
 // A vendor holds only its own entry, its proof, and the root.
 const mine = receipt.entries.findIndex((e) => e.statement.vendor === 'fly');
+const flyKeys = await (await fetch(`${call.vendors.fly.origin}/.well-known/concord.json`)).json();
 const own = await verifyOwnEntry({
-  entry: receipt.entries[mine], proof: receipt.proofs[mine],
-  root: receipt.root, jwk: call.publicKeys.fly,
+  entry: receipt.entries[mine], proof: receipt.proofs[mine], root: receipt.root,
+  jwk: flyKeys.keys.find((k) => k.keyId === receipt.entries[mine].keyId).publicKey,
 });
 const leaked = JSON.stringify(receipt.proofs[mine]);
 record('C13', own.ok && !/minor|ref|RH|CF/.test(leaked),
@@ -154,6 +155,7 @@ const reforged = structuredClone(receipt);
 const other = receipt.entries.findIndex((e) => e.statement.vendor !== 'fly');
 reforged.entries[mine].signature = reforged.entries[other].signature;
 const caught2 = await verifyReceipt(reforged);
+globalThis.__CONCORD_RECEIPT__ = receipt;
 record('C15', caught2.ok === false && caught2.findings.some((f) => f.included && !f.signed),
   'A statement carrying someone else\'s signature is in the tree but unsigned',
   caught2.findings.filter((f) => !f.signed).map((f) => `${f.vendor}.${f.step} unsigned`).join(', '));
