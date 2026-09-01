@@ -3,17 +3,39 @@
   "version": "0.1.0",
   "description": "Verify a Concord receipt without trusting the coordinator that produced it.",
   "type": "module",
-  "bin": { "concord-verify": "./cli.mjs" },
+  "bin": {
+    "concord-verify": "./cli.js"
+  },
   "main": "./lib/receipt.mjs",
   "exports": {
     ".": "./lib/receipt.mjs",
     "./canonical": "./lib/canonical.mjs"
   },
-  "files": ["cli.mjs", "lib/", "README.md"],
-  "engines": { "node": ">=20" },
-  "keywords": ["webmcp", "concord", "receipt", "merkle", "attestation", "agents"],
+  "files": [
+    "cli.js",
+    "lib/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "webmcp",
+    "concord",
+    "receipt",
+    "merkle",
+    "attestation",
+    "agents"
+  ],
   "license": "MIT",
   "author": "Highneighbour",
-  "repository": { "type": "git", "url": "git+https://github.com/iamdflame/concord.git", "directory": "verify" },
-  "homepage": "https://github.com/iamdflame/concord/blob/main/SPEC.md"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamdflame/concord.git",
+    "directory": "verify"
+  },
+  "homepage": "https://github.com/iamdflame/concord/blob/main/SPEC.md",
+  "scripts": {
+    "prepublishOnly": "node build.mjs"
+  }
 }

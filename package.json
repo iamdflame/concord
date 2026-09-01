@@ -16,7 +16,8 @@
     "test": "node --test concord/agent-surface.test.mjs kit/canonical.test.mjs concord/ladder.test.mjs concord/saga.test.mjs concord/receipt.test.mjs concord/recover.test.mjs concord/journal.test.mjs",
     "verify": "node tools/verify-receipt.mjs",
     "export": "node tools/export-receipt.mjs",
-    "conformance": "URL=http://localhost:5173/conformance.html node tools/probe.mjs"
+    "conformance": "URL=http://localhost:5173/conformance.html node tools/probe.mjs",
+    "publish:verify": "cd verify && npm publish --access public"
   },
   "license": "MIT"
 }

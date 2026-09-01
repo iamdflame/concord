@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Assemble the publishable verifier from the source of truth.
 //
+// Runs automatically on prepublishOnly, so the published package cannot drift
+// from the repository it says it mirrors.
+//
 // The package must be self-contained -- a verifier that needs the rest of this
 // repository is not one a stranger can run -- but it must not be a second copy
 // that drifts. It is generated, and CI regenerates it to check nothing moved.
