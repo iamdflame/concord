@@ -13,43 +13,10 @@
 // Mode B is the one that matters, because it protects agents we do not control.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
-
-// A suite that dies mid-run must report that, not hang looking like slow work.
-addEventListener('error', (e) => {
-  globalThis.__RING0_RESULTS__ = { done: true, verdict: 'THREW', error: String(e.message) };
-});
-addEventListener('unhandledrejection', (e) => {
-  globalThis.__RING0_RESULTS__ = { done: true, verdict: 'THREW', error: String(e.reason?.message ?? e.reason) };
-});
+import { createSuite, awaitTools } from './harness.mjs';
 
 const WORKLOAD = 'http://localhost:5174';
-const rows = document.getElementById('rows');
-const results = [];
-
-function record(id, ok, assertion, observed, soft = false) {
-  const state = ok ? 'pass' : soft ? 'warn' : 'fail';
-  results.push({ id, state });
-  rows.insertAdjacentHTML('beforeend',
-    `<tr><td class="id">${id}</td>` +
-    `<td class="st ${state}">${state.toUpperCase()}</td>` +
-    `<td>${assertion}</td>` +
-    `<td class="note">${String(observed).replace(/[<&]/g, (c) => ({ '<': '&lt;', '&': '&amp;' }[c]))}</td></tr>`);
-}
-
-/** Resolves once the workload frame has registered, rather than on a fixed sleep. */
-function awaitTools(ctx, predicate, ms = 4000) {
-  return new Promise((resolve) => {
-    const deadline = Date.now() + ms;
-    const poll = async () => {
-      let tools = [];
-      try { tools = await ctx.getTools({ fromOrigins: [WORKLOAD] }); } catch { /* not ready */ }
-      if (predicate(tools) || Date.now() > deadline) return resolve(tools);
-      setTimeout(poll, 120);
-    };
-    ctx.addEventListener?.('toolchange', poll, { once: true });
-    poll();
-  });
-}
+const { record, finish } = createSuite('PHASE 01');
 
 const { ctx, provider, surface, policy } = await resolveModelContext();
 
@@ -60,7 +27,7 @@ record('A1', true,
   provider !== 'native');
 
 // ── A2/A3 ── cross-origin discovery under mutual opt-in
-const discovered = await awaitTools(ctx, (t) => t.some((x) => x.name === 'get_balance'));
+const discovered = await awaitTools(ctx, [WORKLOAD], (t) => t.some((x) => x.name === 'get_balance'));
 const balanceTool = discovered.find((t) => t.name === 'get_balance' && t.origin === WORKLOAD);
 
 record('A2', discovered.length > 0,
@@ -147,25 +114,12 @@ try {
 }
 
 // ── verdict ──
-const failed = results.filter((r) => r.state === 'fail');
-const warned = results.filter((r) => r.state === 'warn');
-const el = document.getElementById('verdict');
+finish({ provider, surface, policy });
 
-if (failed.length) {
-  el.dataset.s = 'fail';
-  el.textContent = `PHASE 01 FAILED — ${failed.map((r) => r.id).join(', ')}`;
-} else {
-  el.dataset.s = 'pass';
-  el.textContent = provider === 'native'
-    ? 'PHASE 01 PASSED — NATIVE WEBMCP'
-    : 'PHASE 01 PASSED — SHIM ONLY (kernel logic proven, browser unproven)';
+// This suite makes a claim about the platform, so it says which one it tested.
+if (provider !== 'native') {
+  const el = document.getElementById('verdict');
+  if (el && el.dataset.s === 'pass') {
+    el.textContent = 'PHASE 01 PASSED — SHIM ONLY (kernel logic proven, browser unproven)';
+  }
 }
-document.title = `RING0_VERDICT ${failed.length ? 'FAIL' : 'PASS'} provider=${provider}`;
-
-globalThis.__RING0_RESULTS__ = {
-  done: true,
-  verdict: failed.length ? 'FAIL' : 'PASS',
-  provider, surface, policy,
-  rows: results,
-  wire: globalThis.__RING0_WIRE__ ?? [],
-};
