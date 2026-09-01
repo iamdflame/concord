@@ -6,7 +6,8 @@ Concord is that missing layer — and the first agent that is structurally
 incapable of overpromising.
 
 **Live: <https://concord-coordinator.vercel.app>** · [SPEC.md](SPEC.md) ·
-[THREAT-MODEL.md](THREAT-MODEL.md) · `npx concord-verify`
+[THREAT-MODEL.md](THREAT-MODEL.md) ·
+[`npx concord-verify`](https://www.npmjs.com/package/concord-verify)
 
 ---
 
@@ -114,7 +115,7 @@ Those last two work against the deployment, not just localhost:
 
 ```bash
 URL=https://concord-coordinator.vercel.app/ npm run export receipt.json
-npm run verify receipt.json
+npx concord-verify receipt.json
 ```
 
 ```
@@ -127,9 +128,18 @@ npm run verify receipt.json
 VERIFIED — 4/4 statements signed by the party named and provably part of this receipt.
 ```
 
-Nothing of the coordinator's is involved in that second command. It reads the
-file, fetches each vendor's key from that vendor's own origin over TLS, and
-checks every statement was signed by the party it names.
+Nothing of this project is involved in that second command — not the
+coordinator, not this repository. [`concord-verify`](https://www.npmjs.com/package/concord-verify)
+is published, so it runs from the registry on a machine with nothing installed.
+It reads the file, fetches each vendor's key from that vendor's own origin over
+TLS, and checks every statement was signed by the party it names, with a key
+that was entitled to sign at the time.
+
+Edit what a vendor charged and it says the entries do not hash to the stated
+root, naming the entry that moved. Remove the statement proving the flight was
+ticketed and rebuild the receipt around what is left, and it says the receipt
+does not account for the whole commitment its own participants signed up to.
+Both exit non-zero. `--explain` prints the algorithm as it runs.
 
 ## The hard part is refusing to lie
 

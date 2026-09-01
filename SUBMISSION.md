@@ -3,6 +3,7 @@
 **Live:** <https://concord-coordinator.vercel.app>
 **Repository:** <https://github.com/iamdflame/concord>
 **Verify a receipt yourself:** `npx concord-verify receipt.json`
+([on npm](https://www.npmjs.com/package/concord-verify) — nothing of ours runs)
 **Conformance, in your browser:** <https://concord-coordinator.vercel.app/conformance.html>
 
 ## In three sentences
