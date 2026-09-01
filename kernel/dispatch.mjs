@@ -5,6 +5,7 @@
 // the side effect of a schema error telling an attacker what shape to send.
 
 import { Label, Provenance, UNTRUSTED, originTag } from './labels.mjs';
+import { Transcript } from './transcript.mjs';
 
 /** Minimal JSON Schema check. The platform has no input validation. */
 function validate(schema, args, toolId) {
@@ -25,7 +26,7 @@ function validate(schema, args, toolId) {
 
 export class Kernel {
   #ctx; #policy; #provenance; #confirm;
-  transcript = [];
+  transcript = new Transcript();
 
   constructor({ modelContext, policy, confirm }) {
     this.#ctx = modelContext;
@@ -38,12 +39,20 @@ export class Kernel {
 
   get provenance() { return this.#provenance; }
 
+  // contextAfter is recorded so replay can be checked against what actually
+  // held, rather than trusted to agree with itself.
   #record(entry) {
-    this.transcript.push({ seq: this.transcript.length, t: Math.round(performance.now()), ...entry });
-    return this.transcript.at(-1);
+    return this.transcript.append({
+      t: Math.round(performance.now()),
+      ...entry,
+      contextAfter: this.#provenance.context.tags,
+    });
   }
 
   async dispatch(tool, args = {}, options = {}) {
+    if (!tool?.name || !tool?.origin) {
+      throw new TypeError('dispatch needs a registered tool descriptor; got ' + JSON.stringify(tool));
+    }
     const toolId = `${tool.origin}/${tool.name}`;
     const effect = tool.annotations?.readOnlyHint ? 'read' : 'write';
     const egress = this.#policy.egressOf(toolId);
@@ -53,9 +62,9 @@ export class Kernel {
     const ruling = this.#policy.check(call);
 
     if (!ruling.allow) {
-      const entry = this.#record({
-        kind: 'deny', toolId, args, label: String(label), effect, egress,
-        reason: ruling.reason, rule: ruling.rule?.source ?? null, evidence,
+      const entry = await this.#record({
+        kind: 'deny', toolId, args, label: String(label), labelTags: label.tags,
+        effect, egress, reason: ruling.reason, rule: ruling.rule?.source ?? null, evidence,
       });
       const err = new Error(ruling.reason);
       err.name = 'PolicyDenial';
@@ -67,9 +76,10 @@ export class Kernel {
     if (ruling.confirm) {
       const approved = await this.#confirm({ toolId, args, label: String(label), effect, egress, reason: ruling.reason });
       if (!approved) {
-        const entry = this.#record({
-          kind: 'deny', toolId, args, label: String(label), effect, egress,
-          reason: `a human declined this ${egress} call`, rule: ruling.rule?.source ?? null, evidence,
+        const entry = await this.#record({
+          kind: 'deny', toolId, args, label: String(label), labelTags: label.tags,
+          effect, egress, reason: `a human declined this ${egress} call`,
+          rule: ruling.rule?.source ?? null, evidence,
         });
         const err = new Error(entry.reason);
         err.name = 'ConfirmationDeclined';
@@ -90,9 +100,9 @@ export class Kernel {
     if (tool.annotations?.untrustedContentHint) outLabel = outLabel.join(Label.of(UNTRUSTED));
     this.#provenance.observe(value, outLabel, toolId);
 
-    this.#record({
-      kind: 'call', toolId, args, label: String(outLabel), effect, egress,
-      confirmed: Boolean(ruling.confirm), result: value,
+    await this.#record({
+      kind: 'call', toolId, args, label: String(outLabel), labelTags: outLabel.tags,
+      effect, egress, confirmed: Boolean(ruling.confirm), result: value,
     });
     return value;
   }

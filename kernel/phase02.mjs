@@ -37,7 +37,10 @@ const kernel = new Kernel({
   confirm: async (request) => { confirmSeen = request; return confirmDecision; },
 });
 
-const tools = await awaitTools(ctx, ALL, (t) => t.some((x) => x.name === 'send_funds'));
+// Wait for every tool this suite actually uses. Waiting on one of them let a
+// slower origin arrive late and handed dispatch an undefined descriptor.
+const NEEDED = ['read_thread', 'get_balance', 'list_invoices', 'send_funds', 'list_transfers'];
+const tools = await awaitTools(ctx, ALL, (t) => NEEDED.every((n) => t.some((x) => x.name === n)));
 const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
 
 // ── B3 ── reading is permitted, and the attack is genuinely present
@@ -144,9 +147,9 @@ record('B12', unclassified.allow === false,
   unclassified.reason);
 
 // ── B13 ── the transcript is the record a human would be shown
-const denials = kernel.transcript.filter((e) => e.kind === 'deny');
+const denials = kernel.transcript.entries.filter((e) => e.kind === 'deny');
 record('B13', denials.length === 3 && denials[0].rule?.includes('untrusted'),
   'Every decision is recorded with the rule that produced it',
   `${kernel.transcript.length} entries · first denial by: ${denials[0]?.rule?.slice(0, 58) ?? 'none'}…`);
 
-finish({ provider, surface, policy: toolsPolicy, transcript: kernel.transcript });
+finish({ provider, surface, policy: toolsPolicy, transcript: kernel.transcript.entries });

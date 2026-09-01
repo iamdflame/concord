@@ -134,9 +134,9 @@ record('C9', present && gone,
   `granted=${present} · revoked=${gone}`);
 
 // ── C10 ── the transcript reads as an account of what happened
-const calls = kernel.transcript.filter((e) => e.kind === 'call');
+const calls = kernel.transcript.entries.filter((e) => e.kind === 'call');
 const origins = new Set(calls.map((e) => e.toolId.replace(/\/[^/]+$/, '')));
-record('C10', origins.size === 3 && kernel.transcript.some((e) => e.kind === 'deny'),
+record('C10', origins.size === 3 && kernel.transcript.entries.some((e) => e.kind === 'deny'),
   'The transcript records every call and denial across all three origins',
   `${kernel.transcript.length} entries spanning ${origins.size} origins`);
 
@@ -149,4 +149,4 @@ record('C11', Boolean(supplierBy) && supplierBy.startsWith(LEDGER) && attackerBy
   'The payee is corroborated by an independent origin; the attacker is not',
   `acct_supplier ← ${supplierBy ?? 'nothing'} · acct_attacker_9f ← ${attackerBy ?? 'nothing'}`);
 
-finish({ provider, surface, policy: toolsPolicy, transcript: kernel.transcript });
+finish({ provider, surface, policy: toolsPolicy, transcript: kernel.transcript.entries });
