@@ -9,10 +9,12 @@ the developer. Ring 0 is the layer that acts on those bits: it treats every
 origin as a process and every tool as a syscall, then schedules, labels, and
 records the calls between them.
 
-**Status: Phase 03 complete — composition holds.** Three independent origins,
+**Status: Phase 04 complete — the instrument runs.** Three independent origins,
 one supervising kernel. An injected instruction authored at the mail origin
-cannot become an argument to the payments origin, and the refusal names where
-the content came from two hops back. The honest payment still completes.
+cannot become an argument to the payments origin, the refusal names where the
+content came from two hops back, and the honest payment still completes. The
+monitor at `/monitor.html` reconstructs any instant of the session from a
+hash-chained transcript.
 
 ## Run it
 
@@ -21,7 +23,11 @@ npm run dev       # kernel :5173, mail :5174, ledger :5175, pay :5176
 npm run probe:01  # interception
 npm run probe:02  # labels and the policy gate
 npm run probe:03  # composition across three origins
+npm run probe:04  # transcript, replay and tamper-evidence
 ```
+
+Then open <http://localhost:5173/monitor.html>. Drag the axis to move through
+kernel time, arrow keys to step, click any call to inspect it.
 
 `DEBUG_WIRE=1 npm run probe` adds the cross-frame message trace.
 
@@ -155,6 +161,32 @@ prose, so it never matched `acct_supplier` in an argument. The payment had been
 clearing by accident rather than by corroboration, which is the worse of the two
 failures because it looks like success.
 
+## What Phase 04 proves
+
+The monitor lets you drag a timeline and watch the system as it stood at that
+instant. There are two ways to build that, and only one of them is honest.
+
+Store a snapshot per step and play them back, and it agrees with itself by
+construction — it would keep agreeing after the logic changed underneath it.
+Store only what crossed the boundary and derive the rest on demand, and it can
+be wrong, which means it can be checked.
+
+So nothing is snapshotted. `reconstruct()` replays recorded tool outputs through
+a fresh `Provenance`, and the suite asserts:
+
+- **D3** — replaying to step *n* reproduces exactly the labels the live kernel
+  held at step *n*, for every *n*.
+- **D7** — replaying the whole transcript settles nothing on the payments
+  origin. Replay derives state; it does not re-run effects.
+
+Scrub back before the attack and the pay process reads `idle`, `0 calls`,
+nothing settled, and the session carries no `TAINTED_CONTEXT`. That is not a
+dimmed copy of the present — it is a system that has not been attacked yet.
+
+Each entry carries the SHA-256 digest of its predecessor, so an entry cannot be
+edited, reordered or removed without breaking every link after it. **D2** edits
+a recorded call and confirms the chain names the offending entry.
+
 ## What Phase 01 does *not* prove
 
 **WebMCP is in no stable browser.** It runs as a Chrome origin trial from 149 to
@@ -186,6 +218,8 @@ kernel/labels.mjs   the taint lattice and provenance tracker
 kernel/policy.mjs   policy parser and evaluator
 kernel/policy.ring  the capability policy itself
 kernel/dispatch.mjs the gate every kernel tool call passes through
+kernel/monitor.html the instrument — syscall trace and time-scrub
+kernel/transcript.mjs hash-chained log and reconstruction
 kernel/origins.mjs  the three supervised processes
 kernel/             :5173 — Ring 0 and the phase suites
 mail/               :5174 — untrustedContentHint; authors none of what it returns
@@ -199,8 +233,9 @@ tools/probe.mjs     headless Chrome over CDP
 
 ## Next
 
-Phase 04 builds the transcript into deterministic replay and the time-scrub:
-dragging a timeline reconstructs every process, label and pending call at that
-instant, rather than animating a recording of one.
+Phase 05 is the completeness sweep: empty states, first run, mid-flight cancel,
+refresh, a permalink to a transcript instant, keyboard-only trace navigation,
+and a live text field where anyone can write their own injection and watch the
+kernel hold.
 
 MIT.

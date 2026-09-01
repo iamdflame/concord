@@ -90,7 +90,9 @@ export class Kernel {
 
     validate(tool.inputSchema, args, toolId);
 
+    const started = performance.now();
     const raw = await this.#ctx.executeTool(tool, args, { signal: options.signal });
+    const ms = Math.max(1, Math.round(performance.now() - started));
     let value;
     try { value = JSON.parse(raw); } catch { value = raw; }
 
@@ -102,7 +104,7 @@ export class Kernel {
 
     await this.#record({
       kind: 'call', toolId, args, label: String(outLabel), labelTags: outLabel.tags,
-      effect, egress, confirmed: Boolean(ruling.confirm), result: value,
+      effect, egress, ms, confirmed: Boolean(ruling.confirm), result: value,
     });
     return value;
   }
