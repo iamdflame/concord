@@ -32,6 +32,34 @@ import { GUARANTEE, RUNG } from './ladder.mjs';
  * that partly unwound and then crashed presented the vendor a key it had never
  * seen and the compensation ran a second time. One derivation, both paths.
  */
+/**
+ * A deadline that actually holds the process open until it fires.
+ *
+ * AbortSignal.timeout() alone is not enough: its timer is unref'd, so when the
+ * only other pending work is a call that never settles, Node exits before the
+ * abort is delivered and the deadline silently does not exist. Inside a test
+ * runner or a browser there is always other work, so it appears to function --
+ * which is the worst kind of bug, one that works everywhere you look.
+ *
+ * The signal is still handed to the vendor, because a vendor that can stop work
+ * it will not be allowed to finish should be told to. The ref'd timer is what
+ * makes the coordinator's own deadline real. Both are cleared on the way out,
+ * or every completed call leaves a live timer behind for its full duration.
+ */
+function deadline(ms, message) {
+  const controller = new AbortController();
+  let timer;
+  const expired = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort(new Error(message));
+      reject(Object.assign(new Error(message), { timedOut: true }));
+    }, ms);
+  });
+  // Nothing listens for an unhandled rejection on a race we may never lose.
+  expired.catch(() => {});
+  return { signal: controller.signal, expired, clear: () => clearTimeout(timer) };
+}
+
 export const stepKey = (sagaId, vendor, step) => `${sagaId}.${vendor}.${step}`;
 
 export const OUTCOME = {
@@ -94,15 +122,16 @@ export async function runSaga({
   const probe = async (id, idempotencyKey) => {
     const statusTool = byId.get(id)?.protocol?.steps?.status?.tool;
     if (!statusTool) return null;
-    const signal = AbortSignal.timeout(Math.min(callTimeoutMs, 5_000));
+    const limit = deadline(Math.min(callTimeoutMs, 5_000), `${id} did not answer the status probe`);
     try {
       return await Promise.race([
         call(id, statusTool, { lookupKey: idempotencyKey },
-          { idempotencyKey: `${idempotencyKey}.status`, step: 'status', sagaId, parties: planned.order, signal }),
-        new Promise((_, reject) => signal.addEventListener('abort',
-          () => reject(new Error(`${id} did not answer the status probe`)), { once: true })),
+          { idempotencyKey: `${idempotencyKey}.status`, step: 'status', sagaId,
+            parties: planned.order, signal: limit.signal }),
+        limit.expired,
       ]);
     } catch { return null; }
+    finally { limit.clear(); }
   };
 
   /**
@@ -118,9 +147,7 @@ export async function runSaga({
     const tool = toolFor(id, step);
     if (!tool) throw new Error(`${id} declares no "${step}" step`);
     const idempotencyKey = key(id, step);
-    // A deadline on every call. WebMCP passes the signal through to the tool,
-    // so a vendor can stop work it will not be allowed to finish.
-    const signal = AbortSignal.timeout(callTimeoutMs);
+    const limit = deadline(callTimeoutMs, `${id} did not answer ${step} within ${callTimeoutMs}ms`);
 
     // Intent is written before the call, never after. A log of outcomes alone
     // cannot distinguish "about to reserve" from "never reserved", and those
@@ -144,10 +171,9 @@ export async function runSaga({
       // coordinator that trusts every vendor to honour cancellation has no
       // deadline at all.
       const result = await Promise.race([
-        call(id, tool, args, { idempotencyKey, step, sagaId, parties: planned.order, signal }),
-        new Promise((_, reject) => signal.addEventListener('abort', () => reject(
-          Object.assign(new Error(`${id} did not answer ${step} within ${callTimeoutMs}ms`),
-            { timedOut: true })), { once: true })),
+        call(id, tool, args,
+          { idempotencyKey, step, sagaId, parties: planned.order, signal: limit.signal }),
+        limit.expired,
       ]);
       await journal?.result(sagaId, id, step, idempotencyKey, result).catch(() => {});
       return result;
@@ -174,6 +200,8 @@ export async function runSaga({
       err.vendor = id;
       err.step = step;
       throw err;
+    } finally {
+      limit.clear();
     }
   };
 

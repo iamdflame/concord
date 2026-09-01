@@ -14,7 +14,7 @@ import { createSuite, awaitTools } from './harness.mjs';
 import { parsePolicy } from './policy.mjs';
 import { Kernel } from './dispatch.mjs';
 import { UNTRUSTED, originTag } from './labels.mjs';
-import { MAIL, LEDGER, PAY, ALL } from './origins.mjs';
+import { MAIL, LEDGER, PAY, ALL } from './processes.mjs';
 
 const { record, finish } = createSuite('PHASE 03');
 const { ctx, provider, surface, policy: toolsPolicy } = await resolveModelContext();

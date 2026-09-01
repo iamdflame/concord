@@ -14,7 +14,7 @@
 
 import { resolveModelContext } from '/shim/adapter.mjs';
 import { createSuite, awaitTools } from './harness.mjs';
-import { MAIL, LEDGER } from './origins.mjs';
+import { MAIL, LEDGER } from './processes.mjs';
 
 const WORKLOAD = MAIL;
 const { record, finish } = createSuite('PHASE 01');

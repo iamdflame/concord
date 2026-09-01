@@ -5,9 +5,10 @@
 // coordinator's word for it. This is the other half of tools/verify-receipt.mjs:
 // one produces the artefact, the other checks it with nothing else to hand.
 //
-//   node tools/export-receipt.mjs receipt.json [scenario]
+//   node tools/export-receipt.mjs receipt.json [trip|nofee|hold]
 //
-// scenario is one of the coordinator's own: trip (default), nofee, hold.
+// It asks the agent, waits for the guarantee to be read back, and consents --
+// the same path a person takes, because there is no other one.
 
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -71,15 +72,34 @@ try {
     await sleep(200);
   }
 
-  if (scenario !== 'trip') {
-    await evaluate(
-      `[...document.querySelectorAll('#scenarios button')].find(b => b.dataset.key === ${JSON.stringify(scenario)})?.click()`,
-      sessionId);
-    await sleep(400);
+  // Drive the agent, not the buttons. There is no way to commit that does not
+  // go through a proposal the agent explained first, which is the point.
+  const ASKS = {
+    trip:  'Book me London for three nights — flight, hotel and the visa fee.',
+    nofee: 'A flight and a hotel, nothing I cannot take back.',
+    hold:  'Just hold me a seat.',
+  };
+  const ask = ASKS[scenario] ?? ASKS.trip;
+  await evaluate(
+    `(() => { document.getElementById('q').value = ${JSON.stringify(ask)};
+              document.getElementById('ask').requestSubmit(); })()`, sessionId);
+
+  // Wait for the agent to have read the guarantee back and offered the choice.
+  let offered = false;
+  for (let i = 0; i < 80; i++) {
+    const { result } = await evaluate(
+      `(() => { const b = document.getElementById('commit'); return Boolean(b && !b.hidden); })()`, sessionId);
+    if (result.value) { offered = true; break; }
+    await sleep(250);
+  }
+  if (!offered) {
+    const { result } = await evaluate(
+      `document.querySelector('#transcript .msg.agent:last-child p')?.textContent ?? ''`, sessionId);
+    throw new Error(`the agent did not offer a commitment: ${String(result.value).slice(0, 160)}`);
   }
 
   await evaluate(`document.getElementById('commit').click()`, sessionId);
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 160; i++) {
     const { result } = await evaluate('Boolean(globalThis.__CONCORD_RECEIPT__)', sessionId);
     if (result.value) break;
     await sleep(250);

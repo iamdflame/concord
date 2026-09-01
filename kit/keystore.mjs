@@ -18,8 +18,35 @@ import { canonical, sha256 } from './canonical.mjs';
 
 const DIR = join(process.cwd(), '.keys');
 
+/**
+ * Where a signing key comes from, in order of preference.
+ *
+ * A deployed vendor reads its key from the environment. Writing keypairs to
+ * disk is fine on a laptop and fatal on a serverless host: the filesystem is
+ * read-only or per-invocation, so the key regenerates, /.well-known publishes
+ * one that did not sign the statement, and every receipt fails to verify. The
+ * best feature in the project breaks first, and quietly.
+ *
+ * CONCORD_KEY_FLY, CONCORD_KEY_STAY, … or CONCORD_SIGNING_JWK for a single
+ * deployment. The value is a JWK with its private half.
+ */
+function fromEnv(vendor) {
+  const raw = process.env[`CONCORD_KEY_${vendor.toUpperCase()}`] ?? process.env.CONCORD_SIGNING_JWK;
+  if (!raw) return null;
+  let privateKey;
+  try { privateKey = JSON.parse(raw); }
+  catch { throw new Error(`CONCORD_KEY_${vendor.toUpperCase()} is not valid JSON`); }
+  if (privateKey.kty !== 'EC' || !privateKey.d) {
+    throw new Error(`CONCORD_KEY_${vendor.toUpperCase()} is not an EC private JWK`);
+  }
+  // The public half is the same key without the private scalar.
+  const { d, key_ops, ...publicKey } = privateKey;
+  return { vendor, privateKey, publicKey: { ...publicKey, key_ops: ['verify'] },
+           createdAt: privateKey.concordCreatedAt ?? '2026-01-01T00:00:00.000Z', source: 'environment' };
+}
+
 async function load(vendor) {
-  try { return JSON.parse(await readFile(join(DIR, `${vendor}.json`), 'utf8')); }
+  try { return { ...JSON.parse(await readFile(join(DIR, `${vendor}.json`), 'utf8')), source: 'disk' }; }
   catch { return null; }
 }
 
@@ -31,20 +58,29 @@ async function create(vendor) {
     privateKey: await crypto.subtle.exportKey('jwk', pair.privateKey),
     publicKey: await crypto.subtle.exportKey('jwk', pair.publicKey),
     createdAt: new Date().toISOString(),
+    source: 'generated',
   };
-  // The key id is derived from the key itself, so a receipt can name exactly
-  // which key signed it and a vendor can rotate without invalidating history.
-  record.keyId = (await sha256(canonical(record.publicKey))).slice(0, 16);
-  await mkdir(DIR, { recursive: true });
-  await writeFile(join(DIR, `${vendor}.json`), JSON.stringify(record, null, 2));
+  try {
+    await mkdir(DIR, { recursive: true });
+    await writeFile(join(DIR, `${vendor}.json`), JSON.stringify(record, null, 2));
+  } catch {
+    // Read-only filesystem. Carrying on with a key that dies with this process
+    // would publish one thing and sign with another, so say so.
+    console.warn(`[concord] ${vendor} could not persist a signing key and none was supplied. `
+      + `Set CONCORD_KEY_${vendor.toUpperCase()} or receipts will not verify across restarts.`);
+  }
   return record;
 }
 
 const cache = new Map();
 
 export async function keyFor(vendor) {
-  if (!cache.has(vendor)) cache.set(vendor, (await load(vendor)) ?? (await create(vendor)));
-  return cache.get(vendor);
+  if (!cache.has(vendor)) {
+    cache.set(vendor, fromEnv(vendor) ?? (await load(vendor)) ?? (await create(vendor)));
+  }
+  const record = await cache.get(vendor);
+  if (!record.keyId) record.keyId = (await sha256(canonical(record.publicKey))).slice(0, 16);
+  return record;
 }
 
 /**

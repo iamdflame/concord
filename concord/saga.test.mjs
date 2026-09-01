@@ -187,3 +187,26 @@ test('a transient failure is retried with growing, jittered waits', async () => 
   // ceiling grows even though any individual draw may not.
   assert.ok(waits.every((w) => w >= 0 && w <= 40), `waits outside the cap: ${waits}`);
 });
+
+test('a completed commitment leaves no timer behind', async () => {
+  // Every call arms a deadline. If they are not cleared, a finished saga holds
+  // the process open for as long as its longest timeout.
+  const before = process.getActiveResourcesInfo().filter((r) => r === 'Timeout').length;
+  const ps = [reservable('fly'), compensable('stay')];
+  await runSaga({ plan: plan(ps), participants: ps, call: bank().call, callTimeoutMs: 30_000 });
+  const after = process.getActiveResourcesInfo().filter((r) => r === 'Timeout').length;
+  assert.equal(after, before, 'a deadline outlived the call it was guarding');
+});
+
+test('the deadline fires even when nothing else keeps the loop alive', async () => {
+  // AbortSignal.timeout alone is unref'd: with only a never-settling call
+  // pending, Node exits before the abort is delivered and the deadline
+  // silently does not exist. Inside a test runner there is always other work,
+  // which is what made this invisible.
+  const ps = [reservable('fly')];
+  const out = await runSaga({
+    plan: plan(ps), participants: ps, call: () => new Promise(() => {}), callTimeoutMs: 40,
+  });
+  assert.equal(out.outcome, OUTCOME.UNWOUND);
+  assert.match(out.cause, /did not answer reserve within 40ms/);
+});

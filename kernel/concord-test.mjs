@@ -13,10 +13,18 @@ import { buildReceipt, verifyReceipt, verifyOwnEntry, leafHash } from '/concord/
 import { Journal, MemoryStore } from '/concord/journal.mjs';
 import { recover } from '/concord/recover.mjs';
 
-const FLY = 'http://localhost:5177';
-const STAY = 'http://localhost:5178';
-const VISA = 'http://localhost:5179';
-const ALL = [FLY, STAY, VISA];
+import { ORIGINS, VENDOR_ORIGINS } from '/config.mjs';
+
+const FLY = ORIGINS.fly, STAY = ORIGINS.stay, VISA = ORIGINS.visa;
+const ALL = VENDOR_ORIGINS;
+
+// Embed every participant the origin table names, or discovery waits for one
+// that was never put on the page.
+for (const [id, origin] of Object.entries(ORIGINS).filter(([id]) => id !== 'app')) {
+  const frame = document.createElement('iframe');
+  Object.assign(frame, { id, src: `${origin}/`, allow: 'tools', title: id });
+  document.getElementById('frames').append(frame);
+}
 
 const { record, finish } = createSuite('CONCORD');
 const { ctx, provider, policy: toolsPolicy } = await resolveModelContext();

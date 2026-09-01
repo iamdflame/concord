@@ -15,11 +15,10 @@ import { buildReceipt, verifyReceipt } from '/concord/receipt.mjs';
 import { Journal, IndexedStore, LocalStore } from '/concord/journal.mjs';
 import { recover } from '/concord/recover.mjs';
 import { publishAgentTools } from './agent-tools.mjs';
+import { ORIGINS, VENDORS, VENDOR_ORIGINS, TITLES } from '/config.mjs';
 import { makeReader, turn } from './agent.mjs';
 
-const FLY = 'http://localhost:5177', STAY = 'http://localhost:5178';
-const VISA = 'http://localhost:5179', PERMIT = 'http://localhost:5180';
-const ALL = [FLY, STAY, VISA, PERMIT];
+const ALL = VENDOR_ORIGINS;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[<>&"']/g, (c) =>
   ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -67,8 +66,8 @@ function fatal(err, context) {
       </div><div class="caveats">
         <div class="caveat"><b>!</b><span>Concord needs its four vendor origins running.
           Start them with <code>npm run dev</code> and reload — they are separate origins on
-          ports 5177 to 5180, and the coordinator deliberately cannot proceed without hearing
-          from all of them.</span></div>
+          ${esc(VENDOR_ORIGINS.join(', '))}, and the coordinator deliberately cannot proceed
+          without hearing from all of them.</span></div>
         <div class="caveat"><b>!</b><span>Nothing was contacted and nothing is outstanding.
           A commitment that cannot be planned is never started.</span></div>
       </div></div>
@@ -83,6 +82,19 @@ function fatal(err, context) {
 addEventListener('unhandledrejection', (e) => {
   if (!globalThis.__CONCORD_READY__) fatal(e.reason, 'Something failed while starting up');
 });
+
+// Embed the participants before asking who is there. Discovery walks the frame
+// tree, so a frame created after it has already run is a frame nobody sees --
+// which is a coordinator that reports its own vendors unreachable.
+for (const id of VENDORS) {
+  const frame = document.createElement('iframe');
+  frame.id = id;
+  frame.src = `${ORIGINS[id]}/`;
+  frame.allow = 'tools';
+  frame.title = TITLES[id];
+  frame.loading = 'eager';
+  $('frames').append(frame);
+}
 
 let ctx;
 try {

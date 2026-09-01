@@ -7,8 +7,9 @@
 
 import { resolveModelContext } from '/shim/adapter.mjs';
 import { canonical } from '/kit/canonical.mjs';
+import { COORDINATOR } from '/config.mjs';
 
-export const COORDINATOR = 'http://localhost:5173';
+export { COORDINATOR };
 
 /** Tool arguments are attacker-controlled from this origin's point of view. */
 export const esc = (s) => String(s).replace(/[<>&"']/g, (c) =>

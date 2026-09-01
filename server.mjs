@@ -11,21 +11,21 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { wellKnown, sign } from './kit/keystore.mjs';
+import { LOCAL_PORTS } from './config.mjs';
 
 // Three supervised processes, each a separate origin. One page wearing three
 // hats would prove nothing: the point is that composition crosses real trust
 // boundaries the browser enforces.
+// Ports come from the one origin table, so local and deployed cannot drift.
+const CONCORD = Object.fromEntries(Object.entries(LOCAL_PORTS).map(([port, id]) =>
+  [port, { root: id === 'app' ? 'kernel' : `vendors/${id}`, name: id === 'app' ? 'kernel' : id }]));
+
 const ORIGINS = {
-  5173: { root: 'kernel',        name: 'kernel'  },
-  5174: { root: 'mail',          name: 'mail'    },
-  5175: { root: 'ledger',        name: 'ledger'  },
-  5176: { root: 'pay',           name: 'pay'     },
-  // Concord vendors. Independent businesses with no relationship to each
-  // other, each at a different rung of the commitment ladder.
-  5177: { root: 'vendors/fly',   name: 'fly'     },
-  5178: { root: 'vendors/stay',  name: 'stay'    },
-  5179: { root: 'vendors/visa',  name: 'visa'    },
-  5180: { root: 'vendors/permit', name: 'permit' },
+  ...CONCORD,
+  // Ring 0's three supervised processes, the substrate Concord was built on.
+  5174: { root: 'mail',   name: 'mail'   },
+  5175: { root: 'ledger', name: 'ledger' },
+  5176: { root: 'pay',    name: 'pay'    },
 };
 
 const TYPES = {
@@ -41,8 +41,7 @@ const TYPES = {
 // access. Without this header the browser may bucket same-site documents into
 // one agent cluster and getTools() will come back empty with no error, which
 // is a genuinely difficult failure to diagnose.
-const ALLOWED = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180]
-  .map((p) => `"http://localhost:${p}"`).join(' ');
+const ALLOWED = Object.keys(ORIGINS).map((p) => `"http://localhost:${p}"`).join(' ');
 
 function headers(type) {
   return {
@@ -92,7 +91,9 @@ function serve(port) {
     if (path === '/' || path.endsWith('/')) path += 'index.html';
 
     // Shared modules live outside the per-origin roots; every origin needs them.
-    const base = /^\/(shim|shared|kit|concord)\//.test(path) ? '.' : root;
+    // Shared modules and the origin table live outside the per-origin roots.
+    const base = /^\/(shim|shared|kit|concord|experiments)\//.test(path)
+      || /^\/(config|origins)\.mjs$/.test(path) ? '.' : root;
     const file = join(process.cwd(), base, normalize(path).replace(/^(\.\.[/\\])+/, ''));
 
     try {
