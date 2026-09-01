@@ -1,0 +1,135 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Concord</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#0B1014; --panel:#121920; --panel-2:#0E141A; --line:#1F2A33; --line-2:#18212A;
+  --ink:#D6DEE5; --ink-2:#93A2AE; --muted:#5D6B77;
+  --hold:#E8A33D; --ok:#3FBA86; --bad:#EA5257; --brand:#7FB3D5;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",-apple-system,Segoe UI,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:13px/1.55 var(--mono)}
+.lbl{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+.strip{display:flex;align-items:center;border-bottom:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap}
+.cell{padding:10px 16px;border-right:1px solid var(--line-2);display:flex;flex-direction:column;gap:3px}
+.cell b{font-size:12px;font-weight:600}
+.brand{font-weight:600;letter-spacing:.22em;color:var(--brand);font-size:12.5px}
+
+.wrap{display:grid;grid-template-columns:minmax(420px,1fr) minmax(360px,.9fr);gap:0;align-items:start}
+.col{padding:18px 20px;min-width:0}
+.col+.col{border-left:1px solid var(--line)}
+
+/* ── the guarantee: the whole thesis, stated before anything happens ── */
+.promise{border:1px solid var(--line);border-radius:3px;background:var(--panel);overflow:hidden;margin-bottom:14px}
+.promise-head{padding:14px 16px 12px;border-bottom:1px solid var(--line-2)}
+.verdict{font-family:var(--sans);font-size:20px;font-weight:600;letter-spacing:-.01em;margin:6px 0 8px;line-height:1.2}
+.verdict.atomic,.verdict.bounded,.verdict.compensated{color:var(--ok)}
+.verdict.refused{color:var(--bad)}
+.promise-head p{margin:0;color:var(--ink-2);font-size:12.5px;max-width:60ch}
+
+/* ── the ladder ── */
+.ladder{padding:6px 16px 14px}
+.rung{display:grid;grid-template-columns:22px 120px 1fr auto;gap:0 12px;align-items:center;
+      padding:9px 0;border-bottom:1px solid var(--line-2)}
+.rung:last-child{border-bottom:0}
+.rung .n{color:var(--muted);font-size:11px}
+.rung .who{font-weight:600}
+.bar{height:5px;border-radius:2px;background:var(--line);position:relative;max-width:230px}
+.bar i{position:absolute;inset:0;border-radius:2px;display:block}
+.r3 i{width:100%;background:var(--ok)} .r2 i{width:62%;background:var(--hold)} .r1 i{width:26%;background:var(--bad)}
+.steps{font-size:10.5px;color:var(--muted);white-space:nowrap}
+.ponr{color:var(--bad);font-size:9.5px;letter-spacing:.1em}
+.caveats{padding:0 16px 14px}
+.caveat{display:flex;gap:9px;color:var(--ink-2);font-size:12px;padding:6px 0;border-top:1px solid var(--line-2)}
+.caveat b{color:var(--hold);flex:none}
+
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--panel);
+       color:var(--ink);padding:8px 15px;border-radius:2px;cursor:pointer;letter-spacing:.04em}
+button:hover:not(:disabled){border-color:var(--brand);color:var(--brand)}
+button.go{background:var(--ok);color:#04150F;border-color:var(--ok)}
+button.go:hover:not(:disabled){background:#4FCF97;color:#04150F;border-color:#4FCF97}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.scenarios{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.scenarios button{font-size:11px;padding:5px 10px;font-weight:400}
+.scenarios button[aria-pressed="true"]{border-color:var(--brand);color:var(--brand)}
+
+/* ── execution ── */
+.phase{margin-bottom:2px}
+.phase-h{display:flex;align-items:center;gap:9px;padding:7px 0 5px}
+.phase-h .lbl{color:var(--ink-2)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--line);flex:none}
+.dot.on{background:var(--ok)} .dot.warn{background:var(--hold)} .dot.err{background:var(--bad)}
+.ev{display:grid;grid-template-columns:96px 1fr;gap:0 12px;padding:5px 0 5px 16px;
+    border-left:1px solid var(--line-2);font-size:12px}
+.ev b{font-weight:600;color:var(--ink-2)}
+.ev.ok b{color:var(--ok)} .ev.hold b{color:var(--hold)} .ev.bad b{color:var(--bad)}
+.ev span{color:var(--muted);word-break:break-word}
+.ponr-mark{margin:8px 0;padding:8px 12px;border:1px dashed var(--bad);border-radius:2px;
+           color:var(--bad);font-size:11.5px;letter-spacing:.04em}
+.outcome{margin-top:14px;padding:12px 14px;border-radius:2px;border-left:3px solid var(--line);background:var(--panel)}
+.outcome.committed{border-left-color:var(--ok)}
+.outcome.unwound{border-left-color:var(--hold)}
+.outcome.in-doubt,.outcome.refused{border-left-color:var(--bad)}
+.outcome b{display:block;font-family:var(--sans);font-size:15px;margin-bottom:5px}
+.outcome.committed b{color:var(--ok)} .outcome.unwound b{color:var(--hold)}
+.outcome.in-doubt b,.outcome.refused b{color:var(--bad)}
+.outcome p{margin:0;color:var(--ink-2);font-size:12px}
+.outcome code{color:var(--muted);font-size:11px}
+
+.frames{display:grid;gap:10px;margin-top:10px}
+iframe{width:100%;height:322px;border:1px solid var(--line);border-radius:2px;background:var(--ground)}
+.hint{color:var(--muted);font-size:11px;margin:6px 0 0;max-width:56ch}
+@media (max-width:940px){.wrap{grid-template-columns:1fr}.col+.col{border-left:0;border-top:1px solid var(--line)}}
+</style>
+
+<div class="strip">
+  <div class="cell"><span class="brand">CONCORD</span><span class="lbl" id="sub">reading declarations…</span></div>
+  <div class="cell"><span class="lbl">participants</span><b id="pcount">—</b></div>
+  <div class="cell"><span class="lbl">agreement between them</span><b style="color:var(--muted)">none</b></div>
+  <div class="cell"><span class="lbl">coordinator</span><b style="color:var(--muted)">this tab</b></div>
+  <div class="cell"><span class="lbl">server</span><b style="color:var(--muted)">none</b></div>
+</div>
+
+<div class="wrap">
+  <div class="col">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="promise">
+      <div class="promise-head">
+        <span class="lbl">what can be promised</span>
+        <div class="verdict" id="verdict">…</div>
+        <p id="explain"></p>
+      </div>
+      <div class="ladder" id="ladder"></div>
+      <div class="caveats" id="caveats"></div>
+    </div>
+    <div class="actions">
+      <button class="go" id="commit">Commit</button>
+      <button id="reset">Reset vendors</button>
+    </div>
+    <span class="lbl">execution</span>
+    <div id="run"><p class="hint">Nothing has been contacted yet. The plan above was computed
+      entirely from what each vendor declared it can commit to.</p></div>
+    <div id="outcome"></div>
+  </div>
+
+  <div class="col">
+    <span class="lbl">participants</span>
+    <p class="hint">Three independent businesses. None has an API with another, none knows the others
+      exist. Break any step below while a commitment is running.</p>
+    <div class="frames">
+      <iframe id="fly"  src="http://localhost:5177/" allow="tools" title="Northwind Air"></iframe>
+      <iframe id="stay" src="http://localhost:5178/" allow="tools" title="Rowan House"></iframe>
+      <iframe id="visa" src="http://localhost:5179/" allow="tools" title="Consular Fee"></iframe>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./concord.mjs"></script>

@@ -1,16 +1,19 @@
 {
-  "name": "ring0",
+  "name": "concord",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A capability kernel for the agentic web. Phase 01: interception proof.",
+  "description": "Atomic commitments across independent websites, coordinated in the browser.",
   "scripts": {
     "dev": "node server.mjs",
     "probe": "node tools/probe.mjs",
     "probe:01": "URL=http://localhost:5173/ node tools/probe.mjs",
     "probe:02": "URL=http://localhost:5173/phase02.html node tools/probe.mjs",
     "probe:03": "URL=http://localhost:5173/phase03.html node tools/probe.mjs",
-    "probe:04": "URL=http://localhost:5173/phase04.html node tools/probe.mjs"
+    "probe:04": "URL=http://localhost:5173/phase04.html node tools/probe.mjs",
+    "concord": "URL=http://localhost:5173/concord.html node tools/shot.mjs",
+    "probe:concord": "URL=http://localhost:5173/concord-test.html node tools/probe.mjs",
+    "test": "node --test concord/ladder.test.mjs concord/saga.test.mjs"
   },
   "license": "MIT"
 }

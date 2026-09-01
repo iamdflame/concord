@@ -51,6 +51,13 @@ try {
     await sleep(200);
   }
 
+  // Arbitrary driving script, so a screenshot can capture a state the page only
+  // reaches after someone interacts with it.
+  if (process.env.DO) {
+    await send('Runtime.evaluate', { expression: process.env.DO, awaitPromise: true }, sessionId);
+    await sleep(Number(process.env.SETTLE ?? 1800));
+  }
+
   if (STEPS > 0) {
     await send('Runtime.evaluate', { expression: `document.getElementById('scrub').focus()` }, sessionId);
     for (let i = 0; i < STEPS; i++) {
@@ -63,12 +70,13 @@ try {
 
   const { result: state } = await send('Runtime.evaluate', {
     expression: `JSON.stringify({
-      head: document.getElementById('headT').textContent,
+      head: document.getElementById('headT')?.textContent ?? document.getElementById('verdict')?.textContent,
       tags: [...document.querySelectorAll('#tags .tag')].map(t => t.textContent),
-      denied: document.getElementById('denied').textContent,
-      chain: document.getElementById('chain').textContent,
-      settled: document.getElementById('settled').textContent.trim().slice(0,70),
-      verdict: document.querySelector('.ruling b')?.textContent ?? '',
+      denied: document.getElementById('denied')?.textContent ?? '',
+      chain: document.getElementById('chain')?.textContent ?? '',
+      settled: document.getElementById('settled')?.textContent.trim().slice(0,70) ?? '',
+      outcome: document.querySelector('.outcome b')?.textContent ?? '',
+      stranded: document.querySelector('.outcome p')?.textContent?.slice(0,180) ?? '',
     })`, returnByValue: true }, sessionId);
   console.log(state.value);
 
