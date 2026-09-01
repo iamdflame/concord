@@ -28,7 +28,18 @@ const chrome = spawn(CHROME, [
   'about:blank',
 ], { stdio: 'ignore' });
 
-const cleanup = async () => { chrome.kill('SIGKILL'); await rm(profile, { recursive: true, force: true }); };
+// Chrome keeps writing its profile for a moment after SIGKILL, so removing it
+// immediately races and throws ENOTEMPTY. Teardown must never decide the exit
+// code of a test run.
+const cleanup = async () => {
+  const exited = new Promise((r) => chrome.once('exit', r));
+  chrome.kill('SIGKILL');
+  await Promise.race([exited, new Promise((r) => setTimeout(r, 2000))]);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try { await rm(profile, { recursive: true, force: true }); return; }
+    catch { await new Promise((r) => setTimeout(r, 200)); }
+  }
+};
 process.on('exit', () => chrome.kill('SIGKILL'));
 
 async function endpoint(deadline = Date.now() + 12000) {
