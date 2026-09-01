@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Ring 0 — Phase 02</title>
+<title>Ring 0 — Phase 03</title>
 <style>
   :root{--ground:#0D1216;--surface:#141B21;--line:#26313A;--ink:#DBE3E9;--muted:#71818D;
         --accent:#E8A33D;--pass:#3FBA86;--fail:#EA5257;--taint:#DC5FA4}
@@ -26,10 +26,11 @@
   .cap{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-top:22px}
 </style>
 
-<h1>Ring 0 · Phase 02 · labels and the policy gate</h1>
-<p class="sub">A scripted agent reads a mail thread carrying instructions written by an attacker,
-then tries to act on them. No language model is involved on purpose: the kernel's job is to hold
-whatever the agent asks for, and a model here would test the model instead of the gate.</p>
+<h1>Ring 0 · Phase 03 · composition across three origins</h1>
+<p class="sub">An ordinary task across three independent origins: find the open invoice on the ledger,
+read the thread about it in mail, check the balance, pay it. A person would do this in four minutes and
+would notice the forged notice. An agent will not — so the attack now crosses two trust boundaries
+the browser enforces, and only the kernel connects them.</p>
 
 <div id="verdict">RUNNING…</div>
 
@@ -45,4 +46,4 @@ whatever the agent asks for, and a model here would test the model instead of th
   <iframe id="pay"    src="http://localhost:5176/" allow="tools" title="pay"></iframe>
 </div>
 
-<script type="module" src="./phase02.mjs"></script>
+<script type="module" src="./phase03.mjs"></script>

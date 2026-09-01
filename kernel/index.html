@@ -21,7 +21,8 @@
   td.st{font-weight:600;white-space:nowrap}
   .pass{color:var(--pass)} .fail{color:var(--fail)} .warn{color:var(--accent)}
   td.note{color:var(--muted);font-size:12.5px}
-  iframe{width:320px;height:132px;border:1px solid var(--line);border-radius:2px;margin-top:24px;display:block}
+  .frames{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px;max-width:1000px}
+  iframe{width:100%;height:290px;border:1px solid var(--line);border-radius:2px;display:block;background:var(--ground)}
   .cap{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-top:22px}
 </style>
 
@@ -37,7 +38,11 @@ only affordance is kernel-mediated. Everything downstream assumes both.</p>
   <tbody id="rows"></tbody>
 </table>
 
-<p class="cap">supervised process</p>
-<iframe id="workload" src="http://localhost:5174/" allow="tools" title="ledger.workload"></iframe>
+<p class="cap">supervised processes</p>
+<div class="frames">
+  <iframe id="mail"   src="http://localhost:5174/" allow="tools" title="mail"></iframe>
+  <iframe id="ledger" src="http://localhost:5175/" allow="tools" title="ledger"></iframe>
+  <iframe id="pay"    src="http://localhost:5176/" allow="tools" title="pay"></iframe>
+</div>
 
 <script type="module" src="./phase01.mjs"></script>

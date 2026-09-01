@@ -8,7 +8,8 @@
     "dev": "node server.mjs",
     "probe": "node tools/probe.mjs",
     "probe:01": "URL=http://localhost:5173/ node tools/probe.mjs",
-    "probe:02": "URL=http://localhost:5173/phase02.html node tools/probe.mjs"
+    "probe:02": "URL=http://localhost:5173/phase02.html node tools/probe.mjs",
+    "probe:03": "URL=http://localhost:5173/phase03.html node tools/probe.mjs"
   },
   "license": "MIT"
 }

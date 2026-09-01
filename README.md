@@ -9,16 +9,18 @@ the developer. Ring 0 is the layer that acts on those bits: it treats every
 origin as a process and every tool as a syscall, then schedules, labels, and
 records the calls between them.
 
-**Status: Phase 02 complete — the gate holds.** The kernel stands between an
-agent and another origin's tools, labels what crosses, and refuses a
-prompt-injection attack before it executes, citing the content it came from.
+**Status: Phase 03 complete — composition holds.** Three independent origins,
+one supervising kernel. An injected instruction authored at the mail origin
+cannot become an argument to the payments origin, and the refusal names where
+the content came from two hops back. The honest payment still completes.
 
 ## Run it
 
 ```bash
-npm run dev       # two origins: kernel :5173, workload :5174
+npm run dev       # kernel :5173, mail :5174, ledger :5175, pay :5176
 npm run probe:01  # interception
 npm run probe:02  # labels and the policy gate
+npm run probe:03  # composition across three origins
 ```
 
 `DEBUG_WIRE=1 npm run probe` adds the cross-frame message trace.
@@ -112,6 +114,47 @@ Effect comes from the platform's `readOnlyHint` and the taint source from its
 `untrustedContentHint`. Only egress class is declared here, because WebMCP has
 no notion of what a tool can reach. Anything no rule names is denied.
 
+## What Phase 03 proves
+
+Three separate origins, because one page wearing three hats would prove nothing.
+The task is ordinary: find the open invoice on the ledger, read the thread about
+it in mail, check the balance, pay it. A person would do this in four minutes
+and would notice the forged notice. An agent will not.
+
+Eleven assertions cover discovery across three origins in a single call, the
+distributed task completing, per-origin labels, the cross-boundary denial,
+origin-pinned authority, capability revocation via `AbortSignal`, and the
+transcript. Each app updates its own UI as the agent works, which is the
+property WebMCP exists for: the page stays present instead of being bypassed.
+
+### Corroboration, or: the honest payment is untrusted too
+
+The hard case is not the attack. It is that **the legitimate payee arrived in
+the same untrusted email as the attacker's account** — invoices come by mail.
+A gate that refuses content from untrusted sources refuses the real payment for
+exactly the reason it refuses the fake one.
+
+What separates them is not the text. It is whether an independent origin that is
+not a taint source asserts the same value. The ledger records where each vendor
+is actually paid; nothing but the forged notice names the attacker's account.
+
+```
+acct_supplier    ← http://localhost:5175/list_invoices     corroborated → clears
+acct_attacker_9f ← nothing                                 denied
+```
+
+So corroboration declassifies, and the judgement is a property of the
+composition rather than of the prose. Phase 02 tests this from both sides: the
+same payee is refused, then clears once the ledger vouches for it. Removing
+`settlement` from the ledger turns the honest payment red.
+
+This is also where a mutation test earned its keep. With corroboration removed
+the honest payment still passed, which should have been impossible — the
+tokenizer had been capturing `acct_supplier.` with its trailing period from
+prose, so it never matched `acct_supplier` in an argument. The payment had been
+clearing by accident rather than by corroboration, which is the worse of the two
+failures because it looks like success.
+
 ## What Phase 01 does *not* prove
 
 **WebMCP is in no stable browser.** It runs as a Chrome origin trial from 149 to
@@ -143,8 +186,12 @@ kernel/labels.mjs   the taint lattice and provenance tracker
 kernel/policy.mjs   policy parser and evaluator
 kernel/policy.ring  the capability policy itself
 kernel/dispatch.mjs the gate every kernel tool call passes through
-kernel/            origin A :5173 — Ring 0 and the phase suites
-workload/           origin B :5174 — a supervised process; tools granted and withheld
+kernel/origins.mjs  the three supervised processes
+kernel/             :5173 — Ring 0 and the phase suites
+mail/               :5174 — untrustedContentHint; authors none of what it returns
+ledger/             :5175 — read-only; the corroborating party
+pay/                :5176 — send_funds, irreversible, the effect being guarded
+shared/process.css  common chrome for the processes
 shim/webmcp.mjs     spec-faithful WebMCP for browsers that lack it
 shim/adapter.mjs    native-first resolution; reports which provider you got
 tools/probe.mjs     headless Chrome over CDP
@@ -152,8 +199,8 @@ tools/probe.mjs     headless Chrome over CDP
 
 ## Next
 
-Phase 03 splits the workload into three real origins — mailbox, ledger,
-payments — so composition is genuine rather than one page wearing three hats.
-Phase 04 builds the transcript into deterministic replay and the time-scrub.
+Phase 04 builds the transcript into deterministic replay and the time-scrub:
+dragging a timeline reconstructs every process, label and pending call at that
+instant, rather than animating a recording of one.
 
 MIT.

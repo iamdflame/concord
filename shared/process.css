@@ -1,0 +1,37 @@
+/* Shared chrome for the supervised processes. Each app is its own product;
+   this only makes them look like they belong to the same system. */
+:root{
+  --ground:#0D1216; --surface:#141B21; --surface-2:#101720; --line:#26313A;
+  --ink:#DBE3E9; --muted:#71818D; --accent:#E8A33D; --taint:#DC5FA4;
+  --ok:#3FBA86; --warn:#EA5257;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;padding:16px;background:var(--ground);color:var(--ink);
+  font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;
+}
+header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+h1{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0}
+.origin{font-size:11px;color:var(--muted)}
+.tools{
+  font-size:10.5px;color:var(--muted);letter-spacing:.06em;
+  margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line);
+}
+.tools b{color:var(--ink);font-weight:600}
+.tools .withheld{color:var(--taint)}
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:2px;
+  padding:10px 12px;margin-bottom:8px;
+}
+.card.new{animation:land .9s ease-out}
+@keyframes land{from{border-color:var(--accent);background:#1D2530}to{}}
+@media (prefers-reduced-motion:reduce){.card.new{animation:none}}
+.from{color:var(--muted);font-size:11px;margin-bottom:5px;display:flex;justify-content:space-between;gap:10px}
+.flag{color:var(--taint);letter-spacing:.08em}
+.body{white-space:pre-wrap;word-break:break-word}
+.row{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #1C252C}
+.row:last-child{border-bottom:0}
+.row b{font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+.pos{color:var(--ok)} .neg{color:var(--warn)}
+.empty{color:var(--muted);padding:10px 0;font-style:normal}

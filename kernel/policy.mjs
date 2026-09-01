@@ -36,6 +36,9 @@ function parsePredicate(tokens, lineNo, line) {
     if (!CLASSES.includes(value)) throw new ParseError(`unknown egress class "${value}"`, lineNo, line);
     return { kind: 'egress', op, value, describe: `egress ${op === '==' ? 'is' : 'is not'} ${value}` };
   }
+  if (subject === 'origin' && (op === '==' || op === '!=')) {
+    return { kind: 'origin', op, value, describe: `origin ${op === '==' ? 'is' : 'is not'} ${value}` };
+  }
   if (subject === 'labels' && (op === 'includes' || op === 'excludes')) {
     return { kind: 'labels', op, value, describe: `labels ${op} ${value}` };
   }
@@ -103,6 +106,7 @@ function holds(cond, call) {
   switch (cond.kind) {
     case 'effect': return call.effect === cond.value;
     case 'egress': return cond.op === '==' ? call.egress === cond.value : call.egress !== cond.value;
+    case 'origin': return cond.op === '==' ? call.origin === cond.value : call.origin !== cond.value;
     case 'labels': {
       const present = call.label.has(cond.value);
       return cond.op === 'includes' ? present : !present;

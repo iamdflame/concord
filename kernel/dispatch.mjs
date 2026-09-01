@@ -49,7 +49,7 @@ export class Kernel {
     const egress = this.#policy.egressOf(toolId);
     const { label, evidence } = this.#provenance.labelFor(args);
 
-    const call = { toolId, effect, egress, label };
+    const call = { toolId, origin: tool.origin, effect, egress, label };
     const ruling = this.#policy.check(call);
 
     if (!ruling.allow) {

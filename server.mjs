@@ -11,9 +11,14 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 
+// Three supervised processes, each a separate origin. One page wearing three
+// hats would prove nothing: the point is that composition crosses real trust
+// boundaries the browser enforces.
 const ORIGINS = {
-  5173: { root: 'kernel',   name: 'kernel'   },
-  5174: { root: 'workload', name: 'workload' },
+  5173: { root: 'kernel', name: 'kernel'  },
+  5174: { root: 'mail',   name: 'mail'    },
+  5175: { root: 'ledger', name: 'ledger'  },
+  5176: { root: 'pay',    name: 'pay'     },
 };
 
 const TYPES = {
@@ -29,7 +34,8 @@ const TYPES = {
 // access. Without this header the browser may bucket same-site documents into
 // one agent cluster and getTools() will come back empty with no error, which
 // is a genuinely difficult failure to diagnose.
-const ALLOWED = '"http://localhost:5173" "http://localhost:5174"';
+const ALLOWED = Object.keys({ 5173: 0, 5174: 0, 5175: 0, 5176: 0 })
+  .map((p) => `"http://localhost:${p}"`).join(' ');
 
 function headers(type) {
   return {
@@ -47,8 +53,8 @@ function serve(port) {
     let path = decodeURIComponent(url.pathname);
     if (path === '/' || path.endsWith('/')) path += 'index.html';
 
-    // Shared modules live outside the per-origin root; both origins need them.
-    const base = path.startsWith('/shim/') ? '.' : root;
+    // Shared modules live outside the per-origin roots; every origin needs them.
+    const base = /^\/(shim|shared)\//.test(path) ? '.' : root;
     const file = join(process.cwd(), base, normalize(path).replace(/^(\.\.[/\\])+/, ''));
 
     try {

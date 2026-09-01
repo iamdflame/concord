@@ -13,6 +13,16 @@ capability tool:*/send_funds     egress funds
 capability tool:*/post_message   egress network
 
 # ---------------------------------------------------------------------------
+# Containment by origin. Composition means three independent parties are in the
+# same tab, so authority is pinned to the one that legitimately holds it. If the
+# mail origin ever registers a tool called send_funds, it is denied on the
+# strength of where it came from, before anything about its arguments matters.
+# ---------------------------------------------------------------------------
+
+deny tool:*/send_funds where origin != http://localhost:5176
+     reason "only the payments origin may move funds"
+
+# ---------------------------------------------------------------------------
 # Reading is unrestricted. Nothing observable leaves the tab, so a read cannot
 # be the step that harms anyone -- it can only be the step that taints what
 # comes after, which is what the labels are for.

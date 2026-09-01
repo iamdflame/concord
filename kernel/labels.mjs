@@ -59,7 +59,14 @@ const isDistinctive = (w) => w.length >= 8 && (/[_@]/.test(w) || (/[a-z]/.test(w
 
 /** Content signature: identifier-shaped tokens, plus word 4-grams for phrase reuse. */
 function signature(text) {
-  const words = String(text).toLowerCase().match(/[a-z0-9_@.-]{3,}/g) ?? [];
+  // Dots and hyphens belong inside a token (no-reply@notices.example) but not
+  // at its edges. Without this trim, "acct_supplier." in prose never matches
+  // "acct_supplier" in an argument -- a mutation test caught the honest payment
+  // passing by accident rather than by corroboration, which is the worse of the
+  // two failures because it looks like success.
+  const words = (String(text).toLowerCase().match(/[a-z0-9_@.-]{3,}/g) ?? [])
+    .map((w) => w.replace(/^[.-]+|[.-]+$/g, ''))
+    .filter((w) => w.length >= 3);
   const sig = new Set();
   for (const w of words) if (isDistinctive(w)) sig.add(w);
   for (let i = 0; i + 4 <= words.length; i++) {
@@ -82,17 +89,17 @@ function* strings(value, path = '', depth = 0) {
 
 export class Provenance {
   #context = Label.empty;                 // sound floor for the session
-  #untrusted = new Map();                 // signature token -> source description
+  #untrusted = new Map();                 // signature token -> where it came from
+  #corroborated = new Map();              // signature token -> which origin asserts it
   #log = [];
 
   /** Record what a tool returned, at the label the boundary assigned it. */
   observe(value, label, source) {
     this.#context = this.#context.join(label);
-    if (label.has(UNTRUSTED)) {
-      for (const { text } of strings(value)) {
-        for (const token of signature(text)) {
-          if (!this.#untrusted.has(token)) this.#untrusted.set(token, source);
-        }
+    const sink = label.has(UNTRUSTED) ? this.#untrusted : this.#corroborated;
+    for (const { text } of strings(value)) {
+      for (const token of signature(text)) {
+        if (!sink.has(token)) sink.set(token, source);
       }
     }
     this.#log.push({ label: String(label), source });
@@ -108,7 +115,18 @@ export class Provenance {
     for (const { path, text } of strings(args)) {
       for (const token of signature(text)) {
         const source = this.#untrusted.get(token);
-        if (source) evidence.push({ field: path, token, source });
+        if (!source) continue;
+        // Corroboration declassifies. An invoice arrives by email, so the
+        // legitimate payee account is untrusted content too -- refusing it
+        // would block the honest payment for the same reason as the attack.
+        // What separates them is whether an independent origin that is not a
+        // taint source asserts the same value. The ledger names the supplier's
+        // settlement account; nothing but the forged notice names the
+        // attacker's. That difference is the whole judgement, and it is a
+        // property of the composition rather than of the text.
+        const corroborator = this.#corroborated.get(token);
+        if (corroborator) continue;
+        evidence.push({ field: path, token, source });
       }
     }
 
@@ -127,6 +145,9 @@ export class Provenance {
       : this.#context;
     return { label: new Label(floor.tags.filter((t) => t !== UNTRUSTED)), evidence: [] };
   }
+
+  /** Which independent origin, if any, also asserts this value. */
+  corroborationFor(token) { return this.#corroborated.get(String(token).toLowerCase()) ?? null; }
 
   get context() { return this.#context; }
   get history() { return [...this.#log]; }

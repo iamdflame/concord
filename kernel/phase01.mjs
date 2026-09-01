@@ -14,8 +14,9 @@
 
 import { resolveModelContext } from '/shim/adapter.mjs';
 import { createSuite, awaitTools } from './harness.mjs';
+import { MAIL, LEDGER } from './origins.mjs';
 
-const WORKLOAD = 'http://localhost:5174';
+const WORKLOAD = MAIL;
 const { record, finish } = createSuite('PHASE 01');
 
 const { ctx, provider, surface, policy } = await resolveModelContext();
@@ -27,15 +28,15 @@ record('A1', true,
   provider !== 'native');
 
 // ── A2/A3 ── cross-origin discovery under mutual opt-in
-const discovered = await awaitTools(ctx, [WORKLOAD], (t) => t.some((x) => x.name === 'get_balance'));
-const balanceTool = discovered.find((t) => t.name === 'get_balance' && t.origin === WORKLOAD);
+const discovered = await awaitTools(ctx, [MAIL, LEDGER], (t) => t.some((x) => x.name === 'get_balance'));
+const balanceTool = discovered.find((t) => t.name === 'get_balance' && t.origin === LEDGER);
 
 record('A2', discovered.length > 0,
   'Workload registers tools and the kernel observes the change',
   discovered.length ? `${discovered.length} tool(s) visible` : 'no tools observed before timeout');
 
 record('A3', Boolean(balanceTool),
-  'getTools({fromOrigins}) returns the cross-origin tool granted via exposedTo',
+  'getTools({fromOrigins}) returns tools from several origins granted via exposedTo',
   balanceTool ? `${balanceTool.origin}/${balanceTool.name} · readOnly=${balanceTool.annotations?.readOnlyHint}`
               : 'get_balance not discoverable');
 
@@ -61,7 +62,7 @@ record('A5', !discovered.some((t) => t.name === 'private_note'),
 // Hiding a tool from discovery is not access control. Forge a descriptor
 // pointing straight at it and confirm execution is refused too.
 try {
-  const forged = { name: 'private_note', origin: WORKLOAD, window: document.getElementById('workload').contentWindow };
+  const forged = { name: 'private_note', origin: WORKLOAD, window: document.getElementById('mail').contentWindow };
   const leaked = await ctx.executeTool(forged, {});
   record('A6', !String(leaked).includes('CANARY'),
     'Execution of an ungranted tool is refused, not just hidden',
