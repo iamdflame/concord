@@ -27,7 +27,23 @@ export const KEY_PARAM = {
 
 export async function participant({ id, title, protocol, steps, state, render }) {
   const { ctx } = await resolveModelContext();
-  const seen = new Map();     // idempotency key -> the answer we already gave
+
+  // What this vendor has already honoured, and what it answered.
+  //
+  // This was in memory, so reloading the page made concord.status start
+  // answering "never happened" for steps that genuinely did -- and by the
+  // coordinator's own reasoning, believing that strands the charge. It is the
+  // ground truth recovery is built on, so it outlives the page.
+  const STORE = `concord.seen.${id}`;
+  const seen = new Map(Object.entries((() => {
+    try { return JSON.parse(localStorage.getItem(STORE) ?? '{}'); } catch { return {}; }
+  })()));
+  const remember = (key, value) => {
+    seen.set(key, value);
+    try { localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(seen))); }
+    catch { /* full or blocked: the in-memory map still serves this session */ }
+  };
+
   const failing = new Set();  // steps the operator has broken on purpose
 
   // The signing key belongs to this vendor's server and is published at
@@ -135,7 +151,7 @@ export async function participant({ id, title, protocol, steps, state, render })
         // Sign the bare result, so what the vendor puts its name to is exactly
         // what it did -- not the envelope the coordinator later wraps it in.
         const signed = { ...result, attestation: await attest(step, args, result) };
-        seen.set(args.idempotencyKey, signed);
+        remember(args.idempotencyKey, signed);
         log(`${step}`, spec.summary?.(args, result) ?? '', spec.tone ?? 'ok');
         paint();
         return signed;

@@ -58,16 +58,44 @@ export async function wellKnown(vendor, origin) {
   };
 }
 
+// One signature per idempotency key. A second attempt with different content
+// is a rewrite of something already attested, and is refused.
+const attested = new Map();
+
 /**
  * Sign a statement on the vendor's behalf.
  *
- * In a real deployment the statement is built here, from the vendor's own
- * transaction record, and never accepted from a client -- an endpoint that
- * signs whatever it is handed is a signing oracle. This one takes the statement
- * from its own same-origin page, which is the vendor's application, and that
- * trust boundary is the thing a production port has to move.
+ * An endpoint that signs whatever it is handed is a signing oracle, and the
+ * damage is bounded here rather than assumed away. Two rules hold regardless of
+ * what the calling page has become:
+ *
+ *   - it can only sign statements naming *this* vendor at *this* origin, so a
+ *     compromised page cannot forge one party's word in another's name;
+ *   - it can only sign a given idempotency key once, so it cannot go back and
+ *     restate what a step did.
+ *
+ * The boundary that remains is real and worth naming: the statement's `result`
+ * still comes from the page. Closing that means holding the vendor's
+ * transaction record server-side and building the statement from it, which is
+ * the port a production deployment has to make.
  */
-export async function sign(vendor, statement) {
+export async function sign(vendor, statement, origin) {
+  if (statement?.vendor !== vendor) {
+    throw new Error(`this origin signs only for "${vendor}", not "${statement?.vendor}"`);
+  }
+  if (origin && statement?.origin !== origin) {
+    throw new Error(`this origin signs only statements naming ${origin}`);
+  }
+  const idem = statement?.idempotencyKey;
+  if (idem) {
+    const already = attested.get(idem);
+    const body = canonical(statement);
+    if (already && already !== body) {
+      throw new Error(`${idem} has already been attested with different content`);
+    }
+    attested.set(idem, body);
+  }
+
   const record = await keyFor(vendor);
   const key = await crypto.subtle.importKey('jwk', record.privateKey,
     { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);

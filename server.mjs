@@ -54,7 +54,7 @@ function headers(type) {
 
 function serve(port) {
   const { root, name } = ORIGINS[port];
-  createServer(async (req, res) => {
+  const handler = async (req, res) => {
     const url = new URL(req.url, `http://localhost:${port}`);
     let path = decodeURIComponent(url.pathname);
     const origin = `http://localhost:${port}`;
@@ -75,10 +75,14 @@ function serve(port) {
     if (path === '/_concord/sign' && req.method === 'POST') {
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
+      // Do the work before writing headers. Committing to 200 and then failing
+      // leaves nothing to report the failure with, and the second writeHead
+      // takes the process down with it.
       try {
         const { statement } = JSON.parse(Buffer.concat(chunks).toString());
+        const signed = await sign(name, statement, origin);
         res.writeHead(200, headers(TYPES['.json']));
-        return res.end(JSON.stringify(await sign(name, statement)));
+        return res.end(JSON.stringify(signed));
       } catch (err) {
         res.writeHead(400, headers(TYPES['.json']));
         return res.end(JSON.stringify({ error: err.message }));
@@ -98,6 +102,13 @@ function serve(port) {
       res.writeHead(404, headers('text/plain; charset=utf-8'));
       res.end(`404 ${path}`);
     }
+  };
+
+  createServer((req, res) => {
+    handler(req, res).catch((err) => {
+      if (!res.headersSent) res.writeHead(500, headers(TYPES['.json']));
+      res.end(JSON.stringify({ error: err.message }));
+    });
   }).listen(port, () => {
     console.log(`  ${name.padEnd(9)} http://localhost:${port}`);
   });
