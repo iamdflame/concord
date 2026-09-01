@@ -52,6 +52,10 @@ export async function runSaga({
   // falls through as confirmed -- reporting COMMITTED for a call never made.
   confirmRetries = 3,
   retryDelayMs = 120,
+  // A vendor that never answers used to hang the whole commitment while real
+  // reservations sat outstanding. Real coordinators die from silence, not from
+  // clean exceptions.
+  callTimeoutMs = 10_000,
   journal = null,
   // ~41 bits of Math.random over a fully public key structure. Anything that
   // could guess a sagaId could pre-poison a vendor's dedupe map, in a protocol
@@ -75,13 +79,25 @@ export async function runSaga({
   const key = (id, step) => stepKey(sagaId, id, step);
   const toolFor = (id, step) => byId.get(id).protocol.steps[step]?.tool;
 
-  /** Ask a vendor whether it ever honoured a key. Performs nothing. */
+  /**
+   * Ask a vendor whether it ever honoured a key. Performs nothing.
+   *
+   * This runs on the failure path, which is exactly when a vendor is most
+   * likely to be the thing that is broken -- so it gets its own deadline. A
+   * probe without one turned a silent vendor into a coordinator that hung
+   * forever while holding real reservations.
+   */
   const probe = async (id, idempotencyKey) => {
     const statusTool = byId.get(id)?.protocol?.steps?.status?.tool;
     if (!statusTool) return null;
+    const signal = AbortSignal.timeout(Math.min(callTimeoutMs, 5_000));
     try {
-      return await call(id, statusTool, { lookupKey: idempotencyKey },
-        { idempotencyKey: `${idempotencyKey}.status`, step: 'status', sagaId, parties: planned.order });
+      return await Promise.race([
+        call(id, statusTool, { lookupKey: idempotencyKey },
+          { idempotencyKey: `${idempotencyKey}.status`, step: 'status', sagaId, parties: planned.order, signal }),
+        new Promise((_, reject) => signal.addEventListener('abort',
+          () => reject(new Error(`${id} did not answer the status probe`)), { once: true })),
+      ]);
     } catch { return null; }
   };
 
@@ -89,13 +105,24 @@ export async function runSaga({
     const tool = toolFor(id, step);
     if (!tool) throw new Error(`${id} declares no "${step}" step`);
     const idempotencyKey = key(id, step);
+    // A deadline on every call. WebMCP passes the signal through to the tool,
+    // so a vendor can stop work it will not be allowed to finish.
+    const signal = AbortSignal.timeout(callTimeoutMs);
 
     // Intent is written before the call, never after. A log of outcomes alone
     // cannot distinguish "about to reserve" from "never reserved", and those
     // need opposite recoveries.
     await journal?.intent(sagaId, id, step, idempotencyKey, args);
     try {
-      const result = await call(id, tool, args, { idempotencyKey, step, sagaId });
+      // The signal is handed on, and the deadline is also enforced here: a
+      // coordinator that trusts every vendor to honour cancellation has no
+      // deadline at all.
+      const result = await Promise.race([
+        call(id, tool, args, { idempotencyKey, step, sagaId, parties: planned.order, signal }),
+        new Promise((_, reject) => signal.addEventListener('abort', () => reject(
+          Object.assign(new Error(`${id} did not answer ${step} within ${callTimeoutMs}ms`),
+            { timedOut: true })), { once: true })),
+      ]);
       await journal?.result(sagaId, id, step, idempotencyKey, result);
       return result;
     } catch (err) {
@@ -187,8 +214,9 @@ export async function runSaga({
       if (rungOf.get(id) !== RUNG.RESERVABLE) continue;
       emit('reserve', { id });
       const ref = await invoke(id, 'reserve', inputsFor(id));
-      held.push({ id, ref });
-      emit('reserved', { id, ref, ttlSeconds: byId.get(id).protocol.steps.reserve.ttlSeconds ?? null });
+      const ttlSeconds = byId.get(id).protocol.steps.reserve.ttlSeconds ?? null;
+      held.push({ id, ref, ttlSeconds, takenAt: Date.now() });
+      emit('reserved', { id, ref, ttlSeconds });
     }
 
     // ── 2. execute the compensables ─────────────────────────────────────────
@@ -210,6 +238,23 @@ export async function runSaga({
     }
 
     // ── 4. confirm ──────────────────────────────────────────────────────────
+    // A hold that has outlived its TTL is already gone at the vendor, and
+    // confirming it will fail for a reason we could have known. Saying so is
+    // the difference between a diagnosis and a mystery.
+    for (const record of held) {
+      if (!record.ttlSeconds) continue;
+      const left = record.ttlSeconds * 1000 - (Date.now() - record.takenAt);
+      if (left <= 0) {
+        emit('hold_expired', { id: record.id, ttlSeconds: record.ttlSeconds });
+        throw Object.assign(
+          new Error(`${record.id}'s ${record.ttlSeconds}s hold expired before this could be confirmed`),
+          { vendor: record.id, step: 'confirm', expired: true });
+      }
+      if (left < record.ttlSeconds * 1000 * 0.2) {
+        emit('hold_expiring', { id: record.id, secondsLeft: Math.round(left / 1000) });
+      }
+    }
+
     for (const record of [...held]) {
       let lastError = null;
       for (let attempt = 1; attempt <= confirmRetries; attempt++) {

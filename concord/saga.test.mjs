@@ -122,3 +122,37 @@ test('the journal records the point of no return before crossing it', async () =
   assert.ok(types.indexOf('point_of_no_return') < types.indexOf('committed'));
   assert.equal(out.journal.find((e) => e.type === 'plan').guarantee, 'bounded');
 });
+
+test('a vendor that never answers is abandoned, not waited on forever', async () => {
+  // The coordinator cannot depend on a vendor honouring cancellation; a
+  // deadline that only the callee enforces is not a deadline.
+  const participants = [reservable('fly')];
+  const silent = () => new Promise(() => {});
+  const out = await runSaga({
+    plan: plan(participants), participants, call: silent, callTimeoutMs: 60,
+  });
+  assert.equal(out.outcome, OUTCOME.UNWOUND);
+  assert.match(out.cause, /did not answer reserve within 60ms/);
+});
+
+test('an expired hold is diagnosed before confirm, not discovered by failing', async () => {
+  const slow = { id: 'stay', input: {}, protocol: { steps: {
+    execute: { tool: 'book' }, compensate: { tool: 'refund' } } } };
+  const brief = { id: 'fly', input: {}, protocol: { steps: {
+    reserve: { tool: 'hold', ttlSeconds: 0.05 },   // 50ms
+    confirm: { tool: 'ticket' }, cancel: { tool: 'release' } } } };
+
+  const v = bank();
+  const call = async (...args) => {
+    if (args[3].step === 'execute') await new Promise((r) => setTimeout(r, 120));
+    return v.call(...args);
+  };
+  const out = await runSaga({ plan: plan([brief, slow]), participants: [brief, slow], call });
+
+  assert.equal(out.outcome, OUTCOME.UNWOUND);
+  assert.match(out.cause, /0\.05s hold expired before this could be confirmed/);
+  // And the expiry is reported as such rather than surfacing as a mystery.
+  assert.ok(out.journal.some((e) => e.type === 'hold_expired'));
+  // The hotel booking made under that hold is reversed.
+  assert.ok(v.steps().includes('stay.compensate'));
+});

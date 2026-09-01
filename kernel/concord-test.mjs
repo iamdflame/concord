@@ -129,6 +129,17 @@ const receipt = await buildReceipt({
   entries: call.attestations, vendors: call.vendors,
 });
 const verified = await verifyReceipt(receipt);
+// The party list has to actually reach the vendors, or the protection against a
+// dropped statement is silently inert. It was: the call site never sent it.
+const signedParties = receipt.entries.map((e) => (e.statement.parties ?? []).join(','));
+record('C11b', signedParties.every((p) => p === 'fly,stay,visa'),
+  'Every vendor signed the full party list, so a dropped statement is detectable',
+  signedParties[0] ? `each statement names [${signedParties[0]}]` : 'EMPTY — the list never reached the vendors');
+
+record('C11c', receipt.entries.every((e) => e.statement.origin?.startsWith('http')),
+  'Every statement carries its own origin, so keys resolve without the coordinator',
+  [...new Set(receipt.entries.map((e) => e.statement.origin))].join(' · '));
+
 record('C12', verified.ok && receipt.entries.length === call.attestations.length,
   'The receipt verifies: every statement signed by the vendor that made it',
   `root ${receipt.root.slice(0, 16)}… · ${verified.findings.length} entries all signed and included`);

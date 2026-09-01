@@ -14,8 +14,8 @@
  * call would have failed on the native API -- the one path judges actually run.
  * Arguments go out as a string; the shim was taught to accept both.
  */
-async function invokeTool(ctx, tool, args) {
-  const raw = await ctx.executeTool(tool, JSON.stringify(args));
+async function invokeTool(ctx, tool, args, signal) {
+  const raw = await ctx.executeTool(tool, JSON.stringify(args), signal ? { signal } : {});
   if (typeof raw !== 'string') return raw;          // an implementation that returns values
   try { return JSON.parse(raw); } catch { return raw; }   // …or a bare string, per the docs
 }
@@ -55,14 +55,14 @@ export function bind(ctx, participants) {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const attestations = [];
 
-  const call = async function call(id, toolName, args, { idempotencyKey, sagaId, parties }) {
+  const call = async function call(id, toolName, args, { idempotencyKey, sagaId, parties, signal }) {
     const participant = byId.get(id);
     const tool = participant?.tools[toolName];
     if (!tool) throw new Error(`${id} does not expose ${toolName}`);
 
     // Both travel in the arguments because WebMCP has no call metadata. They
     // are declared parameters on every commitment step, not smuggled ones.
-    const value = await invokeTool(ctx, tool, { ...args, idempotencyKey, sagaId, parties });
+    const value = await invokeTool(ctx, tool, { ...args, idempotencyKey, sagaId, parties }, signal);
     if (value?.error) throw new Error(value.error);
 
     const { attestation, ...result } = value;

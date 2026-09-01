@@ -46,14 +46,26 @@ export function createSuite(name) {
   return { record, finish, results };
 }
 
-/** Resolves once a predicate holds over discovered tools, rather than on a sleep. */
-export function awaitTools(ctx, origins, predicate, ms = 4000) {
-  return new Promise((resolve) => {
+/**
+ * Resolves once a predicate holds over discovered tools, rather than on a sleep.
+ *
+ * On timeout it rejects. Resolving with whatever had arrived meant discovery
+ * could silently come back short, a plan be computed over an incomplete set of
+ * vendors, and a guarantee be displayed about parties never reached.
+ */
+export function awaitTools(ctx, origins, predicate, ms = 8000) {
+  return new Promise((resolve, reject) => {
     const deadline = Date.now() + ms;
     const poll = async () => {
       let tools = [];
       try { tools = await ctx.getTools({ fromOrigins: origins }); } catch { /* not ready */ }
-      if (predicate(tools) || Date.now() > deadline) return resolve(tools);
+      if (predicate(tools)) return resolve(tools);
+      if (Date.now() > deadline) {
+        const found = [...new Set(tools.map((t) => t.origin))];
+        return reject(new Error(
+          `only ${found.length} of ${origins.length} participants answered within ${ms}ms`
+          + ` (${origins.filter((o) => !found.includes(o)).join(', ')} did not)`));
+      }
       setTimeout(poll, 120);
     };
     ctx.addEventListener?.('toolchange', poll, { once: true });

@@ -187,7 +187,7 @@ class ShimModelContext extends EventTarget {
         this.#pending.delete(id);
         reject(new DOMException('tool execution aborted', 'AbortError'));
       }, { once: true });
-      setTimeout(() => { if (this.#pending.delete(id)) reject(new Error('tool execution timed out')); }, 1500);
+      setTimeout(() => { if (this.#pending.delete(id)) reject(new Error('tool execution timed out')); }, 8000);
     });
     trace('send', { kind: 'exec', id }, { tool: tool.name, to: tool.origin });
     tool.window.postMessage({ [WIRE]: { kind: 'exec', id, name: tool.name, args } }, '*');
