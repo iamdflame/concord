@@ -106,8 +106,11 @@ export async function importVerifyKey(jwk) {
  * verifier goes and asks the vendor, over the same transport that already
  * proves which origin it is talking to.
  */
-export async function fetchKeys(origin) {
-  const res = await fetch(`${origin}/.well-known/concord.json`, { redirect: 'error' });
+export async function fetchKeys(origin, { timeoutMs = 10_000 } = {}) {
+  // A participant that never answers must not hang the tool somebody is
+  // running to settle a dispute with it.
+  const res = await fetch(`${origin}/.well-known/concord.json`,
+    { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });
   if (!res.ok) throw new Error(`${origin} publishes no concord key document`);
   const doc = await res.json();
   if (!Array.isArray(doc?.keys)) throw new Error(`${origin} published a malformed key document`);
@@ -156,8 +159,16 @@ export function keyValidAt(record, when) {
   if (record.notBefore && at < Date.parse(record.notBefore)) {
     return { ok: false, why: `the key did not exist until ${record.notBefore}` };
   }
-  if (record.status === 'rotated' && record.retiredAt && at > Date.parse(record.retiredAt)) {
-    return { ok: false, why: `the key was retired on ${record.retiredAt}, before this statement is dated` };
+  if (record.status === 'rotated') {
+    // A key declared retired with no date is retired as of now. Requiring both
+    // meant "rotated" alone passed every statement, which is the opposite of
+    // what declaring it means.
+    if (!record.retiredAt) {
+      return { ok: false, why: 'the key is declared retired with no date, so nothing can be placed inside its life' };
+    }
+    if (at > Date.parse(record.retiredAt)) {
+      return { ok: false, why: `the key was retired on ${record.retiredAt}, before this statement is dated` };
+    }
   }
   if (record.status === 'compromised') {
     const since = record.compromisedSince;
@@ -172,10 +183,26 @@ export function keyValidAt(record, when) {
 export async function verifyStatement(entry, record) {
   const jwk = record?.publicKey ?? record;
   if (!entry.signature || !jwk) return false;
-  const key = await importVerifyKey(jwk);
-  const bytes = new TextEncoder().encode(canonical(entry.statement));
-  const sig = Uint8Array.from(atob(entry.signature), (c) => c.charCodeAt(0));
-  return crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, sig, bytes);
+  // This runs on input supplied by whoever is being disputed with, so every
+  // step of it is hostile-input handling. Malformed base64 or a malformed JWK
+  // must be a failed signature, not a thrown exception that takes down the
+  // verdict for every other party in the receipt.
+  try {
+    // The declared algorithm is checked rather than ignored: verifying an
+    // ES256 signature against a key that says it is something else would be
+    // accepting a claim nobody made.
+    if (record?.alg && record.alg !== 'ES256') return false;
+    if (jwk.kty !== 'EC' || (jwk.crv && jwk.crv !== 'P-256')) return false;
+
+    const key = await importVerifyKey(jwk);
+    const bytes = new TextEncoder().encode(canonical(entry.statement));
+    const raw = atob(entry.signature);
+    const sig = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    if (sig.length !== 64) return false;            // P-256 r‖s
+    return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, sig, bytes);
+  } catch {
+    return false;
+  }
 }
 
 // ── the receipt ─────────────────────────────────────────────────────────────
@@ -240,6 +267,24 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
   const plans = entries.map((e) => canonical(e.statement?.plan ?? null));
   if (new Set(plans).size > 1) {
     complaints.push('the statements disagree about what this commitment was going to be');
+  }
+
+  // Two statements under one idempotency key are two accounts of the same
+  // step. A signer cannot reliably prevent this -- dedup memory in a
+  // serverless function is per-instance, so two invocations can each sign once
+  // and believe they were the first. It is caught here instead, where the whole
+  // receipt is in view.
+  const byKey = new Map();
+  for (const e of entries) {
+    const key = e.statement?.idempotencyKey;
+    if (!key) continue;
+    const body = canonical(e.statement);
+    if (byKey.has(key) && byKey.get(key) !== body) {
+      complaints.push(`two different statements are signed under the same idempotency key `
+        + `"${key}" — one step cannot have happened two ways`);
+      break;
+    }
+    byKey.set(key, body);
   }
 
   const plan = entries[0]?.statement?.plan ?? null;

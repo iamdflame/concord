@@ -128,7 +128,7 @@ export async function recover({ journal, participants, call, onEvent = () => {} 
         .catch(() => {});
       try {
         const tool = vendor.protocol.steps[undoStep].tool;
-        const out = await call(step.vendor, tool, { ref: step.result?.ref ?? step.result },
+        const out = await call(step.vendor, tool, { ref: step.result?.ref ?? step.result ?? null },
           { idempotencyKey: undoKey, step: undoStep, sagaId: saga.sagaId });
         await journal.result(saga.sagaId, step.vendor, undoStep, undoKey, out).catch(() => {});
         reversals.push({ ...step, reversed: true, via: undoStep });

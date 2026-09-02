@@ -73,6 +73,13 @@ function serve(port) {
     // The vendor's application asks its own backend to sign what it just did.
     // Same origin, so this is the page-to-backend hop a real vendor already has.
     if (path === '/_concord/sign' && req.method === 'POST') {
+      // The deployed function enforces this; if local development does not, a
+      // control is only ever exercised where nobody is looking at it.
+      const site = req.headers['sec-fetch-site'];
+      if (site && site !== 'same-origin') {
+        res.writeHead(403, headers(TYPES['.json']));
+        return res.end(JSON.stringify({ error: 'same-origin only' }));
+      }
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
       // Do the work before writing headers. Committing to 200 and then failing

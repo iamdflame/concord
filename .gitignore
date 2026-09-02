@@ -1,2 +1,6 @@
 .keys/
 .deploy/
+# Internal planning notes. They describe states that are no longer true and
+# they are not part of what this project is claiming.
+*_changes.md
+changes.md

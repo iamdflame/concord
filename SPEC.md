@@ -352,7 +352,23 @@ the participant that made it.
 Two commitments run back to back are independent. Nothing prevents a coordinator
 running one, discarding its receipt, and presenting only the second.
 
-### 15.6 The declaration is not versioned
+### 15.6 A signer cannot promise to sign a key only once
+
+A participant SHOULD refuse to produce two different statements under one
+idempotency key. It cannot guarantee it: on a serverless deployment the memory
+that would enforce it is per-instance. Verification therefore rejects a receipt
+containing two different statements under one key (§12), which bounds the
+consequence rather than preventing the act.
+
+### 15.7 Statement timestamps are self-asserted
+
+`statement.at` comes from the participant. Key validity windows (§10) compare
+against it, so a participant with a manipulated clock can place a statement
+inside a window it should not be in. There is no trusted timestamping here.
+This weakens the compromised-key story: it bounds a *third party* holding a
+stolen key, not the participant itself.
+
+### 15.8 The declaration is not versioned
 
 `concord.protocol` returns no version field. A participant changing its
 commitment surface between discovery and execution is not detected.

@@ -37,6 +37,18 @@ for (const id of VENDORS) {
   check(a?.vendor === id, 'publishes a key document naming itself', a?.vendor ?? '(none)');
   check(Boolean(a?.keys?.[0]?.keyId) && a.keys[0].keyId === b?.keys?.[0]?.keyId,
     'the signing key is stable across requests', a?.keys?.[0]?.keyId ?? '');
+
+  // Publishing and signing are different invocations of different functions.
+  // If they disagree, every receipt this participant signs fails to verify --
+  // quietly, and only for whoever tries to check one later.
+  const signed = await fetch(`${origin}/_concord/sign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-origin' },
+    body: JSON.stringify({ statement: {
+      vendor: id, origin, idempotencyKey: `deploy-check-${crypto.randomUUID()}`, result: {} } }),
+  }).then((r) => r.json()).catch(() => null);
+  check(Boolean(signed?.keyId) && signed.keyId === a?.keys?.[0]?.keyId,
+    'it signs with the key it publishes', signed?.keyId ?? signed?.error ?? '(no answer)');
 }
 
 console.log(`\n${bad ? `${bad} problem(s)` : 'the deployment is usable'}`);

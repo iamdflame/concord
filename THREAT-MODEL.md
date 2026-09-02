@@ -31,6 +31,16 @@ cross-origin tool access rests on `exposedTo`, `allow="tools"` and
 
 **A participant's signing key.** Held server-side, never by the page.
 
+**A participant's record of what it has done.** In this implementation that
+record is the browser's, not the participant's: `kit/vendor.mjs` keeps honoured
+idempotency keys in `localStorage`. It survives a reload, which is what recovery
+depends on, but it is the *client's* memory. A user can edit it, so
+`concord.status` can be made to lie; a different profile or a private window
+reports that steps which happened did not; clearing site data makes a retry
+charge twice. A production participant keeps this where it keeps its bookings.
+The reference vendors do not, because they have no database — and that is a
+property of the reference vendors rather than of the protocol.
+
 ## Attacks that are closed
 
 Each of these was implemented and run. The verifier's response is quoted.
@@ -97,9 +107,26 @@ surface that moves money directly.
 
 ### A page is compromised and asks its own backend to sign
 
-The signing endpoint signs only for its own participant at its own origin, only
-once per idempotency key, and only for same-origin requests. A compromised page
-cannot forge another party's word, and cannot go back and restate its own.
+The signing endpoint signs only for its own participant at its own origin, and
+only for same-origin requests. A compromised page cannot forge another party's
+word.
+
+**It cannot reliably stop the same page restating its own.** The endpoint
+remembers which idempotency keys it has signed, but that memory is process
+memory in a serverless function: two invocations on two instances will each
+believe they are the first. This was previously described here as a closed
+attack. It is not one, and on the deployed topology it never was.
+
+What holds instead is a check at verification. Two statements under one
+idempotency key are two accounts of the same step, and a receipt containing
+both is rejected:
+
+> ✗ two different statements are signed under the same idempotency key
+> "saga_….fly.confirm" — one step cannot have happened two ways
+
+That does not prevent a compromised page from producing a second statement. It
+prevents both from being presented as one commitment, which is the version of
+the attack that gains anything.
 
 ## Attacks that are not closed
 

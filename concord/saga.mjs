@@ -60,6 +60,9 @@ function deadline(ms, message) {
   return { signal: controller.signal, expired, clear: () => clearTimeout(timer) };
 }
 
+/** The reference a later step names, as the vendor's own schema declares it. */
+const handleOf = (result) => (typeof result === 'string' ? result : result?.ref ?? null);
+
 export const stepKey = (sagaId, vendor, step) => `${sagaId}.${vendor}.${step}`;
 
 export const OUTCOME = {
@@ -88,10 +91,13 @@ export async function runSaga({
   // reservations sat outstanding. Real coordinators die from silence, not from
   // clean exceptions.
   callTimeoutMs = 10_000,
+  // Per-call deadlines bound each step and bound nothing overall: enough slow
+  // vendors, each answering just inside its limit, and a commitment can hold
+  // real reservations for minutes.
+  sagaTimeoutMs = 120_000,
   journal = null,
-  // ~41 bits of Math.random over a fully public key structure. Anything that
-  // could guess a sagaId could pre-poison a vendor's dedupe map, in a protocol
-  // whose entire safety story rests on those keys.
+  // Unguessable: anything that can guess a sagaId can pre-poison a vendor's
+  // dedupe map, in a protocol whose safety story rests on those keys.
   sagaId = `saga_${crypto.randomUUID()}`,
 }) {
   if (!(confirmRetries >= 1)) throw new TypeError('confirmRetries must be at least 1');
@@ -116,6 +122,13 @@ export async function runSaga({
   // statement, so nothing objected. Each vendor now attests to the shape of the
   // whole, so the survivors testify that something is missing.
   const plan = planSummary(planned);
+  const startedAt = Date.now();
+  const overallDeadline = () => {
+    if (Date.now() - startedAt <= sagaTimeoutMs) return;
+    throw Object.assign(
+      new Error(`this commitment exceeded ${Math.round(sagaTimeoutMs / 1000)}s overall and was abandoned`),
+      { sagaTimedOut: true });
+  };
   const toolFor = (id, step) => byId.get(id).protocol.steps[step]?.tool;
 
   /**
@@ -151,6 +164,9 @@ export async function runSaga({
    * on exposure, fail open when giving it back.
    */
   const invoke = async (id, step, args, { mustRecord = true } = {}) => {
+    // Not checked while unwinding: giving exposure back is always worth doing,
+    // however long the attempt has already taken.
+    if (mustRecord) overallDeadline();
     const tool = toolFor(id, step);
     if (!tool) throw new Error(`${id} declares no "${step}" step`);
     const idempotencyKey = key(id, step);
@@ -277,7 +293,17 @@ export async function runSaga({
       }
     }
 
+    const stands = [];
     for (const record of [...held].reverse()) {
+      // A reservation that was already confirmed is a booking, not a hold.
+      // Cancelling it does nothing at the vendor and everything to the report,
+      // which would then claim to have reversed something that still stands.
+      // Recovery learned this; the live unwind had not.
+      if (record.confirmed) {
+        stands.push({ id: record.id, why: 'already confirmed; this is a booking, not a hold' });
+        emit('stands', { id: record.id, step: 'confirm' });
+        continue;
+      }
       try {
         emit('cancel', { id: record.id });
         await invoke(record.id, 'cancel', { ref: record.ref }, { mustRecord: false });
@@ -288,10 +314,12 @@ export async function runSaga({
       }
     }
 
-    const outcome = failures.length ? OUTCOME.IN_DOUBT : OUTCOME.UNWOUND;
+    // Anything left standing means this did not come to nothing, whatever the
+    // reversals achieved.
+    const outcome = (failures.length || stands.length) ? OUTCOME.IN_DOUBT : OUTCOME.UNWOUND;
     const unrecorded = await settle(outcome);
     emit('done', { outcome, cause: cause.message, failures });
-    return { outcome, cause: cause.message, failures, unrecorded,
+    return { outcome, cause: cause.message, failures, stands, unrecorded,
              journal: journal_, held, done, committed };
   }
 
@@ -302,36 +330,42 @@ export async function runSaga({
     for (const id of planned.order) {
       if (rungOf.get(id) !== RUNG.RESERVABLE) continue;
       emit('reserve', { id });
-      const ref = await invoke(id, 'reserve', inputsFor(id));
+      const result = await invoke(id, 'reserve', inputsFor(id));
       const ttlSeconds = byId.get(id).protocol.steps.reserve.ttlSeconds ?? null;
-      held.push({ id, ref, ttlSeconds, takenAt: Date.now() });
-      emit('reserved', { id, ref, ttlSeconds });
+      // The handle a later step names, not the whole result. Passing the object
+      // and letting each vendor unwrap it violated their own published schemas
+      // -- which is the defect this protocol exists to argue against, committed
+      // by the coordinator that argues it.
+      held.push({ id, ref: handleOf(result), result, ttlSeconds, takenAt: Date.now() });
+      emit('reserved', { id, ref: handleOf(result), ttlSeconds });
     }
 
     // ── 2. execute the compensables ─────────────────────────────────────────
     for (const id of planned.order) {
       if (rungOf.get(id) !== RUNG.COMPENSABLE) continue;
       emit('execute', { id });
-      const ref = await invoke(id, 'execute', inputsFor(id));
-      done.push({ id, ref });
-      emit('executed', { id, ref });
+      const result = await invoke(id, 'execute', inputsFor(id));
+      done.push({ id, ref: handleOf(result), result });
+      emit('executed', { id, ref: handleOf(result) });
     }
 
     // ── 3. the point of no return ───────────────────────────────────────────
     for (const id of planned.order) {
       if (rungOf.get(id) !== RUNG.IRREVERSIBLE) continue;
       emit('point_of_no_return', { id, note: `${id} cannot be undone once it succeeds` });
-      const ref = await invoke(id, 'execute', inputsFor(id));
-      committed.push({ id, ref, irreversible: true });
-      emit('committed', { id, ref, irreversible: true });
+      const result = await invoke(id, 'execute', inputsFor(id));
+      committed.push({ id, ref: handleOf(result), irreversible: true });
+      emit('committed', { id, ref: handleOf(result), irreversible: true });
     }
 
     // ── 4. confirm ──────────────────────────────────────────────────────────
     // A hold that has outlived its TTL is already gone at the vendor, and
-    // confirming it will fail for a reason we could have known. Saying so is
-    // the difference between a diagnosis and a mystery.
-    for (const record of held) {
-      if (!record.ttlSeconds) continue;
+    // confirming it fails for a reason that was knowable. Checking every hold
+    // once before the loop was not enough: confirming the first vendor can
+    // take tens of seconds across retries and their backoff, and the second
+    // vendor's hold was checked before any of that started.
+    const checkHold = (record) => {
+      if (!record.ttlSeconds) return;
       const left = record.ttlSeconds * 1000 - (Date.now() - record.takenAt);
       if (left <= 0) {
         emit('hold_expired', { id: record.id, ttlSeconds: record.ttlSeconds });
@@ -342,17 +376,18 @@ export async function runSaga({
       if (left < record.ttlSeconds * 1000 * 0.2) {
         emit('hold_expiring', { id: record.id, secondsLeft: Math.round(left / 1000) });
       }
-    }
+    };
 
     for (const record of [...held]) {
+      checkHold(record);
       let lastError = null;
       for (let attempt = 1; attempt <= confirmRetries; attempt++) {
         try {
           emit('confirm', { id: record.id, attempt });
-          const ref = await invoke(record.id, 'confirm', { ref: record.ref });
+          const out = await invoke(record.id, 'confirm', { ref: record.ref });
           record.confirmed = true;
-          committed.push({ id: record.id, ref });
-          emit('confirmed', { id: record.id, ref });
+          committed.push({ id: record.id, ref: handleOf(out) });
+          emit('confirmed', { id: record.id, ref: handleOf(out) });
           lastError = null;
           break;
         } catch (err) {
@@ -360,6 +395,10 @@ export async function runSaga({
           // A process that has died cannot retry anything, and pretending it
           // can turns a crash into an invented in-doubt outcome.
           if (err.fatal) throw err;
+          // An abandoned commitment must not be retried into an in-doubt
+          // outcome it never actually reached. Same shape as the dead-process
+          // case: retrying is only sane when trying again could succeed.
+          if (err.sagaTimedOut || err.expired) throw err;
           lastError = err;
 
           // A vendor that answered "no" has decided. Asking again is not

@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push: { branches: [main] }
+  pull_request:
+  schedule:
+    # The deployment can break without anyone touching the repository -- an
+    # expired key, a project that stopped serving. Check it daily rather than
+    # finding out from a judge.
+    - cron: '0 7 * * *'
+
+jobs:
+  protocol:
+    name: protocol (no browser)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm test
+
+      - name: the published verifier matches this repository
+        run: |
+          node verify/build.mjs
+          git diff --exit-code verify/lib \
+            || (echo "::error::verify/lib is stale — run node verify/build.mjs and commit"; exit 1)
+
+  browser:
+    name: against real origins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: node server.mjs &
+      - run: npx wait-on http://localhost:5173 http://localhost:5181 -t 30000
+      - name: interception, gate, composition, replay
+        run: |
+          for page in "" phase02.html phase03.html phase04.html; do
+            URL="http://localhost:5173/$page" node tools/probe.mjs
+          done
+      - name: the protocol against four origins
+        run: URL=http://localhost:5173/concord-test.html node tools/probe.mjs
+      - name: every participant conforms
+        run: URL=http://localhost:5173/conformance.html node tools/probe.mjs
+
+  deployment:
+    name: the live deployment is usable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      # Checks each origin answers, carries the headers the cross-origin path
+      # needs, publishes a key that does not change between requests, and signs
+      # with the key it publishes.
+      - run: node deploy/verify-live.mjs

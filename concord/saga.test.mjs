@@ -210,3 +210,41 @@ test('the deadline fires even when nothing else keeps the loop alive', async () 
   assert.equal(out.outcome, OUTCOME.UNWOUND);
   assert.match(out.cause, /did not answer reserve within 40ms/);
 });
+
+test('each hold is checked against its own TTL, not once for all of them', async () => {
+  // Confirming the first vendor can take tens of seconds across retries. The
+  // second vendor's hold used to be checked before any of that began.
+  const brief = (id) => ({ id, input: {}, protocol: { steps: {
+    reserve: { tool: 'hold', ttlSeconds: 0.25 }, confirm: { tool: 'ticket' }, cancel: { tool: 'release' } } } });
+  const v = bank();
+  const ps = [brief('a'), brief('b')];
+
+  // A confirm that is slow rather than failing, so the timing is deterministic
+  // rather than dependent on jittered backoff.
+  const call = async (id, tool, args, opts) => {
+    if (id === 'a' && opts.step === 'confirm') await new Promise((r) => setTimeout(r, 320));
+    return v.call(id, tool, args, opts);
+  };
+  const out = await runSaga({ plan: plan(ps), participants: ps, call });
+
+  // a's confirm burned the window; b's hold is now dead and must be diagnosed
+  // rather than attempted.
+  assert.equal(out.outcome, OUTCOME.IN_DOUBT);
+  assert.ok(out.journal.some((e) => e.type === 'hold_expired' && e.id === 'b'),
+    'the second hold expiring during the first confirm must be caught');
+  // a was ticketed before b's hold died. Cancelling it would do nothing at the
+  // vendor and misreport in the outcome.
+  assert.ok(out.stands.some((x) => x.id === 'a'), 'a confirmed booking must be reported as standing');
+  assert.ok(!v.steps().includes('a.cancel'), 'a ticketed seat must not be released');
+});
+
+test('a commitment has a deadline of its own, not only its calls', async () => {
+  const ps = [reservable('fly'), compensable('stay')];
+  const shared = bank();
+  const slow = async (...args) => { await new Promise((r) => setTimeout(r, 60)); return shared.call(...args); };
+  const out = await runSaga({
+    plan: plan(ps), participants: ps, call: slow, sagaTimeoutMs: 80, callTimeoutMs: 5_000,
+  });
+  assert.equal(out.outcome, OUTCOME.UNWOUND);
+  assert.match(out.cause, /exceeded 0s overall|exceeded \d+s overall/);
+});

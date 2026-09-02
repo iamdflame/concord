@@ -38,6 +38,7 @@ function frameTree(root = window.top) {
 class ShimModelContext extends EventTarget {
   #local = new Map();      // name -> { tool, exposedTo }
   #pending = new Map();    // request id -> resolver
+  #running = new Map();    // request id -> the controller for work in flight
   #seq = 0;
 
   constructor() {
@@ -80,7 +81,17 @@ class ShimModelContext extends EventTarget {
       const tools = [...this.#local]
         .filter(([, entry]) => this.#visibleTo(entry, e.origin))
         .map(([name, entry]) => this.#descriptor(name, entry));
-      e.source?.postMessage({ [WIRE]: { kind: 'tools', id: msg.id, tools } }, '*');
+      // Addressed to the origin that asked, not broadcast. Tool descriptors and
+      // arguments were going to every frame in the tab.
+      e.source?.postMessage({ [WIRE]: { kind: 'tools', id: msg.id, tools } }, e.origin);
+      return;
+    }
+
+    if (msg.kind === 'abort') {
+      // The caller gave up. Without this the executing side kept running and
+      // the deadline was a caller-side timeout wearing a cancellation's name.
+      this.#running.get(msg.id)?.abort(new Error('the caller abandoned this call'));
+      this.#running.delete(msg.id);
       return;
     }
 
@@ -92,14 +103,17 @@ class ShimModelContext extends EventTarget {
         e.source?.postMessage({ [WIRE]: {
           kind: 'result', id: msg.id, ok: false,
           error: `tool "${msg.name}" is not exposed to ${e.origin}`,
-        } }, '*');
+        } }, e.origin);
         return;
       }
       try {
-        const value = await entry.tool.execute(msg.args ?? {}, { signal: new AbortController().signal });
-        e.source?.postMessage({ [WIRE]: { kind: 'result', id: msg.id, ok: true, value: JSON.stringify(value) } }, '*');
+        const controller = new AbortController();
+        this.#running.set(msg.id, controller);
+        const value = await entry.tool.execute(msg.args ?? {}, { signal: controller.signal })
+          .finally(() => this.#running.delete(msg.id));
+        e.source?.postMessage({ [WIRE]: { kind: 'result', id: msg.id, ok: true, value: JSON.stringify(value) } }, e.origin);
       } catch (err) {
-        e.source?.postMessage({ [WIRE]: { kind: 'result', id: msg.id, ok: false, error: String(err?.message ?? err) } }, '*');
+        e.source?.postMessage({ [WIRE]: { kind: 'result', id: msg.id, ok: false, error: String(err?.message ?? err) } }, e.origin);
       }
       return;
     }
@@ -185,12 +199,16 @@ class ShimModelContext extends EventTarget {
       });
       options.signal?.addEventListener('abort', () => {
         this.#pending.delete(id);
+        // Tell the other frame to stop, rather than only stopping listening.
+        try { tool.window.postMessage({ [WIRE]: { kind: 'abort', id } }, tool.origin); } catch { /* gone */ }
         reject(new DOMException('tool execution aborted', 'AbortError'));
       }, { once: true });
       setTimeout(() => { if (this.#pending.delete(id)) reject(new Error('tool execution timed out')); }, 8000);
     });
     trace('send', { kind: 'exec', id }, { tool: tool.name, to: tool.origin });
-    tool.window.postMessage({ [WIRE]: { kind: 'exec', id, name: tool.name, args } }, '*');
+    // Addressed to the participant's origin. Arguments and results -- including
+    // signed attestations -- were being posted to every frame in the tab.
+    tool.window.postMessage({ [WIRE]: { kind: 'exec', id, name: tool.name, args } }, tool.origin);
     return settled;
   }
 }

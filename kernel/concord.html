@@ -1,5 +1,8 @@
 <!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Concord</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,6 +18,16 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);font:13px/1.55 var(--mono)}
 .lbl{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1,h2{margin:0;font-size:inherit;font-weight:600;letter-spacing:inherit;text-transform:inherit;color:inherit}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.skip{position:absolute;left:-9999px;top:0;z-index:10;background:var(--brand);color:var(--ground);
+  padding:8px 14px;font-weight:600}
+.skip:focus{left:8px;top:8px}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;scroll-behavior:auto!important}
+}
 
 .strip{display:flex;align-items:center;border-bottom:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap}
 .cell{padding:10px 16px;border-right:1px solid var(--line-2);display:flex;flex-direction:column;gap:3px}
@@ -133,20 +146,25 @@ iframe{width:100%;height:322px;border:1px solid var(--line);border-radius:2px;ba
 @media (max-width:940px){.wrap{grid-template-columns:1fr}.col+.col{border-left:0;border-top:1px solid var(--line)}}
 </style>
 
-<div class="strip">
+</head>
+<body>
+<a class="skip" href="#ask">Skip to the agent</a>
+
+<header class="strip" role="banner">
   <div class="cell"><span class="brand">CONCORD</span><span class="lbl" id="sub">reading declarations…</span></div>
   <div class="cell"><span class="lbl">the agent can</span><b style="color:var(--muted)">propose · explain · commit</b></div>
   <div class="cell"><span class="lbl">participants</span><b id="pcount">—</b></div>
   <div class="cell"><span class="lbl">agreement between them</span><b style="color:var(--muted)">none</b></div>
   <div class="cell"><span class="lbl">coordinator</span><b style="color:var(--muted)">this tab</b></div>
   <div class="cell"><span class="lbl">server</span><b style="color:var(--muted)">none</b></div>
-</div>
+</header>
 
 <div class="wrap">
-  <div class="col">
-    <section class="chat">
+  <main class="col">
+    <h1 class="visually-hidden">Concord — commit across independent sites, or refuse</h1>
+    <section class="chat" aria-labelledby="ask-h">
       <div class="chat-head">
-        <span class="lbl">ask for something</span>
+        <h2 class="lbl" id="ask-h">Ask for something</h2>
         <span class="lbl" id="brain">—</span>
       </div>
       <div id="transcript" role="log" aria-live="polite"></div>
@@ -160,34 +178,36 @@ iframe{width:100%;height:322px;border:1px solid var(--line);border-radius:2px;ba
 
     <div class="promise" id="promiseBox" hidden>
       <div class="promise-head">
-        <span class="lbl">what the agent was told it could promise</span>
-        <div class="verdict" id="verdict">…</div>
+        <h2 class="lbl">What the agent was told it could promise</h2>
+        <output class="verdict" id="verdict" aria-live="polite">…</output>
         <p id="explain"></p>
       </div>
       <div class="ladder" id="ladder"></div>
       <div class="caveats" id="caveats"></div>
     </div>
-    <div id="pending"></div>
+    <div id="pending" role="status" aria-live="polite"></div>
     <div class="actions">
       <button class="go" id="commit" hidden>Go ahead</button>
       <button id="crash" hidden>Go ahead, then kill the coordinator</button>
       <button id="reset">Reset vendors</button>
     </div>
-    <span class="lbl">execution</span>
-    <div id="run"><p class="hint">Nothing has been contacted yet. The plan above was computed
+    <h2 class="lbl">Execution</h2>
+    <div id="run" role="log" aria-live="polite" aria-relevant="additions" aria-label="Protocol events"><p class="hint">Nothing has been contacted yet. The plan above was computed
       entirely from what each vendor declared it can commit to.</p></div>
-    <div id="outcome"></div>
+    <div id="outcome" role="status" aria-live="polite"></div>
     <div id="receipt"></div>
-  </div>
+  </main>
 
-  <div class="col">
-    <span class="lbl">participants</span>
+  <aside class="col" aria-labelledby="parties-h">
+    <h2 class="lbl" id="parties-h">The participants</h2>
     <p class="hint">Four independent businesses. None has an API with another, none knows the
       others exist. Break any step below while a commitment is running.</p>
     <!-- Built from the origin table at boot; an address written here is an
          address that cannot be deployed. -->
     <div class="frames" id="frames"></div>
-  </div>
+  </aside>
 </div>
+</body>
+</html>
 
 <script type="module" src="./concord.mjs"></script>

@@ -11,6 +11,45 @@ import { COORDINATOR } from '/config.mjs';
 
 export { COORDINATOR };
 
+/**
+ * Enforce a tool's own published schema before it runs.
+ *
+ * A declared inputSchema that nothing checks is a claim about what a tool
+ * accepts rather than a fact about it -- and this is a surface an untrusted
+ * agent drives, so "it will send what it said it would" is not a premise
+ * anybody should rely on. It is also the shortest path to keeping attacker
+ * strings out of a page that renders them.
+ */
+export function validate(schema, args, toolName) {
+  if (!schema || schema.type !== 'object') return;
+  for (const key of schema.required ?? []) {
+    if (args[key] === undefined) throw new Error(`${toolName}: "${key}" is required`);
+  }
+  for (const [key, value] of Object.entries(args)) {
+    const spec = schema.properties?.[key];
+    if (!spec || value === undefined) continue;
+
+    const want = spec.type === 'integer' ? 'number' : spec.type;
+    const actual = Array.isArray(value) ? 'array' : typeof value;
+    if (want && actual !== want) {
+      throw new Error(`${toolName}: "${key}" must be ${spec.type}, got ${actual}`);
+    }
+    if (spec.type === 'integer' && !Number.isInteger(value)) {
+      throw new Error(`${toolName}: "${key}" must be a whole number`);
+    }
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      throw new Error(`${toolName}: "${key}" must be a finite number`);
+    }
+    if (spec.enum && !spec.enum.includes(value)) {
+      throw new Error(`${toolName}: "${key}" must be one of ${spec.enum.join(', ')}`);
+    }
+    // A bound on strings, because everything here ends up rendered somewhere.
+    if (typeof value === 'string' && value.length > (spec.maxLength ?? 512)) {
+      throw new Error(`${toolName}: "${key}" is longer than ${spec.maxLength ?? 512} characters`);
+    }
+  }
+}
+
 /** Tool arguments are attacker-controlled from this origin's point of view. */
 export const esc = (s) => String(s).replace(/[<>&"']/g, (c) =>
   ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -59,7 +98,16 @@ export async function participant({ id, title, protocol, steps, state, render })
   // key to the party -- a verifier fetches it from the vendor over TLS rather
   // than being handed it alongside the claim it is meant to authenticate.
   const published = await (await fetch('/.well-known/concord.json')).json();
-  const keyId = published.keys.find((k) => k.status === 'active').keyId;
+  // A participant that has retired or reported its key has no active one. That
+  // is a safety declaration, and it must not be the thing that takes the page
+  // down -- reading .keyId off undefined threw at module load, so revoking a
+  // key disabled the participant entirely.
+  const active = published.keys?.find((k) => k.status === 'active');
+  const keyId = active?.keyId ?? null;
+  if (!keyId) {
+    console.warn(`[concord] ${id} publishes no active key, so it will act but not attest. `
+      + 'Statements it makes cannot be verified until a key is published.');
+  }
 
   async function attest(step, args, result) {
     const statement = {
@@ -161,6 +209,10 @@ export async function participant({ id, title, protocol, steps, state, render })
 
         let result;
         try {
+          // The tool's own published schema, enforced. A refusal here is an
+          // answer -- the arguments were wrong and will be wrong again.
+          validate({ type: 'object', properties: { ...KEY_PARAM, ...(spec.properties ?? {}) },
+                     required: ['idempotencyKey', ...(spec.required ?? [])] }, args, spec.tool);
           result = await spec.run(args);
         } catch (err) {
           // A business refusal is an answer: no seats left, no live hold. It is
