@@ -21,6 +21,7 @@ project_for() {
     app)   echo "concord-coordinator" ;;
     shady) echo "concord-meridian" ;;
     byo)   echo "concord-sandbox" ;;
+    verify) echo "concord-receipts" ;;
     *)     echo "concord-$1" ;;
   esac
 }
@@ -36,7 +37,7 @@ for dir in .deploy/concord-*; do
     # directory name happens to match, which is how two origins ended up as one.
     vercel link --yes --project "$PROJECT" >/dev/null
 
-    if [ "$id" != "app" ]; then
+    if [ "$id" != "app" ] && [ "$id" != "verify" ]; then
       key="$(grep -m1 "^CONCORD_KEY_${UP}=" "$KEYS" | cut -d= -f2-)"
       vercel env rm "CONCORD_KEY_${UP}" production --yes >/dev/null 2>&1 || true
       printf '%s' "$key" | vercel env add "CONCORD_KEY_${UP}" production >/dev/null 2>&1

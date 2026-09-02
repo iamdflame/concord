@@ -26,6 +26,9 @@ export const ORIGINS = isLocal ? LOCAL : (LIVE ?? (() => {
 export const VENDORS = ['fly', 'stay', 'visa', 'permit', 'shady', 'byo'];
 
 export const COORDINATOR = ORIGINS.app;
+
+/** Where a receipt can be checked by something that is not the coordinator. */
+export const VERIFIER = ORIGINS.verify;
 export const VENDOR_ORIGINS = VENDORS.map((id) => ORIGINS[id]);
 
 export const TITLES = {
@@ -36,6 +39,7 @@ export const TITLES = {
   permit: 'Entry Permit',
   shady: 'Meridian Holdings',
   byo: 'Sandbox',
+  verify: 'Receipts',
 };
 
 /** Which local port serves an origin, for the dev server only. */

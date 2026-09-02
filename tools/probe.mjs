@@ -138,8 +138,11 @@ try {
       expression: `document.getElementById('verdict')?.textContent ?? ''`,
       returnByValue: true,
     }, sessionId);
-    console.log(`\n${banner.value || out.verdict}` +
-                ` — provider=${out.provider}, tools-policy=${out.policy}`);
+    // Both, always. A page that names itself in prose is not thereby excused
+    // from saying whether it passed, and printing only the banner is how the
+    // conformance line went from "PASS" to a sentence nobody was grepping for.
+    if (banner.value) console.log(`\n${banner.value}`);
+    console.log(`${out.verdict} — provider=${out.provider}, tools-policy=${out.policy}`);
 
     if (DEBUG && out.wire?.length) {
       console.log('\nwire trace (kernel frame):');

@@ -2,7 +2,7 @@
 //
 // Colour that carries meaning is not decoration, and "it looked fine on my
 // monitor" is not a measurement. Every token below is read out of
-// concord.html's own token blocks and put through the WCAG contrast formula
+// instrument.css's own token blocks and put through the WCAG contrast formula
 // against the grounds it is actually painted on, in both themes. Changing a
 // token to something unreadable fails here, which is the only reason the
 // separation between the ramp (3px edges, free to carry chroma) and the ink
@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const css = readFileSync(new URL('./concord.html', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../ui/instrument.css', import.meta.url), 'utf8');
 
 /** OKLCH -> linear sRGB. The conversion in the CSS Color 4 spec, verbatim. */
 function toLinearRGB(L, C, H) {
@@ -54,7 +54,7 @@ const at = (needle) => {
 
 const LIGHT = declared(css.slice(at(':root{'), at('@media (prefers-color-scheme: dark)')));
 const MEDIA = declared(css.slice(at('@media (prefers-color-scheme: dark)'), at(':root[data-theme="dark"]')));
-const TOGGLE = declared(css.slice(at(':root[data-theme="dark"]'), at('*{box-sizing')));
+const TOGGLE = declared(css.slice(at(':root[data-theme="dark"]'), at('/* ── base ─')));
 
 /**
  * Resolve a token the way the cascade does.

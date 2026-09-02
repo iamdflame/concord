@@ -15,7 +15,7 @@ import { buildReceipt, verifyReceipt } from '/concord/receipt.mjs';
 import { Journal, IndexedStore, LocalStore } from '/concord/journal.mjs';
 import { recover } from '/concord/recover.mjs';
 import { publishAgentTools } from './agent-tools.mjs';
-import { ORIGINS, VENDORS, VENDOR_ORIGINS, TITLES } from '/config.mjs';
+import { ORIGINS, VENDORS, VENDOR_ORIGINS, TITLES, VERIFIER } from '/config.mjs';
 import { makeReader, turn } from './agent.mjs';
 
 const ALL = VENDOR_ORIGINS;
@@ -117,6 +117,8 @@ addEventListener('unhandledrejection', (e) => {
     try { localStorage.setItem('concord.theme', next); } catch { /* private mode */ }
   });
 }
+
+$('receiptsLink').href = VERIFIER;
 
 // ── the counterparties ─────────────────────────────────────────────────────
 // Embed the participants before asking who is there. Discovery walks the frame
@@ -703,10 +705,20 @@ async function renderReceipt(receipt) {
       Each line is a statement its vendor signed with a key that never left its origin.
       ${names[0] ? `${esc(named(names[0]))} verifies its own entries from ${first} opaque hashes,
       without being shown what the others charged.` : ''}</p>
-    <p style="margin-top:12px;display:flex;gap:18px">
+    <p style="margin-top:12px;display:flex;gap:18px;flex-wrap:wrap">
+      <a class="quiet" id="elsewhere" href="#" target="_blank" rel="noopener">Check it on another origin</a>
       <button class="quiet" id="tamper">Edit one entry and re-verify</button>
       <button class="quiet" id="export">Download receipt</button></p>
   </div>`;
+
+  // The verdict above was computed by the same page that produced the receipt,
+  // which is exactly the arrangement the receipt exists to make unnecessary.
+  // This hands it to an origin with no tools, no participants and no route
+  // back here, in the URL fragment -- which the browser never sends to a
+  // server, so the receipt reaches that origin's script without reaching
+  // anybody's host.
+  const packed = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(receipt))));
+  $('elsewhere').href = `${VERIFIER}/#r=${encodeURIComponent(packed)}`;
 
   $('export')?.addEventListener('click', () => {
     // The receipt has to be able to leave this tab, or the vendor is still

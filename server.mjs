@@ -17,8 +17,9 @@ import { LOCAL_PORTS } from './config.mjs';
 // hats would prove nothing: the point is that composition crosses real trust
 // boundaries the browser enforces.
 // Ports come from the one origin table, so local and deployed cannot drift.
+const ROOTS = { app: 'app', verify: 'verifier' };
 const CONCORD = Object.fromEntries(Object.entries(LOCAL_PORTS).map(([port, id]) =>
-  [port, { root: id === 'app' ? 'app' : `vendors/${id}`, name: id }]));
+  [port, { root: ROOTS[id] ?? `vendors/${id}`, name: id }]));
 
 const ORIGINS = {
   ...CONCORD,
@@ -47,11 +48,26 @@ const TYPES = {
 // invisible under the polyfill, which enforces none of this.
 const ALLOWED = Object.keys(ORIGINS).map((p) => `"http://localhost:${p}"`).join(' ');
 
-function headers(type) {
+/**
+ * Three different policies, for three different jobs.
+ *
+ * The conformance suite must be able to embed an origin nobody listed, which is
+ * the whole job. The verifier must not be able to use the feature at all: it is
+ * the origin whose value is that it depends on nothing here, and `tools=()`
+ * says so in a header rather than in a paragraph. Everywhere else the allowlist
+ * is the control. deploy/build.mjs writes the same three.
+ */
+function policyFor(name, path) {
+  if (name === 'verify') return 'tools=()';
+  if (path === '/conformance.html') return 'tools=*';
+  return `tools=(self ${ALLOWED})`;
+}
+
+function headers(type, path, name) {
   return {
     'Content-Type': type,
     'Origin-Agent-Cluster': '?1',
-    'Permissions-Policy': `tools=(self ${ALLOWED})`,
+    'Permissions-Policy': policyFor(name, path),
     'Cache-Control': 'no-store',
   };
 }
@@ -69,7 +85,7 @@ function serve(port) {
     // nothing for the coordinator to vouch for.
     if (path === '/.well-known/concord.json') {
       const body = JSON.stringify(await wellKnown(name, origin), null, 2);
-      res.writeHead(200, { ...headers(TYPES['.json']), 'Access-Control-Allow-Origin': '*',
+      res.writeHead(200, { ...headers(TYPES['.json'], path, name), 'Access-Control-Allow-Origin': '*',
                            'Cache-Control': 'public, max-age=300' });
       return res.end(body);
     }
@@ -81,7 +97,7 @@ function serve(port) {
       // control is only ever exercised where nobody is looking at it.
       const site = req.headers['sec-fetch-site'];
       if (site && site !== 'same-origin') {
-        res.writeHead(403, headers(TYPES['.json']));
+        res.writeHead(403, headers(TYPES['.json'], path, name));
         return res.end(JSON.stringify({ error: 'same-origin only' }));
       }
       const chunks = [];
@@ -92,10 +108,10 @@ function serve(port) {
       try {
         const { statement } = JSON.parse(Buffer.concat(chunks).toString());
         const signed = await sign(name, statement, origin);
-        res.writeHead(200, headers(TYPES['.json']));
+        res.writeHead(200, headers(TYPES['.json'], path, name));
         return res.end(JSON.stringify(signed));
       } catch (err) {
-        res.writeHead(400, headers(TYPES['.json']));
+        res.writeHead(400, headers(TYPES['.json'], path, name));
         return res.end(JSON.stringify({ error: err.message }));
       }
     }
@@ -103,7 +119,7 @@ function serve(port) {
 
     // Shared modules live outside the per-origin roots; every origin needs them.
     // Shared modules and the origin table live outside the per-origin roots.
-    const base = /^\/(shim|kit|concord|experiments|spec|ring0)\//.test(path)
+    const base = /^\/(shim|kit|concord|experiments|spec|ring0|ui)\//.test(path)
       || /^\/(config|origins)\.mjs$/.test(path) ? '.'
       // Ring 0's own shared stylesheet, kept with Ring 0.
       : path.startsWith('/shared/') ? 'ring0' : root;
@@ -111,10 +127,10 @@ function serve(port) {
 
     try {
       const body = await readFile(file);
-      res.writeHead(200, headers(TYPES[extname(file)] ?? 'application/octet-stream'));
+      res.writeHead(200, headers(TYPES[extname(file)] ?? 'application/octet-stream', path, name));
       res.end(body);
     } catch {
-      res.writeHead(404, headers('text/plain; charset=utf-8'));
+      res.writeHead(404, headers('text/plain; charset=utf-8', path, name));
       res.end(`404 ${path}`);
     }
   };

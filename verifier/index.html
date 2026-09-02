@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concord — receipts</title>
+<meta name="description" content="Check a Concord receipt on an origin that is not the coordinator's.">
+<script>
+try{var t=localStorage.getItem('concord.theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
+</script>
+<link rel="stylesheet" href="/ui/instrument.css">
+<style>
+.instrument{max-width:860px}
+.hero{
+  font-family:var(--display);font-size:var(--t-hero);font-weight:600;
+  line-height:1.08;letter-spacing:-0.022em;margin:6px 0 14px;max-width:20ch;text-wrap:balance;
+}
+.hero.no{color:var(--irreversible-ink)}
+.hero.idle{color:var(--ink-2)}
+.lead{font-size:var(--t-lead);line-height:1.5;color:var(--ink-2);max-width:64ch}
+
+.drop{
+  margin:30px 0 0;max-width:860px;border:1px dashed var(--rule-firm);border-radius:3px;
+  background:var(--paper-sunk);padding:26px 24px;
+}
+.drop.over{border-color:var(--reservable);border-style:solid}
+.drop p{font-size:var(--t-data);color:var(--ink-2);max-width:62ch}
+.drop .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.drop textarea{
+  width:100%;margin-top:14px;min-height:96px;resize:vertical;
+  font-family:var(--mono);font-size:var(--t-cap);
+}
+input[type=file]{display:none}
+
+.entries{margin:34px 0 0;max-width:860px;border-top:1px solid var(--rule-firm);overflow-x:auto}
+.entries table{width:100%;border-collapse:collapse;min-width:620px}
+.entries th{text-align:left;font-family:var(--display);font-weight:400;font-size:var(--t-cap);
+  color:var(--ink-3);padding:8px 14px 8px 0;border-bottom:1px solid var(--rule)}
+.entries td{padding:11px 14px 11px 0;border-bottom:1px solid var(--rule);vertical-align:baseline;
+  font-family:var(--mono);font-size:var(--t-data);color:var(--ink-2)}
+.entries td:first-child{padding-left:16px;border-left:3px solid var(--compensable);color:var(--ink);font-weight:600}
+tr.no td:first-child{border-left-color:var(--irreversible)}
+.seal{color:var(--seal)} .seal.no{color:var(--fail)}
+.root{font-family:var(--mono);font-size:var(--t-data);color:var(--ink-2);word-break:break-all}
+
+.said{margin:28px 0 0;max-width:860px}
+.said h2{font-size:1.0625rem;margin-bottom:8px}
+.said ul{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:5px}
+.said li{font-size:var(--t-data);color:var(--ink-2)}
+.said li.bad{color:var(--irreversible-ink)}
+.said li::before{content:"— ";color:var(--ink-3)}
+
+.reached{margin:30px 0 0;max-width:640px;border-top:1px solid var(--rule-firm);padding-top:12px}
+.reached ol{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+.reached li{font-family:var(--mono);font-size:var(--t-data);color:var(--ink-2)}
+.reached li.miss{color:var(--irreversible-ink)}
+.reached .absent{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule);
+  font-size:var(--t-body);color:var(--ink);max-width:56ch}
+.steps{margin:34px 0 0;max-width:700px;border-top:1px solid var(--rule-firm);padding-top:12px}
+.steps ol{margin:8px 0 0;padding-left:20px;display:grid;gap:5px}
+.steps li{font-size:var(--t-data);color:var(--ink-2)}
+.steps code{color:var(--ink)}
+</style>
+</head>
+<body>
+<a class="skip" href="#drop">Skip to the receipt box</a>
+
+<header class="masthead" role="banner">
+  <span class="wordmark">Concord</span>
+  <span class="margin" id="sub">receipts</span>
+  <nav aria-label="About this project">
+    <a id="coordLink" href="/">Coordinator</a>
+    <a href="https://github.com/iamdflame/concord/blob/main/SPEC.md">Spec</a>
+    <a href="https://www.npmjs.com/package/concord-verify">concord-verify</a>
+    <button type="button" class="link" id="theme" aria-label="Switch between light and dark">Light / dark</button>
+  </nav>
+</header>
+
+<main>
+  <section class="instrument" aria-labelledby="verdict-h">
+    <p class="margin" id="verdict-h">A receipt, checked somewhere the coordinator does not run</p>
+    <h1 class="hero idle" id="verdict">Give me a receipt.</h1>
+    <p class="lead" id="explain">This origin has no tools, embeds nothing, and has never spoken to the
+      coordinator that produced your file. It reads the statements inside it and fetches each signing
+      key from the origin that statement names — so what it tells you does not depend on trusting
+      whoever handed you the receipt.</p>
+  </section>
+
+  <section class="drop" id="drop" aria-labelledby="drop-h">
+    <p class="margin" id="drop-h">The receipt</p>
+    <p>Drop the JSON file here, choose it, or paste it below. Nothing is uploaded: the file is read in
+      this tab and the only network requests are for the participants' public key documents.</p>
+    <div class="row">
+      <button class="primary" id="pick" type="button">Choose a file</button>
+      <input type="file" id="file" accept="application/json,.json">
+      <button class="quiet" id="clear" type="button" hidden>Clear</button>
+    </div>
+    <textarea class="field" id="paste" spellcheck="false"
+      placeholder='{"sagaId":"saga_…","root":"…","entries":[…]}' aria-label="Paste a receipt"></textarea>
+  </section>
+
+  <div id="out" role="status" aria-live="polite"></div>
+
+  <section class="steps" aria-labelledby="steps-h">
+    <p class="margin" id="steps-h">What it does, in order</p>
+    <ol>
+      <li>Recompute the Merkle root from the statements in the file, and compare it with the root the
+        file states. <span class="margin">SPEC.md §12</span></li>
+      <li>Reject any statement belonging to a different commitment, and require every statement to
+        agree on what this commitment was going to be.</li>
+      <li>Resolve each key from the origin <em>inside the signed statement</em> — never from the map
+        the coordinator wrote alongside it.</li>
+      <li>Check the origin identifies itself as the party the statement names, and that the key was
+        in force at the moment the statement is dated.</li>
+      <li>Check the receipt accounts for every step its own participants signed up to.</li>
+    </ol>
+  </section>
+</main>
+<script type="module" src="./verify.mjs"></script>
+</body>
+</html>

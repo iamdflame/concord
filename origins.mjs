@@ -16,6 +16,10 @@ export const LOCAL = {
   permit: 'http://localhost:5180',
   shady:  'http://localhost:5181',
   byo:    'http://localhost:5182',
+  // Not a participant. The receipt verifier is deliberately somewhere else:
+  // a receipt that can only be checked on the coordinator's own origin is a
+  // receipt you are still taking the coordinator's word for.
+  verify: 'http://localhost:5183',
 };
 
 // The deployment. Each participant is its own project, so these are genuinely
@@ -29,4 +33,5 @@ export const LIVE = {
   permit: 'https://concord-permit.vercel.app',
   shady:  'https://concord-meridian.vercel.app',
   byo:    'https://concord-sandbox.vercel.app',
+  verify: 'https://concord-receipts.vercel.app',
 };

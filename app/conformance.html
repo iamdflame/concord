@@ -1,33 +1,120 @@
 <!doctype html>
 <html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Concord — conformance</title>
+<meta name="description" content="Check any origin against the Concord specification, including your own.">
+<script>
+try{var t=localStorage.getItem('concord.theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
+</script>
+<link rel="stylesheet" href="/ui/instrument.css">
 <style>
-  :root{--ground:#0D1216;--surface:#141B21;--line:#26313A;--ink:#DBE3E9;--muted:#71818D;
-        --accent:#E8A33D;--pass:#3FBA86;--fail:#EA5257}
-  *{box-sizing:border-box}
-  body{background:var(--ground);color:var(--ink);margin:0;padding:24px;
-       font:13px/1.55 ui-monospace,Menlo,Consolas,monospace}
-  h1{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0}
-  .sub{color:var(--muted);margin:6px 0 20px;max-width:76ch}
-  .vendor{border:1px solid var(--line);border-radius:3px;background:var(--surface);
-          padding:12px 14px;margin-bottom:10px;max-width:1000px}
-  .vh{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
-  .vh b{font-size:14px}
-  .lvl{font-size:10px;letter-spacing:.1em;padding:2px 8px;border-radius:2px;font-weight:600}
-  .l3{background:var(--pass);color:#04150F} .l2{background:var(--accent);color:#1A1000}
-  .l1{background:#4A5A67;color:#0B1014} .l0{background:var(--fail);color:#fff}
-  .origin{color:var(--muted);font-size:11.5px}
-  .chk{display:grid;grid-template-columns:26px 34px 190px 1fr;gap:0 10px;padding:4px 0;font-size:11.5px}
-  .ok{color:var(--pass)} .no{color:var(--fail)}
-  .sec{color:var(--muted)} .why{color:var(--muted)}
-  iframe{width:100%;height:1px;border:0;opacity:0;position:absolute;pointer-events:none}
+.instrument{max-width:860px}
+.hero{
+  font-family:var(--display);font-size:var(--t-hero);font-weight:600;
+  line-height:1.08;letter-spacing:-0.022em;margin:6px 0 14px;max-width:20ch;text-wrap:balance;
+}
+.hero.short{color:var(--irreversible-ink)}
+.lead{font-size:var(--t-lead);line-height:1.5;color:var(--ink-2);max-width:64ch}
+
+/* Point it somewhere. This is the whole reason the page exists, so it is not
+   tucked under the results it produces. */
+.aim{margin:30px 0 0;max-width:860px;border-top:1px solid var(--rule-firm);padding-top:16px}
+.aim form{display:flex;gap:10px;margin:10px 0 0;flex-wrap:wrap}
+.aim input{flex:1;min-width:min(320px,100%);font-family:var(--mono);font-size:var(--t-data)}
+.aim .why{font-size:var(--t-data);color:var(--ink-2);margin-top:10px;max-width:66ch}
+
+.subject{margin:34px 0 0;max-width:860px;border-top:1px solid var(--rule-firm)}
+.subject h2{font-size:1.125rem;margin:0}
+.sh{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:14px 0 10px;
+    border-left:3px solid var(--edge,transparent);padding-left:16px}
+.lvl{font-family:var(--mono);font-size:var(--t-data);font-weight:600}
+.rung,.where{font-family:var(--mono);font-size:var(--t-cap);color:var(--ink-3)}
+.where{margin-left:auto}
+.l3{--edge:var(--compensable)} .l3 .lvl{color:var(--compensable-ink)}
+.l2{--edge:var(--reservable)}  .l2 .lvl{color:var(--reservable-ink)}
+.l1{--edge:var(--rule-firm)}   .l1 .lvl{color:var(--ink-2)}
+.l0{--edge:var(--irreversible)} .l0 .lvl{color:var(--irreversible-ink)}
+
+table{width:100%;border-collapse:collapse}
+.checks{overflow-x:auto}
+.checks table{min-width:600px}
+.checks th{text-align:left;font-family:var(--display);font-weight:400;font-size:var(--t-cap);
+  color:var(--ink-3);padding:6px 14px 6px 0;border-bottom:1px solid var(--rule)}
+.checks td{padding:9px 14px 9px 0;border-bottom:1px solid var(--rule);vertical-align:baseline;
+  font-family:var(--mono);font-size:var(--t-data)}
+.checks td:first-child{padding-left:16px;border-left:3px solid transparent}
+tr.no td:first-child{border-left-color:var(--irreversible)}
+.mark{color:var(--ink-3)}
+tr.no .mark{color:var(--irreversible-ink)}
+.sec{color:var(--ink-3)}
+.why{color:var(--ink-2);font-family:var(--display);font-size:var(--t-data)}
+.legend{margin:30px 0 0;max-width:640px;border-top:1px solid var(--rule-firm);padding-top:12px}
+.legend dl{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:8px 0 0;
+  font-size:var(--t-data);color:var(--ink-2)}
+.legend dt{font-family:var(--mono);color:var(--ink)}
+.legend dd{margin:0}
+.note{font-size:var(--t-data);color:var(--ink-2);margin-top:12px;max-width:66ch}
+.bad{color:var(--irreversible-ink)}
+iframe{width:100%;height:1px;border:0;opacity:0;position:absolute;pointer-events:none}
+@media (max-width:640px){ .where{margin-left:0;width:100%} }
 </style>
-<h1>Concord · conformance</h1>
-<p class="sub">Every participant present, checked against the specification rather than against this
-implementation. Each line names the section it enforces. Point it at your own origin and it will
-tell you which level you meet and what is missing — that is what a conformance suite is for.</p>
-<div id="out">running…</div>
-<div id="frames"></div>
+</head>
+<body>
+<a class="skip" href="#aim">Skip to the origin box</a>
+
+<header class="masthead" role="banner">
+  <span class="wordmark">Concord</span>
+  <span class="margin" id="sub">running…</span>
+  <nav aria-label="About this project">
+    <a href="/">Coordinator</a>
+    <a href="https://github.com/iamdflame/concord/blob/main/SPEC.md">Spec</a>
+    <a href="/conformance.html" aria-current="page">Conformance</a>
+    <a href="/native.html">Is WebMCP native here?</a>
+    <button type="button" class="link" id="theme" aria-label="Switch between light and dark">Light / dark</button>
+  </nav>
+</header>
+
+<main>
+  <section class="instrument" aria-labelledby="verdict-h">
+    <p class="margin" id="verdict-h">Checked against the specification, not against this implementation</p>
+    <h1 class="hero" id="verdict">…</h1>
+    <p class="lead" id="explain">Every check below names the section of SPEC.md it enforces, because a
+      conformance failure should send you to the paragraph rather than to the source.</p>
+  </section>
+
+  <section class="aim" id="aim" aria-labelledby="aim-h">
+    <p class="margin" id="aim-h">Point it at your own origin</p>
+    <form id="ask" autocomplete="off">
+      <input class="field" id="origin" name="origin" type="url" inputmode="url" spellcheck="false"
+             placeholder="https://your-site.example" aria-label="An origin to check">
+      <button class="primary" type="submit">Check it</button>
+    </form>
+    <p class="why" id="aimWhy">Your origin is embedded here and asked what it can commit to. Nothing
+      is written down, nothing is sent anywhere, and no step of any protocol is executed — the suite
+      only reads declarations and asks a participant to describe itself. It has to be able to see
+      them: a participant that names one origin in <code>exposedTo</code>, which is what every
+      participant in this repository does, is invisible to every other origin including this one.
+      Add <b id="thisOrigin">this origin</b> to yours while you test.</p>
+  </section>
+
+  <div id="out" role="status" aria-live="polite"></div>
+
+  <section class="legend" aria-labelledby="legend-h">
+    <p class="margin" id="legend-h">What the levels mean</p>
+    <dl>
+      <dt>L1 · declares</dt><dd>A <code>concord.protocol</code> tool, exposed to embedders, honest
+        about which rung it is on.</dd>
+      <dt>L2 · recoverable</dt><dd>Plus <code>concord.status</code>, so an interrupted commitment can
+        be resolved instead of guessed at, and steps that are safe to retry.</dd>
+      <dt>L3 · attesting</dt><dd>Plus statements signed with a key published on its own origin, so a
+        receipt can be checked by someone who trusts neither party.</dd>
+    </dl>
+  </section>
+
+  <div id="frames"></div>
+</main>
 <script type="module" src="./conformance.mjs"></script>
+</body>
+</html>
