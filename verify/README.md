@@ -80,7 +80,15 @@ That limit, and the others, are written down in
 
 ## Version
 
-`0.1.0`, tracking **SPEC v1 draft**. The receipt format is specified but the
+`0.2.0`, tracking **SPEC v1 draft**.
+
+`0.2.0` guards the verifier against hostile input — malformed base64 or a
+malformed key now fail that one statement instead of throwing and taking the
+whole verdict with them, which mattered because this is the tool you run when
+you are already in a dispute. It also checks the declared algorithm rather than
+assuming it, times out on an origin that will not answer, treats a key declared
+retired with no date as retired rather than as valid forever, and rejects a
+receipt carrying two different statements under one idempotency key. The receipt format is specified but the
 specification is a draft, and saying otherwise would be the kind of claim this
 project exists to avoid making.
 

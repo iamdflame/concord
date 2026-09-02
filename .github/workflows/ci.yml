@@ -1,13 +1,16 @@
 name: ci
 
+# Runs on demand only. GitHub Actions is currently blocked on this account for
+# billing reasons, and every run fails before its first step -- which shows a
+# red cross that says "their tests fail" when the tests pass. Restore the push,
+# pull_request and schedule triggers below once Actions is available; nothing
+# else in this file needs to change.
+#
+#   push: { branches: [main] }
+#   pull_request:
+#   schedule: [{ cron: '0 7 * * *' }]
 on:
-  push: { branches: [main] }
-  pull_request:
-  schedule:
-    # The deployment can break without anyone touching the repository -- an
-    # expired key, a project that stopped serving. Check it daily rather than
-    # finding out from a judge.
-    - cron: '0 7 * * *'
+  workflow_dispatch:
 
 jobs:
   protocol:
