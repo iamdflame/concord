@@ -20,6 +20,7 @@ project_for() {
   case "$1" in
     app)   echo "concord-coordinator" ;;
     shady) echo "concord-meridian" ;;
+    byo)   echo "concord-sandbox" ;;
     *)     echo "concord-$1" ;;
   esac
 }

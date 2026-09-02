@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sandbox — write a participant</title>
+<link rel="stylesheet" href="/kit/vendor.css">
+<style>
+  .ed{display:flex;flex-direction:column;gap:8px}
+  textarea{width:100%;min-height:290px;resize:vertical;background:var(--ground);color:var(--ink);
+    border:1px solid var(--line);border-radius:2px;padding:10px 12px;
+    font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;tab-size:2}
+  textarea:focus{outline:none;border-color:var(--ok)}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{font:inherit;font-weight:600;background:var(--panel);color:var(--ink);
+    border:1px solid var(--line);border-radius:2px;padding:7px 14px;cursor:pointer}
+  button.go{background:var(--ok);color:#04150F;border-color:var(--ok)}
+  button:hover{border-color:var(--ok)}
+  button:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+  .hint{color:var(--muted);font-size:11px}
+  #live{font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  #live.on{color:var(--ok)} #live.off{color:var(--muted)} #live.err{color:var(--bad)}
+</style>
+</head>
+<body>
+<header><h1>sandbox</h1><span class="rung" id="rung">nothing registered</span><span class="origin" id="origin">—</span></header>
+<p class="note">Write a participant here and it joins the commitment. This is its own origin, so the
+boundary between it and the coordinator is the browser's, not a convention — and the coordinator has
+never heard of it until it registers. Delete the <code>cancel</code> step and run it again: the
+guarantee the coordinator can offer changes in front of you.</p>
+
+<h2>your participant</h2>
+<div class="ed">
+  <label class="hint" for="code">JavaScript. <code>concord({ id, title, steps })</code> is in scope.</label>
+  <textarea id="code" spellcheck="false" aria-label="Participant definition"></textarea>
+  <div class="bar">
+    <button class="go" id="run">Run</button>
+    <button id="withdraw">Withdraw</button>
+    <button id="drop">Delete the cancel step</button>
+    <span id="live" class="off">not registered</span>
+  </div>
+</div>
+
+<h2>state</h2><div id="state"></div>
+<h2>protocol activity</h2><div id="feed"><p class="empty">nothing yet</p></div>
+<script type="module" src="./byo.mjs"></script>
+</body>
+</html>

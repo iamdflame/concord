@@ -23,7 +23,7 @@ export const ORIGINS = isLocal ? LOCAL : (LIVE ?? (() => {
 })());
 
 /** The commitment participants, in no particular order. */
-export const VENDORS = ['fly', 'stay', 'visa', 'permit', 'shady'];
+export const VENDORS = ['fly', 'stay', 'visa', 'permit', 'shady', 'byo'];
 
 export const COORDINATOR = ORIGINS.app;
 export const VENDOR_ORIGINS = VENDORS.map((id) => ORIGINS[id]);
@@ -35,6 +35,7 @@ export const TITLES = {
   visa: 'Consular Fee',
   permit: 'Entry Permit',
   shady: 'Meridian Holdings',
+  byo: 'Sandbox',
 };
 
 /** Which local port serves an origin, for the dev server only. */

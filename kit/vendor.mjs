@@ -71,7 +71,17 @@ export const KEY_PARAM = {
   },
 };
 
-export async function participant({ id, title, protocol, steps, state, render }) {
+/**
+ * Join a commitment as a participant.
+ *
+ * `signal` revokes every registration at once, which is what lets a page
+ * redefine itself without reloading: registering a name twice throws, so
+ * re-running has to withdraw the previous surface first.
+ *
+ * The DOM hooks are optional. A participant with no visible state is still a
+ * participant.
+ */
+export async function participant({ id, title, protocol, steps, state, render, signal }) {
   const { ctx } = await resolveModelContext();
 
   // What this vendor has already honoured, and what it answered.
@@ -160,7 +170,7 @@ export async function participant({ id, title, protocol, steps, state, render })
       const prior = seen.get(lookupKey);
       return { lookupKey, happened: Boolean(prior), result: prior ?? null };
     },
-  }, { exposedTo: [COORDINATOR] });
+  }, { exposedTo: [COORDINATOR], signal });
 
   // The commitment surface. WebMCP says what a tool is, not what it promises,
   // so this declaration is the only thing the coordinator trusts about us.
@@ -179,7 +189,7 @@ export async function participant({ id, title, protocol, steps, state, render })
         steps: { ...protocol.steps, status: { tool: 'concord.status' } },
       };
     },
-  }, { exposedTo: [COORDINATOR] });
+  }, { exposedTo: [COORDINATOR], signal });
 
   for (const [step, spec] of Object.entries(steps)) {
     await ctx.registerTool({
@@ -230,7 +240,7 @@ export async function participant({ id, title, protocol, steps, state, render })
         paint();
         return signed;
       },
-    }, { exposedTo: [COORDINATOR] });
+    }, { exposedTo: [COORDINATOR], signal });
   }
 
   // ── operator surface: the switches a judge is invited to flip ─────────────
@@ -274,6 +284,7 @@ export async function participant({ id, title, protocol, steps, state, render })
   }
 
   paint();
-  document.getElementById('origin').textContent = location.origin;
+  const originEl = document.getElementById('origin');
+  if (originEl) originEl.textContent = location.origin;
   return { log, paint };
 }

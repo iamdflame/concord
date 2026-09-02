@@ -98,6 +98,41 @@ lie about the only thing this project claims.
 Ask it for a flight, a hotel and the visa fee. Then ask for a flight, the visa
 fee **and** the entry permit, and watch it refuse.
 
+### Then write a participant yourself
+
+The reasonable suspicion about a demo like this is that it is a few hardcoded
+pages talking to each other. The
+[**sandbox**](https://concord-sandbox.vercel.app) is the answer: its own origin,
+a text box, and ten lines.
+
+```js
+concord({
+  id: 'lounge',
+  title: 'Skyline Lounge',
+  steps: {
+    reserve: { tool: 'hold_pass', ttlSeconds: 600, run: ({ guests }) => ({ ref: id(), guests }) },
+    confirm: { tool: 'issue_pass', run: ({ ref }) => ({ ref, issued: true }) },
+    cancel:  { tool: 'drop_hold',  run: ({ ref }) => ({ ref, released: true }) },
+  },
+});
+```
+
+Press **Run**. The coordinator has never heard of it and says so:
+
+> Skyline Lounge registered a commitment surface at https://concord-sandbox.vercel.app.
+> I had never heard of it until now, and I can include it from here.
+
+Ask for *a flight and a Skyline Lounge pass* and you get **all-or-nothing up to
+the final confirm**. Then delete the `cancel` step and ask again:
+
+> **No honest promise available**
+> lounge declares only reserve, confirm, status, which is not a commitment
+> protocol anything can be promised over.
+
+Nothing was redeployed and nothing was configured. A hold you cannot release is
+not a hold, and the guarantee follows the declaration rather than the other way
+round.
+
 ## Running it yourself
 
 ```bash
@@ -244,6 +279,8 @@ with another; none knows the others exist.
 | **Rowan House** `:5178` | compensable | Books and charges immediately; cancels with a full refund |
 | **Consular Fee** `:5179` | irreversible | Declares no `compensate`, because inventing one would be a lie |
 | **Entry Permit** `:5180` | irreversible | A second one, so the refusal is real rather than staged |
+| **Meridian Holdings** `:5181` | compensable, and lying | Declares it can reverse what it does. It cannot |
+| **Sandbox** `:5182` | whatever you write | Write a participant live and watch the guarantee follow it |
 
 Each answers one question through a `concord.protocol` tool — *what can you
 commit to* — and everything else is derived from the answers.
@@ -389,6 +426,8 @@ concord/receipt.mjs       Merkle receipts, inclusion proofs, key validity
 concord/client.mjs        binds the protocol to WebMCP
 concord/*.test.mjs        the protocol proved without a browser
 
+vendors/byo    :5182      the sandbox — a participant you write, live
+vendors/shady  :5181      declares it can reverse what it does, and cannot
 vendors/fly    :5177      reservable — hold, ticket, release
 vendors/stay   :5178      compensable — book and charge, cancel and refund
 vendors/visa   :5179      irreversible — declares no compensate, because there is none

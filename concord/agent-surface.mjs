@@ -44,6 +44,18 @@ export class AgentSurface {
 
   get proposals() { return this.#proposals; }
 
+  /**
+   * Replace the set of participants.
+   *
+   * A commitment is over whoever is present, and who is present can change: a
+   * site can register while the page is open, and the coordinator finds out
+   * from a toolchange rather than from a deployment. Proposals already made are
+   * left alone -- they were computed over the participants of their moment, and
+   * silently re-planning something a person was shown would be a different kind
+   * of dishonesty.
+   */
+  update(participants) { this.#participants = participants; }
+
   /** What is available, and what each one can commit to. Read-only. */
   listVendors() {
     return this.#participants.map((p) => ({

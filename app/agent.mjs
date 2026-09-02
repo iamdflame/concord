@@ -16,6 +16,7 @@ const VENDOR_WORDS = [
   { id: 'visa',   words: /\b(visa|consular|entry fee|travel fee)\b/i },
   { id: 'permit', words: /\b(permit|entry permit)\b/i },
   { id: 'shady',  words: /\b(meridian|allocation|holdings)\b/i },
+  { id: 'lounge', words: /\b(lounge|skyline|pass)\b/i },
 ];
 
 const REVERSIBLE_ONLY = /\b(refundable|reversible|can'?t take back|cannot take back|nothing irreversible|no.{0,12}non-?refundable|back out)\b/i;
@@ -28,14 +29,32 @@ const REVERSIBLE_ONLY = /\b(refundable|reversible|can'?t take back|cannot take b
  * rather than implied, because a demo that quietly degrades is a demo that
  * lies about what it is.
  */
-/** Reading a request without a model. Always available, and the fallback. */
+/**
+ * Reading a request without a model. Always available, and the fallback.
+ *
+ * It matches on what each participant calls itself before it consults the
+ * synonyms, which matters because a participant's id is whatever it declared --
+ * not whatever the coordinator files it under. A site written in the sandbox
+ * thirty seconds ago names itself, and asking for it by that name has to work
+ * without anyone editing this file.
+ */
 function localReader(kind) {
   return {
     kind,
     async read(text, vendors) {
-      const ids = VENDOR_WORDS.filter((v) => v.words.test(text))
-        .map((v) => v.id)
-        .filter((id) => vendors.some((v) => v.id === id));
+      const words = new Set((text.toLowerCase().match(/[a-z][a-z0-9_-]{2,}/g) ?? []));
+      const named = vendors.filter((v) =>
+        words.has(String(v.id).toLowerCase())
+        || String(v.title ?? '').toLowerCase().split(/\W+/).filter((w) => w.length > 3)
+             .some((w) => words.has(w)));
+
+      const bySynonym = VENDOR_WORDS.filter((w) => w.words.test(text)).map((w) => w.id);
+      const ids = [...new Set([
+        ...named.map((v) => v.id),
+        // Synonyms resolve against the id a participant declares, and are
+        // dropped when nothing here answers to that name.
+        ...bySynonym.filter((id) => vendors.some((v) => v.id === id)),
+      ])];
       return { ids, reversibleOnly: REVERSIBLE_ONLY.test(text) };
     },
   };
@@ -98,7 +117,7 @@ export async function makeReader({ onFallback } = {}) {
  * `say` writes to the transcript, `tool` calls a published Concord tool, and
  * `confirm` puts the decision back to the human before anything is committed.
  */
-export async function turn({ text, reader, tool, say, confirm }) {
+export async function turn({ text, reader, tool, say, confirm, refuse }) {
   const vendors = await tool('concord_list_vendors', {});
   const { ids, reversibleOnly } = await reader.read(text, vendors);
 
@@ -127,6 +146,10 @@ export async function turn({ text, reader, tool, say, confirm }) {
   // The refusal case, which is the one an agent normally cannot express.
   if (!proposal.committable) {
     const why = await tool('concord_explain_guarantee', { proposalId: proposal.proposalId });
+    // The refusal is the answer, so it is shown where an answer is shown --
+    // not only narrated in the transcript while the panel keeps whatever it
+    // last said, which reads as if nothing happened.
+    refuse?.(why);
     say('agent', `I cannot do that as one commitment, and I would rather say so than half-do it.\n\n`
       + `${why.summary.replace(/^Cannot be done as one commitment\.\s*/, '')}\n\n`
       + `Nothing has been contacted. Ask for them separately and I will do each one.`);

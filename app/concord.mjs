@@ -134,7 +134,7 @@ let surfaceEventSink = () => {};
 
 // The four tools an agent may reach, registered over WebMCP. The in-page agent
 // below drives these; so can ChatGPT's, through the same registration.
-await publishAgentTools({
+const surface = await publishAgentTools({
   ctx,
   participants: withInputs(discovered, INPUTS),
   inputs: INPUTS,
@@ -185,6 +185,10 @@ function showPromise(promise) {
   $('caveats').innerHTML = (promise.caveats ?? [])
     .map((c) => `<div class="caveat"><b>!</b><span>${esc(c)}</span></div>`).join('');
 
+  // A refusal has no sequence to lay out, and leaving the previous plan's
+  // ladder on screen underneath it reads as though something is still on offer.
+  if (refused) $('ladder').innerHTML = '';
+
   // The gate. There is no way to commit anything the agent has not been given
   // permission for, and none at all for something the ladder refused.
   $('commit').hidden = refused;
@@ -234,9 +238,53 @@ async function callTool(name, args) {
   return value;
 }
 
+/**
+ * Find out who is here, now.
+ *
+ * A site that registers a commitment surface is available from that moment,
+ * with no deployment and no agreement between anyone. toolchange announces it,
+ * but the announcement does not reliably cross a frame boundary on every
+ * implementation -- a participant that changed its declaration inside an iframe
+ * can leave the coordinator holding a stale copy of what it can promise. A
+ * proposal has to be over what is true when it is made, so this runs before
+ * every one. It is a handful of read-only calls to pages already open.
+ */
+async function refresh() {
+  try {
+    const fresh = await discover(ctx, ALL);
+    // Compared by what each participant declares, not by who is present. A site
+    // that drops its cancel step is the same site and a different proposition,
+    // and comparing ids alone makes exactly that change invisible.
+    const shape = (list) => list.map((v) =>
+      `${v.id}:${Object.keys(v.protocol?.steps ?? {}).sort().join('+')}`).sort().join(',');
+    if (shape(fresh) === shape(discovered)) return;
+
+    const was = new Map(discovered.map((v) => [v.id, v]));
+    const stepsOf = (v) => Object.keys(v.protocol?.steps ?? {}).sort().join('+');
+    const added = fresh.filter((v) => !was.has(v.id));
+    const gone = discovered.filter((v) => !fresh.some((q) => q.id === v.id));
+    const changed = fresh.filter((v) => was.has(v.id) && stepsOf(was.get(v.id)) !== stepsOf(v));
+
+    discovered = fresh;
+    surface.update(withInputs(discovered, INPUTS));
+    $('pcount').textContent = String(discovered.length);
+
+    for (const v of added) {
+      say('agent', `${v.title} registered a commitment surface at ${v.origin}. `
+        + 'I had never heard of it until now, and I can include it from here.');
+    }
+    for (const v of gone) say('agent', `${v.title} withdrew its tools and is no longer available.`);
+    for (const v of changed) {
+      const steps = Object.keys(v.protocol?.steps ?? {}).filter((k) => k !== 'status');
+      say('agent', `${v.title} changed what it can commit to — it now declares ${steps.join(', ')}.`);
+    }
+  } catch { /* whatever is unreachable will be reported by the plan below */ }
+}
+
 async function ask(text) {
   say('you', text);
   clearPromise();
+  await refresh();
   $('run').innerHTML = '';
   $('outcome').innerHTML = '';
   $('receipt').innerHTML = '';
@@ -244,6 +292,7 @@ async function ask(text) {
   try {
     const out = await turn({
       text, reader, tool: callTool, say,
+      refuse: (why) => showPromise({ ...why, guarantee: 'refused', committable: false, order: [] }),
       confirm: (promise) => new Promise((resolve) => {
         showPromise(promise);
         awaitingGo = resolve;
@@ -266,8 +315,17 @@ $('prompts').addEventListener('click', (e) => {
 $('ask').addEventListener('submit', (e) => {
   e.preventDefault();
   const text = $('q').value.trim();
-  if (!text || awaitingGo) return;
+  if (!text || running) return;
   $('q').value = '';
+
+  // Asking something else while a proposal waits is an answer to it. Dropping
+  // the new question in silence, which is what happened before, is not.
+  if (awaitingGo) {
+    const go = awaitingGo;
+    awaitingGo = null;
+    say('agent', 'Leaving that one, then. Nothing was contacted.');
+    go(false);
+  }
   ask(text);
 });
 

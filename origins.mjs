@@ -15,6 +15,7 @@ export const LOCAL = {
   visa:   'http://localhost:5179',
   permit: 'http://localhost:5180',
   shady:  'http://localhost:5181',
+  byo:    'http://localhost:5182',
 };
 
 // The deployment. Each participant is its own project, so these are genuinely
@@ -27,4 +28,5 @@ export const LIVE = {
   visa:   'https://concord-visa.vercel.app',
   permit: 'https://concord-permit.vercel.app',
   shady:  'https://concord-meridian.vercel.app',
+  byo:    'https://concord-sandbox.vercel.app',
 };

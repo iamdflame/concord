@@ -141,9 +141,13 @@ assert this, including that explaining a refusal does not unlock it.
 with the reason no in-tab protocol can fix it
 ([SPEC.md §15.2](SPEC.md)).
 
-**"The vendors are fake."** They are reference implementations, and the
-conformance suite that judges them is published: point
-<https://concord-coordinator.vercel.app/conformance.html> at your own origin.
+**"The vendors are fake."** Write one. <https://concord-sandbox.vercel.app> is
+its own origin with a text box: ten lines registers a participant the
+coordinator has never heard of, and it joins the next commitment. Delete its
+`cancel` step and the guarantee the coordinator can offer collapses to "no
+honest promise available", because a hold you cannot release is not a hold. The
+conformance suite is published too, and it will judge your participant the same
+way it judges these.
 
 ## Numbers
 
