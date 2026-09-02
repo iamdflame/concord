@@ -114,6 +114,8 @@ async function buildApp(appOrigin) {
     ['kernel/harness.mjs', 'harness.mjs'],
     // The conformance suite ships with the deployment, so anyone can point it
     // at these participants -- or their own -- without cloning anything.
+    ['kernel/native.html', 'native.html'],
+    ['kernel/native.mjs', 'native.mjs'],
     ['kernel/conformance.html', 'conformance.html'],
     ['kernel/conformance.mjs', 'conformance.mjs'],
     ['spec/conformance.mjs', 'spec/conformance.mjs'],

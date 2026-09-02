@@ -5,7 +5,9 @@
 Concord is that missing layer — and the first agent that is structurally
 incapable of overpromising.
 
-**Live: <https://concord-coordinator.vercel.app>** · [SPEC.md](SPEC.md) ·
+**Live: <https://concord-coordinator.vercel.app>** ·
+[is WebMCP native here?](https://concord-coordinator.vercel.app/native.html) ·
+[SPEC.md](SPEC.md) ·
 [THREAT-MODEL.md](THREAT-MODEL.md) ·
 [`npx concord-verify`](https://www.npmjs.com/package/concord-verify)
 
