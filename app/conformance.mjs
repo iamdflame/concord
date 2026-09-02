@@ -1,6 +1,6 @@
 // Runs the conformance suite against every participant in the origin table.
 import { resolveModelContext } from '/shim/adapter.mjs';
-import { awaitTools } from './harness.mjs';
+import { awaitTools } from '/kit/harness.mjs';
 import { conform } from '/spec/conformance.mjs';
 import { ORIGINS, VENDORS, VENDOR_ORIGINS, TITLES } from '/config.mjs';
 

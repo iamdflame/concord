@@ -107,17 +107,17 @@ async function buildApp(appOrigin) {
     await cp(join(root, 'concord', f), join(bundle, 'concord', f));
   }
   for (const [from, to] of [
-    ['kernel/concord.html', 'index.html'],
-    ['kernel/concord.mjs', 'concord.mjs'],
-    ['kernel/agent.mjs', 'agent.mjs'],
-    ['kernel/agent-tools.mjs', 'agent-tools.mjs'],
-    ['kernel/harness.mjs', 'harness.mjs'],
+    ['app/concord.html', 'index.html'],
+    ['app/concord.mjs', 'concord.mjs'],
+    ['app/agent.mjs', 'agent.mjs'],
+    ['app/agent-tools.mjs', 'agent-tools.mjs'],
+    ['app/harness.mjs', 'harness.mjs'],
     // The conformance suite ships with the deployment, so anyone can point it
     // at these participants -- or their own -- without cloning anything.
-    ['kernel/native.html', 'native.html'],
-    ['kernel/native.mjs', 'native.mjs'],
-    ['kernel/conformance.html', 'conformance.html'],
-    ['kernel/conformance.mjs', 'conformance.mjs'],
+    ['app/native.html', 'native.html'],
+    ['app/native.mjs', 'native.mjs'],
+    ['app/conformance.html', 'conformance.html'],
+    ['app/conformance.mjs', 'conformance.mjs'],
     ['spec/conformance.mjs', 'spec/conformance.mjs'],
   ]) {
     await mkdir(join(bundle, dirname(to)), { recursive: true });

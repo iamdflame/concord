@@ -397,8 +397,8 @@ kit/vendor.mjs            what every participant gets: protocol declaration,
 kit/keystore.mjs          signing keys, published at /.well-known/concord.json
 kit/canonical.mjs         RFC 8785 serialisation, so a stranger reaches the same bytes
 
-kernel/concord.html       :5173 — the coordinator
-kernel/concord-test.mjs   the protocol against three real origins
+app/concord.html          :5173 — the coordinator, and the agent
+app/concord-test.mjs      the protocol against four real origins
 server.mjs                seven origins, with Origin-Agent-Cluster and Permissions-Policy
 shim/webmcp.mjs           spec-faithful WebMCP for browsers that lack it
 shim/adapter.mjs          native-first resolution; reports which provider you got
@@ -407,9 +407,11 @@ tools/export-receipt.mjs  run a commitment, write the receipt to a file
 tools/verify-receipt.mjs  check that file, with nothing from the coordinator
 tools/probe.mjs           headless Chrome over CDP
 
-kernel/{labels,policy,dispatch,transcript,monitor}.*   Ring 0, the substrate
-mail/ ledger/ pay/  :5174-6                            its three processes
-experiments/tool-synthesis/                            a documented negative result
+ring0/                    the capability kernel Concord was built on — a
+                          different argument, kept because it is where several
+                          of these ideas were worked out
+experiments/              a documented negative result
+
 ```
 
 ## For judges

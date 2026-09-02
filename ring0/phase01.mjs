@@ -13,7 +13,7 @@
 // Mode B is the one that matters, because it protects agents we do not control.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
-import { createSuite, awaitTools } from './harness.mjs';
+import { createSuite, awaitTools } from '/kit/harness.mjs';
 import { MAIL, LEDGER } from './processes.mjs';
 
 const WORKLOAD = MAIL;

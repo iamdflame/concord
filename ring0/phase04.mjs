@@ -11,7 +11,7 @@
 // the live kernel held at step n, for every n.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
-import { createSuite, awaitTools } from './harness.mjs';
+import { createSuite, awaitTools } from '/kit/harness.mjs';
 import { parsePolicy } from './policy.mjs';
 import { Kernel } from './dispatch.mjs';
 import { reconstruct } from './transcript.mjs';

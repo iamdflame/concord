@@ -1,7 +1,7 @@
 // Two-origin dev server. No dependencies.
 //
-// Origin A  http://localhost:5173  -> kernel/    (Ring 0)
-// Origin B  http://localhost:5174  -> workload/  (a process the kernel supervises)
+// Origin A  http://localhost:5173  -> app/       (the Concord coordinator)
+// Origins    http://localhost:5177+ -> vendors/   (the participants)
 //
 // Different ports are different origins, and localhost is a "potentially
 // trustworthy" origin, so both are secure contexts without TLS. That is what
@@ -18,14 +18,14 @@ import { LOCAL_PORTS } from './config.mjs';
 // boundaries the browser enforces.
 // Ports come from the one origin table, so local and deployed cannot drift.
 const CONCORD = Object.fromEntries(Object.entries(LOCAL_PORTS).map(([port, id]) =>
-  [port, { root: id === 'app' ? 'kernel' : `vendors/${id}`, name: id === 'app' ? 'kernel' : id }]));
+  [port, { root: id === 'app' ? 'app' : `vendors/${id}`, name: id }]));
 
 const ORIGINS = {
   ...CONCORD,
   // Ring 0's three supervised processes, the substrate Concord was built on.
-  5174: { root: 'mail',   name: 'mail'   },
-  5175: { root: 'ledger', name: 'ledger' },
-  5176: { root: 'pay',    name: 'pay'    },
+  5174: { root: 'ring0/mail',   name: 'mail'   },
+  5175: { root: 'ring0/ledger', name: 'ledger' },
+  5176: { root: 'ring0/pay',    name: 'pay'    },
 };
 
 const TYPES = {
@@ -99,8 +99,10 @@ function serve(port) {
 
     // Shared modules live outside the per-origin roots; every origin needs them.
     // Shared modules and the origin table live outside the per-origin roots.
-    const base = /^\/(shim|shared|kit|concord|experiments|spec)\//.test(path)
-      || /^\/(config|origins)\.mjs$/.test(path) || path.startsWith('/spec/') ? '.' : root;
+    const base = /^\/(shim|kit|concord|experiments|spec|ring0)\//.test(path)
+      || /^\/(config|origins)\.mjs$/.test(path) ? '.'
+      // Ring 0's own shared stylesheet, kept with Ring 0.
+      : path.startsWith('/shared/') ? 'ring0' : root;
     const file = join(process.cwd(), base, normalize(path).replace(/^(\.\.[/\\])+/, ''));
 
     try {

@@ -8,7 +8,7 @@
 // yet rather than a dimmed copy of the present.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
-import { awaitTools } from './harness.mjs';
+import { awaitTools } from '/kit/harness.mjs';
 import { parsePolicy } from './policy.mjs';
 import { Kernel } from './dispatch.mjs';
 import { reconstruct } from './transcript.mjs';

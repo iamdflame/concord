@@ -5,7 +5,7 @@
 // tools, and can be broken while it is running.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
-import { createSuite, awaitTools } from './harness.mjs';
+import { createSuite, awaitTools } from '/kit/harness.mjs';
 import { discover, bind, withInputs } from '/concord/client.mjs';
 import { plan, describe, GUARANTEE } from '/concord/ladder.mjs';
 import { runSaga, OUTCOME } from '/concord/saga.mjs';

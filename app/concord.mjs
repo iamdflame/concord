@@ -7,7 +7,7 @@
 // promise exists, the button does not run.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
-import { awaitTools } from './harness.mjs';
+import { awaitTools } from '/kit/harness.mjs';
 import { discover, bind, withInputs } from '/concord/client.mjs';
 import { plan, describe, GUARANTEE, RUNG } from '/concord/ladder.mjs';
 import { runSaga, OUTCOME } from '/concord/saga.mjs';

@@ -7,7 +7,7 @@
 // in a model would test the model instead of the gate.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
-import { createSuite, awaitTools } from './harness.mjs';
+import { createSuite, awaitTools } from '/kit/harness.mjs';
 import { parsePolicy } from './policy.mjs';
 import { Kernel } from './dispatch.mjs';
 import { UNTRUSTED, TAINTED_CONTEXT } from './labels.mjs';

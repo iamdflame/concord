@@ -10,7 +10,7 @@
 // four minutes and would notice the forged notice. An agent will not.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
-import { createSuite, awaitTools } from './harness.mjs';
+import { createSuite, awaitTools } from '/kit/harness.mjs';
 import { parsePolicy } from './policy.mjs';
 import { Kernel } from './dispatch.mjs';
 import { UNTRUSTED, originTag } from './labels.mjs';
