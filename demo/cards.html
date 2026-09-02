@@ -1,0 +1,162 @@
+<!doctype html>
+<!-- Demo cards, 1920x1080, rendered at 2x by demo/build.sh.
+     Same fonts, same palette, same mark as the product: a title card in a
+     different typeface than the thing it introduces reads as a template. -->
+<meta charset="utf-8">
+<title>Concord — demo cards</title>
+<style>
+  @font-face{font-family:"Source Serif 4";src:url(../ui/fonts/serif-600.woff2)format("woff2");font-weight:600}
+  @font-face{font-family:"Source Serif 4";src:url(../ui/fonts/serif-400.woff2)format("woff2");font-weight:400}
+  @font-face{font-family:"IBM Plex Mono";src:url(../ui/fonts/mono-400.woff2)format("woff2");font-weight:400}
+  @font-face{font-family:"IBM Plex Mono";src:url(../ui/fonts/mono-600.woff2)format("woff2");font-weight:600}
+  :root{
+    --paper:#101419; --ink:#e9e8e2; --ink-2:#a6abb1; --ink-3:#7b8187;
+    --rule:#292e35; --blue:#008bc2; --green:#34925d; --red:#dd5230;
+    --serif:"Source Serif 4",Georgia,serif; --mono:"IBM Plex Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{width:1920px;background:var(--paper);color:var(--ink);
+       font:20px/1.5 var(--serif);-webkit-font-smoothing:antialiased;
+       font-variant-numeric:tabular-nums}
+  .card{width:1920px;height:1080px;padding:0 150px;display:flex;flex-direction:column;
+        justify-content:center;position:relative;overflow:hidden}
+  .eyebrow{font-size:23px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:26px}
+  h1{margin:0;font-size:104px;font-weight:600;line-height:1.03;letter-spacing:-0.028em;max-width:20ch}
+  h2{margin:0;font-size:78px;font-weight:600;line-height:1.08;letter-spacing:-0.024em;max-width:22ch}
+  .sub{margin:36px 0 0;font-size:32px;line-height:1.42;color:var(--ink-2);max-width:44ch}
+  .sub b{color:var(--ink);font-weight:600}
+  .red{color:var(--red)}
+  .mark{position:absolute;top:90px;left:150px;display:flex;align-items:center;gap:20px}
+  .mark svg{width:60px;height:60px}
+  .mark span{font-size:34px;font-weight:600;letter-spacing:-0.02em}
+  .foot{position:absolute;bottom:88px;left:150px;right:150px;display:flex;
+        justify-content:space-between;align-items:baseline;font-family:var(--mono);
+        font-size:23px;color:var(--ink-3);border-top:1px solid var(--rule);padding-top:26px}
+
+  /* the surface transition, as a static graphic */
+  .surface{margin-top:52px;font-family:var(--mono);font-size:29px;line-height:2.1;max-width:none}
+  .surface div{display:grid;grid-template-columns:430px 1fr;gap:0 34px;color:var(--ink-3)}
+  .surface div b{color:var(--ink-2);font-weight:400}
+  .surface div.on{color:var(--ink)}
+  .surface div.on b{color:var(--ink);font-weight:600}
+  .surface .tool{color:var(--green)}
+  .surface .gone{color:var(--ink-3);text-decoration:line-through}
+  .surface .new{color:var(--red);font-weight:600}
+  .arrow{color:var(--red);font-weight:600}
+
+  .links{margin-top:54px;display:grid;gap:22px;font-family:var(--mono);font-size:30px}
+  .links a{color:var(--ink-2);text-decoration:none}
+  .links a b{color:var(--ink);font-weight:600;display:inline-block;width:430px}
+
+  .lower{width:1920px;height:1080px;background:transparent;position:relative}
+  .lt{position:absolute;left:120px;bottom:130px;background:rgba(16,20,25,.92);
+      border-left:7px solid var(--red);padding:26px 38px 28px;max-width:1180px}
+  .lt .k{font-family:var(--mono);font-size:22px;color:var(--ink-3);margin-bottom:8px;
+         letter-spacing:.04em}
+  .lt .v{font-size:42px;font-weight:600;letter-spacing:-0.018em;line-height:1.15}
+</style>
+<body>
+<div id="cards"></div>
+<script type="module">
+const MARK = `<svg viewBox="0 0 64 64" fill="none"><path d="M44.53 17.06A19.5 19.5 0 1 1 22.25 15.11" stroke="currentColor" stroke-width="5.5"/><rect x="15.75" y="8.61" width="13" height="13" fill="var(--red)"/></svg>`;
+const brand = `<div class="mark">${MARK}<span>Concord</span></div>`;
+const foot = (l, r) => `<div class="foot"><span>${l}</span><span>${r}</span></div>`;
+
+const CARDS = {
+'01-title': `<div class="card">
+  <div class="mark" style="position:static;margin-bottom:60px">${MARK}<span>Concord</span></div>
+  <h1>An agent that cannot overpromise.</h1>
+  <p class="sub">WebMCP tells an agent what a site can <b>do</b>.<br>
+    Nothing tells it what a site can <b>take back</b>.</p>
+  ${foot('concord-coordinator.vercel.app', 'The WebMCP Challenge')}
+</div>`,
+
+'02-problem': `<div class="card">${brand}
+  <div class="eyebrow">The gap</div>
+  <h2>An agent booking across two sites cannot know what it is risking.</h2>
+  <p class="sub">So a marketplace stands between them and charges
+    <b>15–30%</b> for the guarantee.</p>
+  ${foot('inputSchema says what a tool is', 'nothing says what it can take back')}
+</div>`,
+
+'03-surface': `<div class="card">${brand}
+  <div class="eyebrow">The tool surface is the permission model, and it is live</div>
+  <h2 style="font-size:66px">The commit tool does not exist until a person accepts.</h2>
+  <div class="surface">
+    <div><b>boot</b><span>list_vendors  inspect_vendor  propose  get_surface</span></div>
+    <div><b>the agent proposes</b><span>+ explain_guarantee</span></div>
+    <div><b>the agent explains it</b><span>unchanged — explaining is not consent</span></div>
+    <div class="on"><b><span class="arrow">▸</span> a person clicks Accept</b><span class="new">+ concord_commit</span></div>
+    <div><b>the commitment begins</b><span class="gone">− concord_commit</span></div>
+  </div>
+  ${foot('registerTool + AbortController', 'toolchange fires on every line')}
+</div>`,
+
+'04-refusal': `<div class="card">${brand}
+  <div class="eyebrow">Two things nobody can undo</div>
+  <h2 class="red">This is not a promise I can make.</h2>
+  <p class="sub">Nothing was contacted. There is <b>no button</b> on this answer,
+    and no <code style="font-family:var(--mono)">concord_commit</code> on the surface.</p>
+  ${foot('refusal computed before contact', 'one state in thirty-two permits committing')}
+</div>`,
+
+'05-recovery': `<div class="card">${brand}
+  <div class="eyebrow">Kill the coordinator mid-commitment, then reload</div>
+  <h2>It asks each vendor what actually happened.</h2>
+  <p class="sub">A step whose intent was written and whose result was not is
+    <b>genuinely unknown</b> — not probably fine. Only the vendor can settle it.</p>
+  ${foot('write-ahead journal, survives the tab', 'concord.status: did you ever honour this key')}
+</div>`,
+
+'06-receipt': `<div class="card">${brand}
+  <div class="eyebrow">The receipt, checked on an origin we do not run</div>
+  <h2 style="font-size:70px">The coordinator was not asked anything.</h2>
+  <p class="sub">Every statement is signed by the counterparty, and the keys come
+    from <b>each vendor's own origin</b>.</p>
+  ${foot('concord-receipts.vercel.app', 'Permissions-Policy: tools=()')}
+</div>`,
+
+'07-end': `<div class="card">
+  <div class="mark" style="position:static;margin-bottom:52px">${MARK}<span>Concord</span></div>
+  <h2 style="font-size:64px;max-width:30ch">It is live, and it is open source.</h2>
+  <div class="links">
+    <a><b>Try it</b>concord-coordinator.vercel.app</a>
+    <a><b>Check a receipt elsewhere</b>concord-receipts.vercel.app</a>
+    <a><b>Write your own participant</b>concord-sandbox.vercel.app</a>
+    <a><b>Code &middot; MIT</b>github.com/iamdflame/concord</a>
+  </div>
+  ${foot('npx concord-verify receipt.json', 'nothing of ours runs')}
+</div>`,
+};
+
+// Lower thirds, on transparent, for laying over the screen recording.
+const LOWER = {
+  'lt-1-guarantee':  ['before anything is contacted', 'The guarantee is computed first'],
+  'lt-2-nocommit':   ['getTools() · right now', 'There is no commit tool'],
+  'lt-3-accept':     ['a click on the page, which no agent can make', 'Accept the guarantee'],
+  'lt-4-appeared':   ['getTools() · one second later', 'concord_commit now exists'],
+  'lt-5-refused':    ['two irreversible vendors', 'Refused, and nothing contacted'],
+  'lt-6-crash':      ['the coordinator stopped, holding real effects', 'Reload, and it finds them'],
+  'lt-7-verified':   ['a different origin, no coordinator', 'Verified'],
+};
+
+const out = document.getElementById('cards');
+for (const [name, html] of Object.entries(CARDS)) {
+  out.insertAdjacentHTML('beforeend', `<section data-name="${name}">${html}</section>`);
+}
+for (const [name, [k, v]] of Object.entries(LOWER)) {
+  out.insertAdjacentHTML('beforeend',
+    `<section data-name="${name}" data-transparent="1"><div class="lower">
+       <div class="lt"><div class="k">${k}</div><div class="v">${v}</div></div>
+     </div></section>`);
+}
+globalThis.__CARDS__ = [...document.querySelectorAll('section')].map((s) => s.dataset.name);
+globalThis.__SHOW__ = (name) => {
+  for (const s of document.querySelectorAll('section')) s.style.display = s.dataset.name === name ? '' : 'none';
+  document.body.style.background =
+    document.querySelector(`[data-name="${name}"]`).dataset.transparent ? 'transparent' : 'var(--paper)';
+  return true;
+};
+globalThis.__READY__ = true;
+</script>

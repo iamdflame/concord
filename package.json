@@ -19,6 +19,8 @@
     "conformance": "URL=http://localhost:5173/conformance.html node tools/probe.mjs",
     "surface": "node evals/surface.mjs",
     "brand": "python3 brand/build.py && bash brand/build.sh",
+    "demo:cards": "node demo/build.mjs",
+    "demo:timing": "node demo/timing.mjs",
     "publish:verify": "cd verify && npm publish --access public",
     "check": "bash tools/check.sh"
   },

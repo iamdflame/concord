@@ -14,6 +14,10 @@ echo "── the README describes this repository ──────────
 node tools/check-readme.mjs
 
 echo ""
+echo "── the demo fits in three minutes ────────────────"
+node demo/timing.mjs 2>&1 | sed -n '/^  [✓✗]/p;/^DEMO/p' | sed 's/^/  /'
+
+echo ""
 echo "── the published verifier matches this repository ─"
 node verify/build.mjs >/dev/null
 git diff --quiet verify/lib && echo "  ✓ verify/lib is current" \

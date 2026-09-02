@@ -519,6 +519,9 @@ kit/canonical.mjs         RFC 8785 serialisation, so a stranger reaches the same
 
 ui/instrument.css         one palette, one type scale, shared by every page
 brand/                    the mark, and the script that draws it
+demo/RECORDING.md         how to record and cut the demo, step by step
+demo/cards/               title, section and end cards, and lower thirds
+demo/timing.mjs           does the demo still fit in three minutes
 shim/webmcp.mjs           spec-faithful WebMCP for browsers that lack it
 shim/adapter.mjs          native-first resolution; reports which provider you got
 server.mjs                eleven origins, with the headers the real API needs

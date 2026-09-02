@@ -100,6 +100,7 @@ tr.counter td:first-child{border-left-color:var(--compensable)}
 #reachGone{margin-top:8px}
 #reachGone li{border-left-color:transparent;color:var(--ink-3);text-decoration:line-through;
   text-decoration-color:var(--ink-3)}
+.reach .why{margin-top:12px;font-family:var(--mono);font-size:var(--t-cap);color:var(--ink-3)}
 .reach .absent{
   margin-top:12px;padding-top:10px;border-top:1px solid var(--rule);
   font-size:var(--t-body);color:var(--ink);max-width:52ch;
@@ -273,6 +274,7 @@ tr.stuck .answer{color:var(--irreversible-ink)}
       <p class="margin" id="reach-h">What the agent can reach, right now</p>
       <ul id="reachNow"></ul>
       <ul id="reachGone"></ul>
+      <p class="why" id="reachWhy"></p>
       <p class="absent">There is no tool that moves money, and no tool that accepts a guarantee.
         <code>concord_commit</code> is not disabled when you may not commit — it is
         <b>not registered</b>. Accepting the guarantee above is what puts it there, and it is a

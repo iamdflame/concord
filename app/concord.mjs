@@ -145,6 +145,8 @@ $('receiptsLink').href = VERIFIER;
  * permission model, visible without opening a tool inspector.
  */
 const NEVER = ['concord_commit'];
+let lastSurfaceChange = 'nothing has been asked yet';
+
 function paintReach(live = []) {
   // The names come in as an argument rather than being read back off the
   // surface: the first reconcile happens inside publishAgentTools, before the
@@ -154,6 +156,11 @@ function paintReach(live = []) {
     `<li class="${n === 'concord_commit' ? 'effectful arriving' : ''}">${esc(n)}</li>`).join('');
   $('reachGone').innerHTML = NEVER.filter((n) => !live.includes(n))
     .map((n) => `<li>${esc(n)}</li>`).join('');
+  // Why it is what it is. A set of tools that changes without saying why is
+  // the thing concord_get_surface exists to fix for an agent; the person
+  // watching the page deserves the same sentence.
+  $('reachWhy').textContent =
+    `${live.length} registered · ${lastSurfaceChange}`;
 }
 
 // ── the counterparties ─────────────────────────────────────────────────────
@@ -242,7 +249,16 @@ const surface = await publishAgentTools({
     const call = bind(ctx, participants);
     return crashAfter ? killAfter(call, crashAfter) : call;
   },
-  onEvent: (e) => surfaceEventSink(e),
+  onEvent: (e) => {
+    const why = {
+      proposed: 'the agent proposed a commitment',
+      explained: 'the agent read the guarantee out — explaining is not consent',
+      accepted: 'you accepted this guarantee, so commit exists',
+      done: 'the commitment settled, so commit is spent',
+    }[e.type];
+    if (why) lastSurfaceChange = why;
+    surfaceEventSink(e);
+  },
   // Fires after each reconcile, with what is registered. Painting from here
   // rather than from the state change means the panel cannot claim a tool
   // exists before registerTool has actually returned.
@@ -950,9 +966,26 @@ $('reset').addEventListener('click', () => {
   }, 900);
 });
 
+/**
+ * A question carried in the URL.
+ *
+ * `?ask=...` fills the composer and submits it. Worth having because a
+ * guarantee is a thing people want to send each other -- "look what this
+ * refuses" is a link -- and because it makes the same question reproducible
+ * rather than retyped. It cannot commit anything: the accept click is still
+ * the only thing that registers concord_commit, and no URL can perform it.
+ */
+function askFromUrl() {
+  const q = new URL(location.href).searchParams.get('ask');
+  if (!q) return;
+  $('q').value = q;
+  $('ask').requestSubmit();
+}
+
 try {
   openingPromise();
   await showPending();
+  askFromUrl();
 } catch (err) {
   // plan() refuses rather than throws for an unpromisable set, so reaching here
   // means something structural -- a participant with no protocol at all.
