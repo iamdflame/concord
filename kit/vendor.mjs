@@ -94,10 +94,56 @@ export async function participant({ id, title, protocol, steps, state, render, s
   const seen = new Map(Object.entries((() => {
     try { return JSON.parse(localStorage.getItem(STORE) ?? '{}'); } catch { return {}; }
   })()));
+  // And what it actually did.
+  //
+  // Persisting `seen` and not the books was half a fix, and the half that was
+  // missing produced the worst answer a participant can give. After a reload
+  // this vendor would tell a recovering coordinator "yes, RH7FBCD8C happened"
+  // -- correctly, from the line above -- and then refuse to cancel it with "no
+  // booking RH7FBCD8C", because the booking itself had only ever been in
+  // memory. A party that remembers *that* it took your money and has forgotten
+  // *what it took* is worse than one that has forgotten both: the first answer
+  // stops the coordinator from writing it off, and the second stops anyone
+  // from getting it back.
+  //
+  // A real participant has a database and this is not a question. These
+  // participants are pages, so their books live where their memory of the
+  // step lives, and are written in the same breath.
+  // A participant writes its state the way it wants to; the kit carries it,
+  // rather than the kit dictating what a participant may hold. Northwind Air
+  // keeps its holds in a Map, and a plain JSON round trip silently replaced it
+  // with {} -- so the vendor came back from a reload, was asked to release a
+  // hold, and answered "state.holds.delete is not a function". Storage that
+  // corrupts what it is given is worse than no storage, because the failure
+  // arrives during recovery.
+  const BOOKS = `concord.state.${id}`;
+  const pack = (_k, v) => (v instanceof Map ? { __map: [...v] }
+    : v instanceof Set ? { __set: [...v] } : v);
+  const unpack = (_k, v) => (v && typeof v === 'object'
+    ? (Array.isArray(v.__map) ? new Map(v.__map)
+      : Array.isArray(v.__set) ? new Set(v.__set) : v)
+    : v);
+
+  if (state) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(BOOKS) ?? 'null', unpack);
+      // Mutated in place: the vendor's own closures hold this exact object.
+      if (saved && typeof saved === 'object') Object.assign(state, saved);
+    } catch { /* unreadable: start empty, and say so by simply being empty */ }
+  }
+  const record = () => {
+    if (!state) return;
+    try { localStorage.setItem(BOOKS, JSON.stringify(state, pack)); }
+    catch { /* full or blocked */ }
+  };
+
   const remember = (key, value) => {
     seen.set(key, value);
     try { localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(seen))); }
     catch { /* full or blocked: the in-memory map still serves this session */ }
+    // Both, together. Whatever separates them is a window in which this
+    // participant's two answers disagree.
+    record();
   };
 
   const failing = new Set();  // steps the operator has broken on purpose
@@ -263,6 +309,17 @@ export async function participant({ id, title, protocol, steps, state, render, s
     // money -- an unguarded control channel in a design whose whole premise is
     // mutually distrusting origins.
     if (e.origin !== COORDINATOR) return;
+
+    // Books that survive a reload also survive a reset, which is not what a
+    // reset is for. The coordinator cannot clear another origin's storage, so
+    // it asks -- over the same channel, with the same origin check, and the
+    // participant is the one that does it.
+    if (e.data?.__concord_reset__) {
+      try { localStorage.removeItem(STORE); localStorage.removeItem(BOOKS); } catch { /* blocked */ }
+      location.reload();
+      return;
+    }
+
     const order = e.data?.__concord_break__;
     if (!order || !steps[order.step]) return;
     order.on ? failing.add(order.step) : failing.delete(order.step);

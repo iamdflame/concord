@@ -14,7 +14,9 @@ const FULL = process.env.FULL === '1';
 const STEPS = Number(process.env.STEPS ?? 0);   // ArrowLeft presses from the end
 const PORT = 9600 + Math.floor(Math.random() * 300);
 
-const profile = await mkdtemp(join(tmpdir(), 'ring0shot-'));
+// A journal survives a reload but not a new browser profile, so checking that
+// an interrupted commitment is found on restart needs two runs in one profile.
+const profile = process.env.PROFILE ?? await mkdtemp(join(tmpdir(), 'ring0shot-'));
 const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
   '--hide-scrollbars', '--force-device-scale-factor=2', '--window-size=1400,900',
   `--user-data-dir=${profile}`, `--remote-debugging-port=${PORT}`, 'about:blank'], { stdio: 'ignore' });
@@ -81,8 +83,9 @@ try {
       settled: document.getElementById('settled')?.textContent.trim().slice(0,70) ?? '',
       outcome: document.querySelector('.outcome h2')?.textContent ?? '',
       stranded: document.querySelector('.outcome p')?.textContent?.slice(0,180) ?? '',
-      pending: document.querySelector('.pending h2')?.textContent ?? '',
-      pendingDetail: document.querySelector('.pending ul, .pending p:last-of-type')?.textContent?.trim().slice(0,150) ?? '',
+      pending: document.querySelector('.recovery .hero-sm')?.textContent ?? '',
+      pendingDetail: [...document.querySelectorAll('.recovery tbody tr')].map((r) =>
+        [...r.cells].map((c) => c.textContent.trim()).join(' · ')).join(' | ').slice(0, 400),
       receipt: document.querySelector('.receipt .seal')?.textContent ?? '',
       receiptDetail: document.querySelector('.receipt p')?.textContent?.trim().slice(0,110) ?? '',
     })`, returnByValue: true }, sessionId);
@@ -96,5 +99,7 @@ try {
   const exited = new Promise((r) => chrome.once('exit', r));
   chrome.kill('SIGKILL');
   await Promise.race([exited, sleep(2000)]);
-  for (let i = 0; i < 5; i++) { try { await rm(profile, { recursive: true, force: true }); break; } catch { await sleep(200); } }
+  if (!process.env.PROFILE) {
+    for (let i = 0; i < 5; i++) { try { await rm(profile, { recursive: true, force: true }); break; } catch { await sleep(200); } }
+  }
 }

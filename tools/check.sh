@@ -78,6 +78,39 @@ if [ -z "$RECEIPT" ]; then echo "NO RECEIPT PRODUCED"; else
 fi
 
 echo ""
+echo "── an interrupted commitment, found and resolved ──"
+# The claim this whole design is for: kill the coordinator holding real effects,
+# come back, and everything that can be put back is. It needs two browser runs
+# in one profile, because a journal survives a reload and not a new profile --
+# which is also why it had never been checked end to end, and why two
+# participant bugs lived in here until the screen was built to show them.
+PROF="$(mktemp -d)"
+trap 'kill $SERVER 2>/dev/null || true; rm -rf "$PROF"' EXIT
+
+PROFILE="$PROF" URL=http://localhost:5173/concord.html OUT=/dev/null SETTLE=6000 \
+  DO='(async()=>{const $=id=>document.getElementById(id);
+      $("q").value="Book me London for three nights — flight, hotel and the visa fee.";
+      $("ask").requestSubmit();
+      for(let i=0;i<200&&$("commit").hidden;i++)await new Promise(r=>setTimeout(r,100));
+      $("crash").click();})()' \
+  node tools/shot.mjs >/dev/null 2>&1 || true
+
+printf '  %-24s ' "crash and recover"
+PROFILE="$PROF" URL=http://localhost:5173/concord.html OUT=/dev/null SETTLE=12000 \
+  DO='(async()=>{const $=id=>document.getElementById(id);
+      for(let i=0;i<80&&!$("resolve");i++)await new Promise(r=>setTimeout(r,100));
+      if(!$("resolve")){$("verdict").textContent="RECOVERY FAILED nothing outstanding was found";return;}
+      const rows=[...document.querySelectorAll(".recovery tbody tr")].length;
+      $("resolve").click();
+      await new Promise(r=>setTimeout(r,7000));
+      const answers=[...document.querySelectorAll(".recovery .answer")].map(a=>a.textContent);
+      const clean=document.querySelector(".recovery").classList.contains("done");
+      $("verdict").textContent = (clean && rows>0 && answers.every(a=>/undone|never happened/.test(a))
+        ? "RECOVERY PASSED" : "RECOVERY FAILED") + ` ${rows} outstanding · ${answers.join(" ; ")}`;})()' \
+  node tools/shot.mjs 2>/dev/null | head -1 | node -e \
+  'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).head||"NO ANSWER"))'
+
+echo ""
 echo "── ring0, the substrate ──────────────────────────"
 for page in index.html phase02.html phase03.html phase04.html; do
   printf '  %-24s ' "ring0/$page"

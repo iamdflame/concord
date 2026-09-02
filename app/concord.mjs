@@ -566,35 +566,96 @@ function killAfter(call, n) {
   return wrapped;
 }
 
+/**
+ * What is outstanding, found in this browser's journal on load.
+ *
+ * This is the state the whole design exists for: the coordinator died holding
+ * real effects, and the only honest thing to say is which ones, and that only
+ * the vendor knows about the rest. It is drawn at the size of a claim rather
+ * than as a notice, and it is drawn before anything else on the page, because
+ * nothing else on the page matters while it is true.
+ */
 async function showPending() {
   const outstanding = await journal.incomplete();
   if (!outstanding.length) { $('pending').innerHTML = ''; return; }
 
   const s = outstanding[0];
-  const lines = [...s.completed, ...s.uncertain].map((x) =>
-    `<li>${esc(x.vendor)} · ${esc(x.step)} — ${x.done ? 'happened' : 'unknown; only the vendor knows'}</li>`);
-  $('pending').innerHTML = `<div class="pending">
-    <h2>An interrupted commitment was found</h2>
-    <p>The coordinator stopped part-way through <code>${esc(s.sagaId)}</code>. These steps are
-    outstanding, and something real may be held or charged right now:</p>
-    <ul style="color:var(--ink-2);font-size:var(--t-data)">${lines.join('')}</ul>
-    <p style="margin-top:10px"><button class="primary" id="resolve">Ask each vendor what happened</button></p>
-  </div>`;
+  const rows = [...s.completed, ...s.uncertain];
+  const key = (x) => `${x.vendor}.${x.step}`;
+
+  $('pending').innerHTML = `<section class="recovery" aria-labelledby="rec-h">
+    <p class="margin">Found in this browser's journal</p>
+    <h2 class="hero-sm" id="rec-h">Something is outstanding.</h2>
+    <p class="lead">The coordinator stopped part-way through
+      <code>${esc(s.sagaId)}</code>. Each line below is something that may be held or charged right
+      now. A step whose intent was written and whose result was not is genuinely unknown — not
+      probably fine, not probably lost — and only the vendor it was sent to can settle it.</p>
+    <div class="rows"><table>
+      <thead><tr>
+        <th scope="col">Party</th><th scope="col">Step</th>
+        <th scope="col">What the journal proves</th><th scope="col">What the vendor said</th>
+      </tr></thead>
+      <tbody>${rows.map((x) => `<tr data-step="${esc(key(x))}" class="${x.done ? 'known' : 'unknown'}">
+        <td>${esc(named(x.vendor))}</td>
+        <td>${esc(x.step)}</td>
+        <td>${x.done ? 'it happened' : 'unknown; the intent was written and no result was'}</td>
+        <td class="answer waiting">not asked yet</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <p style="margin-top:18px"><button class="primary" id="resolve">Ask each vendor what happened</button></p>
+  </section>`;
+
+  const answer = (k, text, cls) => {
+    const row = document.querySelector(`tr[data-step="${CSS.escape(k)}"]`);
+    if (!row) return;
+    if (cls) { row.classList.remove('known', 'unknown'); row.classList.add(cls); }
+    const cell = row.querySelector('.answer');
+    cell.classList.remove('waiting');
+    cell.textContent = text;
+  };
 
   $('resolve').addEventListener('click', async () => {
     $('resolve').disabled = true;
+    $('resolve').textContent = 'Asking…';
+    for (const cell of document.querySelectorAll('.recovery .answer')) {
+      cell.textContent = 'asking…';
+    }
+
+    // recover() has always emitted every one of these; nothing was listening,
+    // so a recovery was a disabled button and then a paragraph. Watching it
+    // happen is the difference between being told it was handled and seeing
+    // which vendor said what.
+    const onEvent = (e) => {
+      const k = `${e.vendor}.${e.step}`;
+      if (e.type === 'probed') answer(k, e.happened ? 'yes, it happened' : 'no, it never happened',
+        e.happened ? 'known' : 'undone');
+      if (e.type === 'unresolvable') answer(k, 'declares no way to be asked', 'stuck');
+      if (e.type === 'unreachable') answer(k, `could not be reached — ${e.error}`, 'stuck');
+      if (e.type === 'stands') answer(k, 'stands; this is a booking, not a hold', 'stuck');
+      if (e.type === 'irreversible') answer(k, 'cannot be undone by anyone', 'stuck');
+      if (e.type === 'reversed') answer(k, `undone, via ${e.via}`, 'undone');
+      if (e.type === 'reversal_failed') answer(k, `NOT undone — ${e.error}`, 'stuck');
+    };
+
     // Rebuilt from every vendor present, never from whatever is on screen: a
     // recovery scoped to the current selection blamed an absent vendor for
     // being unaskable and stranded its charge.
     const all = withInputs(discovered, INPUTS);
-    const reports = await recover({ journal, participants: all, call: bind(ctx, all) });
+    const reports = await recover({ journal, participants: all, call: bind(ctx, all), onEvent });
     const r = reports[0];
-    $('pending').innerHTML = `<div class="pending" style="border-left-color:var(--compensable)">
-      <h2>Resolved — ${esc(r?.outcome ?? 'nothing outstanding')}</h2>
-      <p>${r ? r.reversals.map((x) => `${esc(x.vendor)}.${esc(x.step)} ${x.reversed
-        ? `undone via ${esc(x.via)}` : `NOT undone — ${esc(x.why)}`}`).join('<br>') : ''}</p>
-      ${r?.unresolved.length ? `<p style="color:var(--fail)">${r.unresolved.map((u) => esc(u.why)).join('<br>')}</p>` : ''}
-    </div>`;
+
+    const clean = r && !r.unresolved.length && !r.stands.length
+      && r.reversals.every((x) => x.reversed);
+    document.querySelector('.recovery').classList.toggle('done', Boolean(clean));
+    document.querySelector('.recovery .hero-sm').textContent = clean
+      ? 'Nothing is outstanding any more.'
+      : 'Some of it could not be put back.';
+    document.querySelector('.recovery .lead').innerHTML = clean
+      ? `Every vendor was asked, and everything that could be reversed was — the column on the
+         right is what each of them said, not what this page assumed.`
+      : `Every vendor was asked. What the right-hand column marks as standing or not undone is
+         real and is still outstanding; the reasons are each vendor's own words.`;
+    $('resolve').remove();
   });
 }
 
@@ -645,12 +706,24 @@ async function reportOutcome(out) {
   const headline = {
     [OUTCOME.COMMITTED]: 'Committed across every vendor',
     [OUTCOME.UNWOUND]: 'Nothing stands',
-    [OUTCOME.IN_DOUBT]: 'In doubt — some effects cannot be reversed',
+    [OUTCOME.IN_DOUBT]: 'Some of this cannot be undone',
     [OUTCOME.REFUSED]: 'Refused before contacting anyone',
   }[out.outcome];
 
   const body = out.outcome === OUTCOME.IN_DOUBT
-    ? `<p>${out.stranded?.map(esc).join('<br>') ?? esc(out.cause ?? '')}</p>`
+    // The state the ladder spends the whole design trying to avoid, and the one
+    // it refuses to dress up when it arrives. Each stranded effect gets its own
+    // line, and the irreversible ones are marked as such rather than listed
+    // among things that merely need attention.
+    ? `<p>Everything reversible was reversed. What is listed here was not, because nobody can.</p>
+       <ul class="stands">${(out.stranded ?? [esc(out.cause ?? '')]).map((line) => {
+         const soft = /will expire on its own|is also unconfirmed/.test(line);
+         return `<li class="${soft ? 'soft' : ''}">${esc(named(line))}</li>`;
+       }).join('')}</ul>
+       <p class="after">What it said: <code>${esc(out.cause ?? 'no reason given')}</code></p>
+       <p class="after">The receipt below says the same thing, and each line of it is signed by the
+         party it names. It does not depend on this page being honest, or on this page still
+         existing — take it somewhere else and check it.</p>`
     : out.outcome === OUTCOME.UNWOUND
       // The cause is whatever the failing vendor or the browser said, which is
       // frequently not a sentence anyone wants to read as prose. It is quoted
@@ -752,8 +825,17 @@ crashBtn.addEventListener('click', async () => {
     'unwound, because nothing was left running to unwind it — reload the page and it will be found.</p>');
 });
 $('reset').addEventListener('click', () => {
-  for (const id of VENDORS) $(id)?.contentWindow?.location.reload();
+  // Ask each participant to forget, rather than reloading it: their books now
+  // outlive a reload on purpose, so a reload alone resets nothing.
+  for (const id of VENDORS) {
+    $(id)?.contentWindow?.postMessage({ __concord_reset__: true }, ORIGINS[id]);
+  }
   holds.clear();
+  // The journal is this side's memory of what is outstanding. Leaving it while
+  // wiping theirs leaves a page insisting something is held by a participant
+  // that has been asked to forget it.
+  journal.store.clear?.().catch(() => {});
+  $('pending').innerHTML = '';
   $('run').innerHTML = '';
   $('execWrap').hidden = true;
   $('outcome').innerHTML = '';
