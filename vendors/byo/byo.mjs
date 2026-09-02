@@ -20,6 +20,7 @@ const esc = (s) => String(s).replace(/[<>&"']/g, (c) =>
 const STARTER = `// A lounge pass. Hold one, then issue it or drop the hold.
 concord({
   id: 'lounge',
+  brand: { hue: 250, chroma: 0.02, face: 'mono' },
   title: 'Skyline Lounge',
   steps: {
     reserve: {

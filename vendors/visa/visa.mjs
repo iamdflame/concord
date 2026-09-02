@@ -7,6 +7,7 @@ const usd = (m) => `$${(m / 100).toFixed(2)}`;
 
 await participant({
   id: 'visa',
+  brand: { hue: 12,  chroma: 0.09, face: 'state' },
   title: 'Consular Fee',
   protocol: {
     // No compensate. Declaring one would be a lie the coordinator would build on.

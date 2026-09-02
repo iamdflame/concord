@@ -81,7 +81,36 @@ export const KEY_PARAM = {
  * The DOM hooks are optional. A participant with no visible state is still a
  * participant.
  */
-export async function participant({ id, title, protocol, steps, state, render, signal }) {
+/**
+ * How a participant looks like itself.
+ *
+ * Six businesses that have never met should not be six copies of one template.
+ * A hue and a lettering are enough: an airline is not set in the same face as a
+ * consulate, and being able to tell them apart at a glance is the difference
+ * between "five instances of a demo" and "five strangers with different
+ * interests", which is the entire premise.
+ */
+const FACES = {
+  mono:    { face: 'ui-monospace, Menlo, Consolas, monospace', tracking: '.18em', transform: 'uppercase', weight: '600' },
+  airline: { face: 'ui-monospace, Menlo, Consolas, monospace', tracking: '.34em', transform: 'uppercase', weight: '400' },
+  house:   { face: 'Georgia, "Times New Roman", serif',        tracking: '.01em', transform: 'none',      weight: '600' },
+  state:   { face: 'Georgia, "Times New Roman", serif',        tracking: '.16em', transform: 'uppercase', weight: '400' },
+  finance: { face: 'system-ui, -apple-system, sans-serif',     tracking: '-.01em', transform: 'none',     weight: '600' },
+};
+
+function wear(brand = {}) {
+  const f = FACES[brand.face] ?? FACES.mono;
+  const root = document.documentElement.style;
+  root.setProperty('--brand-hue', String(brand.hue ?? 250));
+  root.setProperty('--brand-chroma', String(brand.chroma ?? 0.09));
+  root.setProperty('--brand-face', f.face);
+  root.setProperty('--brand-tracking', f.tracking);
+  root.setProperty('--brand-transform', f.transform);
+  root.setProperty('--brand-weight', f.weight);
+}
+
+export async function participant({ id, title, protocol, steps, state, render, brand, signal }) {
+  wear(brand);
   const { ctx } = await resolveModelContext();
 
   // What this vendor has already honoured, and what it answered.
@@ -314,6 +343,19 @@ export async function participant({ id, title, protocol, steps, state, render, s
     // reset is for. The coordinator cannot clear another origin's storage, so
     // it asks -- over the same channel, with the same origin check, and the
     // participant is the one that does it.
+    // A *request*, not an instruction. The coordinator cannot restyle another
+    // origin and should not be able to; what it can do is say which way it has
+    // been set, and this participant may honour that or ignore it. Honouring it
+    // keeps six embedded strangers from looking broken inside a page the reader
+    // just switched to light -- and a participant that would rather keep its
+    // own look simply does not listen for this.
+    if (e.data?.__concord_theme__) {
+      const want = e.data.__concord_theme__;
+      if (want === 'light' || want === 'dark') document.documentElement.dataset.theme = want;
+      else delete document.documentElement.dataset.theme;
+      return;
+    }
+
     if (e.data?.__concord_reset__) {
       try { localStorage.removeItem(STORE); localStorage.removeItem(BOOKS); } catch { /* blocked */ }
       location.reload();

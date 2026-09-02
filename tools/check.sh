@@ -27,9 +27,13 @@ until curl -sf -o /dev/null http://localhost:5181/; do sleep 0.3; done
 # a page that was skipped and nothing like a page that failed.
 verdict() {
   local out
+  # `|| true` on the substitution, not on the line. Under `set -euo pipefail` a
+  # grep that matches nothing fails the pipeline, fails the assignment, and
+  # takes the whole script down at that line -- so the first flaky page ended
+  # the run silently, which is the failure this function was added to prevent.
   out="$(URL="$1" node tools/probe.mjs 2>&1 \
     | grep -oE 'CONCORD (PASSED|FAILED)|NATIVE WebMCP is present|NO native WebMCP|PHASE [0-9]+ (PASSED|FAILED)|^PASS|^FAIL' \
-    | head -1)"
+    | head -1 || true)"
   echo "${out:-NO VERDICT — the page never reported one}"
 }
 

@@ -12,6 +12,7 @@ const usd = (m) => `$${(m / 100).toFixed(2)}`;
 
 await participant({
   id: 'permit',
+  brand: { hue: 150, chroma: 0.08, face: 'state' },
   title: 'Entry Permit',
   protocol: {
     steps: { execute: { tool: 'issue_permit' } },

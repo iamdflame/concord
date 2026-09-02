@@ -8,7 +8,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
-KEYS="${1:?usage: deploy/ship.sh path/to/keys.env}"
+# Optional. A key belongs to a participant for its lifetime, so setting one is
+# something you do when you create or rotate it -- not something a redeploy
+# should require, and not something a redeploy should be able to get wrong.
+# Without it, whatever each project already has in production is left alone.
+KEYS="${1:-}"
+if [ -z "$KEYS" ]; then
+  echo "no key file given: leaving each participant's existing signing key in place"
+elif [ ! -f "$KEYS" ]; then
+  echo "no such key file: $KEYS" >&2; exit 2
+fi
 node deploy/build.mjs
 
 # The coordinator cannot be "concord-app": that subdomain belongs to someone
@@ -35,9 +44,11 @@ for dir in .deploy/concord-*; do
   ( cd "$ROOT/$dir"
     # Not swallowed. A failed link silently deploys into whatever project the
     # directory name happens to match, which is how two origins ended up as one.
-    vercel link --yes --project "$PROJECT" >/dev/null
+    vercel link --yes --project "$PROJECT" >/dev/null \
+      || { echo "  could not link to $PROJECT — refusing to deploy into whichever" >&2
+           echo "  project the directory name happens to match" >&2; exit 1; }
 
-    if [ "$id" != "app" ] && [ "$id" != "verify" ]; then
+    if [ -n "$KEYS" ] && [ "$id" != "app" ] && [ "$id" != "verify" ]; then
       key="$(grep -m1 "^CONCORD_KEY_${UP}=" "$KEYS" | cut -d= -f2-)"
       vercel env rm "CONCORD_KEY_${UP}" production --yes >/dev/null 2>&1 || true
       printf '%s' "$key" | vercel env add "CONCORD_KEY_${UP}" production >/dev/null 2>&1

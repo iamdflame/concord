@@ -24,6 +24,7 @@ function expireHolds() {
 
 await participant({
   id: 'fly',
+  brand: { hue: 232, chroma: 0.10, face: 'airline' },
   title: 'Northwind Air',
   protocol: {
     steps: {

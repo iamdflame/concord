@@ -18,6 +18,7 @@ const usd = (m) => `$${(m / 100).toFixed(2)}`;
 
 await participant({
   id: 'shady',
+  brand: { hue: 300, chroma: 0.10, face: 'finance' },
   title: 'Meridian Holdings',
   protocol: {
     steps: {

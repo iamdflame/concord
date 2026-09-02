@@ -108,15 +108,30 @@ addEventListener('unhandledrejection', (e) => {
 // ── theme ──────────────────────────────────────────────────────────────────
 // Light and dark are two settings of one instrument, not a skin and its
 // afterthought. Neither is the "real" one.
-{
-  const media = matchMedia('(prefers-color-scheme: dark)');
-  const shown = () => document.documentElement.dataset.theme || (media.matches ? 'dark' : 'light');
-  $('theme').addEventListener('click', () => {
-    const next = shown() === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem('concord.theme', next); } catch { /* private mode */ }
-  });
+const media = matchMedia('(prefers-color-scheme: dark)');
+const shownTheme = () => document.documentElement.dataset.theme || (media.matches ? 'dark' : 'light');
+
+/**
+ * Ask the counterparties which way the page has been set.
+ *
+ * It cannot tell them: they are other origins, and restyling somebody else's
+ * site from inside your own page is exactly the power this design spends its
+ * time arguing nobody should have. So it asks, over the channel it already has
+ * and with the same origin check, and each participant decides. Anything that
+ * does not listen simply keeps its own look, which is also the correct outcome.
+ */
+function askTheme() {
+  for (const id of VENDORS) {
+    $(id)?.contentWindow?.postMessage({ __concord_theme__: shownTheme() }, ORIGINS[id]);
+  }
 }
+
+$('theme').addEventListener('click', () => {
+  const next = shownTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('concord.theme', next); } catch { /* private mode */ }
+  askTheme();
+});
 
 $('receiptsLink').href = VERIFIER;
 
@@ -138,6 +153,9 @@ VENDORS.forEach((id, i) => {
   frame.hidden = i > 0;
   frame.setAttribute('role', 'tabpanel');
   frame.setAttribute('aria-labelledby', `tab-${id}`);
+  // A message sent before the participant has a listener is a message nobody
+  // receives, and the frames are still loading when discovery finishes.
+  frame.addEventListener('load', () => askTheme());
   $('frames').append(frame);
 
   const tab = document.createElement('button');
@@ -210,6 +228,7 @@ const surface = await publishAgentTools({
  *  its declared id need not match the key we filed it under, and one of them
  *  deliberately does not. */
 function markLive() {
+  askTheme();
   const up = new Set(discovered.map((p) => p.origin));
   for (const el of document.querySelectorAll('[data-dot]')) {
     el.className = `dot ${up.has(ORIGINS[el.dataset.dot]) ? 'live' : 'broken'}`;
@@ -263,9 +282,35 @@ function ledgerRows(order, byId, pointOfNoReturn) {
   }).join('');
 }
 
-function showPromise(promise) {
-  proposal = promise;
+/**
+ * Change the promise on screen.
+ *
+ * One proposal replacing another is a change of subject, and a view transition
+ * says that better than an instant swap does. A refusal is the exception, and
+ * deliberately: there is nothing to ease into. The sentence should arrive the
+ * way the answer does -- at once, and then stillness. Sliding it in prettily
+ * would make the one screen whose job is to stop you feel like progress.
+ */
+function transition(refused, fn) {
+  const still = refused
+    || !document.startViewTransition
+    || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (still) { fn(); return; }
+  document.startViewTransition(fn);
+}
+
+function showPromise(promise, andThen) {
   const refused = !promise?.committable;
+  // Anything a caller wants to change about this promise has to happen inside
+  // the transition. A view transition defers the callback, so a caller that
+  // hid the commit button on the line after this one had it hidden first and
+  // shown again a microtask later -- offering to commit a proposal the agent
+  // had not made.
+  transition(refused, () => { paintPromise(promise, refused); andThen?.(); });
+}
+
+function paintPromise(promise, refused) {
+  proposal = promise;
 
   $('verdict').textContent = HEADLINE[promise.guarantee] ?? promise.guarantee;
   $('verdict').classList.toggle('is-refusal', refused);
@@ -317,13 +362,14 @@ function openingPromise() {
       : planned.order[planned.pointOfNoReturn],
     caveats: planned.caveats,
     committable: planned.guarantee !== GUARANTEE.REFUSED,
+  }, () => {
+    // Nothing has been proposed by the agent yet, so nothing may be committed.
+    proposal = null;
+    commitBtn.hidden = true;
+    crashBtn.hidden = true;
+    $('said').textContent = 'A flight, a hotel and a visa fee — worked out from the declarations '
+      + 'below, before you asked for anything. Ask for something else and this changes.';
   });
-  // Nothing has been proposed by the agent yet, so nothing may be committed.
-  proposal = null;
-  commitBtn.hidden = true;
-  crashBtn.hidden = true;
-  $('said').textContent = 'A flight, a hotel and a visa fee — worked out from the declarations '
-    + 'below, before you asked for anything. Ask for something else and this changes.';
 }
 
 function clearPromise() {

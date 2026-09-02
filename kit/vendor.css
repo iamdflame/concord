@@ -1,39 +1,113 @@
-/* A Concord participant. Three independent businesses that have never heard of
-   each other, so each is its own product with its own colour — related only by
-   the protocol they all speak. */
+/* A Concord participant.
+ *
+ * Independent businesses that have never heard of each other, so each is its
+ * own product with its own colour and its own lettering -- related only by the
+ * protocol they all speak. That sentence has been at the top of this file since
+ * it was written; until now there was one --brand for all of them, which made
+ * six instances of one template embedded in a page whose argument is that they
+ * are six strangers. A participant sets its own --brand-hue and --brand-face
+ * when it registers.
+ *
+ * These pages do not import the coordinator's stylesheet. They are on other
+ * origins and they are not its to restyle; what they share is the shape of the
+ * argument -- a reversibility ramp that never means status, and figures that
+ * line up -- not a file.
+ */
 :root{
-  --ground:#0C1116; --panel:#141B22; --line:#232E38; --line-2:#1A232B;
-  --ink:#D6DEE5; --ink-2:#93A2AE; --muted:#5D6B77;
-  --ok:#3FBA86; --hold:#E8A33D; --bad:#EA5257;
-  --brand:#7FB3D5;
+  color-scheme: light dark;
+
+  --ground:     oklch(97.5% 0.004 95);
+  --panel:      oklch(99%   0.003 95);
+  --line:       oklch(88%   0.008 250);
+  --line-2:     oklch(93%   0.006 250);
+  --ink:        oklch(24%   0.015 250);
+  --ink-2:      oklch(46%   0.014 250);
+  --muted:      oklch(53%   0.012 250);
+
+  /* The reversibility ramp, the same three meanings as the coordinator's.
+     Solved for >= 4.5:1 as text on this ground, in both themes. */
+  --reservable:   oklch(52% 0.13 235);
+  --compensable:  oklch(52% 0.12 155);
+  --irreversible: oklch(56% 0.20  35);
+
+  --brand-hue: 250;
+  --brand-chroma: 0.09;
+  --brand: oklch(46% var(--brand-chroma) var(--brand-hue));
+  --brand-face: ui-monospace, Menlo, Consolas, monospace;
+  --brand-tracking: .18em;
+  --brand-transform: uppercase;
+  --brand-weight: 600;
+
+  --mono: ui-monospace, Menlo, Consolas, monospace;
 }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground: oklch(17% 0.012 250);
+    --panel:  oklch(20% 0.012 250);
+    --line:   oklch(30% 0.014 250);
+    --line-2: oklch(25% 0.012 250);
+    --ink:    oklch(93% 0.008 95);
+    --ink-2:  oklch(74% 0.010 250);
+    --muted:  oklch(60% 0.012 250);
+    --reservable:   oklch(64% 0.13 235);
+    --compensable:  oklch(63% 0.12 155);
+    --irreversible: oklch(66% 0.18  35);
+    --brand: oklch(76% var(--brand-chroma) var(--brand-hue));
+  }
+}
+:root[data-theme="dark"]{
+  --ground:oklch(17% 0.012 250); --panel:oklch(20% 0.012 250);
+  --line:oklch(30% 0.014 250); --line-2:oklch(25% 0.012 250);
+  --ink:oklch(93% 0.008 95); --ink-2:oklch(74% 0.010 250); --muted:oklch(60% 0.012 250);
+  --reservable:oklch(64% 0.13 235); --compensable:oklch(63% 0.12 155);
+  --irreversible:oklch(66% 0.18 35);
+  --brand:oklch(76% var(--brand-chroma) var(--brand-hue));
+}
+
 *{box-sizing:border-box}
-body{margin:0;padding:14px;background:var(--ground);color:var(--ink);
-     font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace}
-body.broken{box-shadow:inset 0 0 0 2px var(--bad)}
-header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:3px}
-h1{margin:0;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--brand)}
+body{margin:0;padding:16px;background:var(--ground);color:var(--ink);
+     font:12.5px/1.55 var(--mono);font-variant-numeric:tabular-nums}
+/* A participant that has been broken on purpose says so about itself. */
+body.broken{box-shadow:inset 0 0 0 2px var(--irreversible)}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:2px}
+
+header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+h1{margin:0;font:var(--brand-weight) 13px/1.2 var(--brand-face);
+   letter-spacing:var(--brand-tracking);text-transform:var(--brand-transform);color:var(--brand)}
+
 .rung{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;padding:2px 7px;
       border:1px solid var(--line);border-radius:2px;color:var(--ink-2)}
-.rung.reservable{border-color:var(--ok);color:var(--ok)}
-.rung.compensable{border-color:var(--hold);color:var(--hold)}
-.rung.irreversible{border-color:var(--bad);color:var(--bad)}
+.rung.reservable{border-color:var(--reservable);color:var(--reservable)}
+.rung.compensable{border-color:var(--compensable);color:var(--compensable)}
+.rung.irreversible{border-color:var(--irreversible);color:var(--irreversible)}
 .origin{font-size:11px;color:var(--muted)}
-.note{color:var(--muted);font-size:11px;margin:6px 0 12px;max-width:60ch}
+.note{color:var(--ink-2);font-size:11.5px;margin:8px 0 14px;max-width:62ch}
+
 h2{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
-   margin:14px 0 8px;font-weight:600}
-.row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line-2)}
+   margin:16px 0 8px;font-weight:600}
+.row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;
+     border-bottom:1px solid var(--line-2)}
 .row:last-child{border-bottom:0}
 .num{font-variant-numeric:tabular-nums}
-.pill{font-size:9.5px;letter-spacing:.08em;padding:1px 6px;border-radius:2px;text-transform:uppercase}
-.pill.held{background:var(--hold);color:#1A1000}
-.pill.done{background:var(--ok);color:#04150F}
-.pill.gone{background:var(--line);color:var(--muted)}
+.pill{font-size:9.5px;letter-spacing:.08em;padding:1px 6px;border-radius:2px;text-transform:uppercase;
+      border:1px solid currentColor}
+/* Held, settled, gone. Never "good" and "bad" -- a refund is not a failure. */
+.pill.held{color:var(--reservable)}
+.pill.done{color:var(--compensable)}
+.pill.gone{color:var(--muted)}
 .empty{color:var(--muted);padding:8px 0}
+
 .sw{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2);
-    border:1px solid var(--line);border-radius:2px;padding:4px 9px;margin:0 6px 6px 0;cursor:pointer}
-.sw:has(:checked){border-color:var(--bad);color:var(--bad)}
-.ev{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--line-2);font-size:11.5px}
-.ev b{font-weight:600;min-width:104px}
+    border:1px solid var(--line);border-radius:2px;padding:5px 9px;margin:0 6px 6px 0;cursor:pointer}
+.sw:has(:checked){border-color:var(--irreversible);color:var(--irreversible)}
+
+.ev{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--line-2);font-size:11.5px}
+.ev b{font-weight:600;min-width:104px;color:var(--ink-2)}
 .ev span{color:var(--muted)}
-.ev.ok b{color:var(--ok)} .ev.hold b{color:var(--hold)} .ev.bad b{color:var(--bad)}
+.ev.ok b{color:var(--compensable)}
+.ev.hold b{color:var(--reservable)}
+.ev.bad b{color:var(--irreversible)}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}

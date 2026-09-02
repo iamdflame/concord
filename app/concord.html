@@ -17,7 +17,19 @@ try{var t=localStorage.getItem('concord.theme');if(t)document.documentElement.da
   font-family:var(--display); font-size:var(--t-hero); font-weight:600;
   line-height:1.08; letter-spacing:-0.022em; margin:6px 0 14px; max-width:20ch;
   text-wrap:balance;
+  view-transition-name:verdict;
 }
+#ledgerWrap{view-transition-name:ledger}
+
+/* One promise replacing another is a change of subject, not a page load, and
+   the two things that change are the sentence and the ledger under it. Naming
+   only those keeps everything else -- the frames especially -- out of the
+   snapshot. */
+::view-transition-old(verdict),::view-transition-new(verdict),
+::view-transition-old(ledger),::view-transition-new(ledger){
+  animation-duration:var(--base);animation-timing-function:var(--ease-out);
+}
+::view-transition-old(root),::view-transition-new(root){animation-duration:var(--fast)}
 .hero.is-refusal{color:var(--refusal)}
 .lead{font-size:var(--t-lead);line-height:1.5;color:var(--ink-2);max-width:64ch}
 

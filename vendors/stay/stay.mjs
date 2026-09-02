@@ -7,6 +7,7 @@ const usd = (m) => `$${(m / 100).toFixed(2)}`;
 
 await participant({
   id: 'stay',
+  brand: { hue: 62,  chroma: 0.09, face: 'house' },
   title: 'Rowan House',
   protocol: {
     steps: {
