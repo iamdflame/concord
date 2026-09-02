@@ -14,7 +14,7 @@ const rows = [];
 function row(state, what, observed) {
   rows.push({ state, what, observed: String(observed) });
   $('rows').insertAdjacentHTML('beforeend',
-    `<tr><td class="r ${state === 'yes' ? 'ok' : state === 'no' ? 'no' : 'na'}">${
+    `<tr class="${state}"><td class="r ${state === 'yes' ? 'ok' : state === 'no' ? 'no' : 'na'}">${
       { yes: '✓ yes', no: '✗ no', na: '– n/a' }[state]}</td>` +
     `<td>${esc(what)}</td><td class="n">${esc(observed)}</td></tr>`);
 }
@@ -25,6 +25,20 @@ const mc = document.modelContext ?? navigator.modelContext ?? null;
 
 $('verdict').textContent = mc ? 'NATIVE WebMCP is present' : 'NO native WebMCP — the polyfill would be used';
 $('verdict').dataset.s = mc ? 'native' : 'shim';
+// The headline is a sentence in the page's own voice now, not a badge, so the
+// class carries the colour rather than a [data-s] rule.
+$('verdict').className = `hero ${mc ? 'native' : 'shim'}`;
+
+// The theme toggle, the same one every other page here has.
+{
+  const media = matchMedia('(prefers-color-scheme: dark)');
+  const shown = () => document.documentElement.dataset.theme || (media.matches ? 'dark' : 'light');
+  $('theme')?.addEventListener('click', () => {
+    const next = shown() === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('concord.theme', next); } catch { /* private mode */ }
+  });
+}
 $('where').textContent = `${location.origin} · ${navigator.userAgent}`;
 
 row(mc ? 'yes' : 'no', 'document.modelContext exists', surface ?? 'neither spelling is defined');

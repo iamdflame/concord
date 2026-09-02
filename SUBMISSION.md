@@ -162,6 +162,6 @@ way it judges these.
 ## Numbers
 
 98 unit tests over the protocol with no browser · 6 browser suites against real
-origins · 5 participants at conformance level L3 · 7 independent HTTPS
-deployments · 0 backends in the commitment path · 1 of those seven serves
-`Permissions-Policy: tools=()`, holds no key, and exists to check the other six.
+origins · 5 participants at conformance level L3 · 8 independent HTTPS
+deployments · 0 backends in the commitment path · 1 of those eight serves
+`Permissions-Policy: tools=()`, holds no key, and exists to check the others.

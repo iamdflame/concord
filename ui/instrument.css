@@ -126,7 +126,11 @@ code,.mono{font-family:var(--mono);font-size:var(--t-data)}
   padding:14px clamp(20px,5vw,64px); border-bottom:1px solid var(--rule-firm);
   max-width:1080px;margin-inline:auto;width:100%;
 }
-.wordmark{font-size:1.0625rem;font-weight:600;letter-spacing:-0.02em}
+.wordmark{font-size:1.0625rem;font-weight:600;letter-spacing:-0.02em;
+  display:inline-flex;align-items:center;gap:9px}
+/* The mark takes the page's ink and the page's irreversible red, so it
+   follows the theme without a second file or a second request. */
+.wordmark .mark{flex:none;transform:translateY(-1px)}
 .masthead nav{margin-left:auto;display:flex;gap:18px;align-items:baseline}
 .masthead a,.masthead button.link{
   font-size:var(--t-cap);color:var(--ink-3);text-decoration:none;

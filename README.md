@@ -1,4 +1,7 @@
-# Concord
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/concord-banner-dark.png">
+  <img alt="Concord — an agent that tells you what it cannot take back, before it acts" src="brand/concord-banner.png">
+</picture>
 
 ### WebMCP tells an agent what a site can *do*. Nothing tells it what a site can *take back*.
 
@@ -7,12 +10,12 @@ incapable of overpromising.
 
 **Live: <https://concord-coordinator.vercel.app>** ·
 [is WebMCP native here?](https://concord-coordinator.vercel.app/native.html) ·
-[SPEC.md](SPEC.md) ·
-[THREAT-MODEL.md](THREAT-MODEL.md) ·
+[write a participant](https://concord-sandbox.vercel.app) ·
+[conformance](https://concord-coordinator.vercel.app/conformance.html) ·
 [check a receipt elsewhere](https://concord-receipts.vercel.app) ·
+[SPEC](SPEC.md) ·
+[THREAT MODEL](THREAT-MODEL.md) ·
 [`npx concord-verify`](https://www.npmjs.com/package/concord-verify)
-
----
 
 `inputSchema` describes a tool's shape. `readOnlyHint` describes whether it has
 an effect. **Nothing in WebMCP describes whether that effect can be reversed** —
@@ -34,71 +37,30 @@ The intermediary does not disappear. It becomes yours: disposable, margin-free,
 and unable to misreport what happened, because every statement in the receipt is
 signed by the counterparty rather than by it.
 
-## The agent that cannot overpromise
+---
 
-The reason this matters now is agents. An agent that can spend your money across
-sites is what everyone is racing to ship and nobody can ship safely, and the
-blocker was never capability — models have been calling tools for a while. The
-blocker is that **an agent cannot make a promise it is able to keep.** It says
-"I've booked your trip" having booked half of it, because nothing underneath it
-can compute what is actually being risked.
+## One minute, in your browser
 
-Concord computes exactly that, and publishes it over WebMCP — where the set of
-registered tools *is* the permission model, and it is live. Open the tool
-inspector and watch it change:
+Open **<https://concord-coordinator.vercel.app>**. Before you type anything, the
+page has already worked out what it could promise for a flight, a hotel and a
+visa fee, and says so in the largest type on it.
 
-```
-boot                    list_vendors  inspect_vendor  propose_commitment  get_surface
-agent proposes          … + explain_guarantee
-agent explains it       … unchanged. explaining is not consent
-▸ a person clicks Accept … + concord_commit          ← it did not exist until now
-committed               … − concord_commit           ← and it does not exist again
-```
-
-`concord_commit` is not disabled when you may not commit. It is **not
-registered**. `AbortController` is the only unregister WebMCP has, so a tool
-that must not be callable is a tool that is not there — and `toolchange` fires
-on every line above, so the agent watching this surface finds out the same way
-you do.
-
-There is no tool that grants that permission and there is not going to be one.
-A person accepts by clicking on this page, identified by the SHA-256 of the
-exact guarantee they were shown — so an agent that proposes twice cannot carry
-an acceptance from the first to the second, and a page that displays one set of
-promises cannot arm another.
-
-- **nothing here spends anything.** There is no `send_funds`. The only effectful
-  tool is `commit`, and it will only run a plan the ladder already guaranteed;
-- **a refused plan yields nothing committable at all**, and explaining a refusal
-  in full does not conjure one;
-- **one state in thirty-two** permits committing. `evals/surface.mjs` checks all
-  of it through the same `getTools()` an agent would call, in a real browser.
-
-An agent cannot overpromise here because the words for it do not exist. Ask for
-a flight, a visa fee and an entry permit — two things nobody can take back — and
-it answers:
-
-> I cannot do that as one commitment, and I would rather say so than half-do it.
->
-> visa and permit are both irreversible. If the second fails, nothing can undo
-> the first, so this plan cannot be made atomic.
->
-> Nothing has been contacted. Ask for them separately and I will do each one.
-
-There is no "go ahead" button on that answer, because there is no proposal to
-press it against. Saying no is the thing agents structurally cannot do today,
-and here it is the ordinary path.
-
-The agent in the page is small on purpose. It has no privileged access and uses
-Chrome's built-in model when the browser has one, or reads the request directly
-when it does not — and says which in the transcript. Replace it with ChatGPT
-driving the same registered tools and nothing about the safety story changes.
-That is the point: the constraint is the shape of the surface, not anybody's
-prompt.
-
-## Live
-
-**<https://concord-coordinator.vercel.app>**
+1. Ask for **a flight, a hotel and the visa fee**. Nothing is contacted. The
+   agent tells you what it can promise: two of the three can be taken back, one
+   cannot, and the one that cannot goes last.
+2. Open your tool inspector. **`concord_commit` is not there.** Click *Accept
+   this guarantee* and it appears. That is not a UI state — it is
+   `registerTool`, and the click is the only thing that can cause it.
+3. Ask for **a flight, the visa fee and the entry permit** — two things nobody
+   can undo. It refuses, says nothing was contacted, and there is no button on
+   that answer.
+4. Press **Go ahead, then kill the coordinator**. It stops two calls in, holding
+   a real hold and a real charge. Reload. The page finds the outstanding work,
+   asks each vendor what actually happened, and puts back what can be put back.
+5. Download the receipt and open it on
+   [**an origin that is not ours**](https://concord-receipts.vercel.app). It
+   verifies there, and tells you which origins it had to contact to decide — the
+   coordinator is not one of them.
 
 Six independent businesses, each its own deployment on its own HTTPS origin —
 [Northwind Air](https://concord-fly.vercel.app),
@@ -108,100 +70,83 @@ Six independent businesses, each its own deployment on its own HTTPS origin —
 [Meridian Holdings](https://concord-meridian.vercel.app),
 [the Sandbox](https://concord-sandbox.vercel.app). Separate projects, separate
 origins, separate signing keys held by each vendor's own backend. The browser
-boundary between them is the real one; five paths on one host would have been a
+boundary between them is the real one; six paths on one host would have been a
 lie about the only thing this project claims.
 
-Ask it for a flight, a hotel and the visa fee. Then ask for a flight, the visa
-fee **and** the entry permit, and watch it refuse.
+## The permission is the registration
 
-### Then write a participant yourself
+The blocker for agentic commerce was never capability — models have been calling
+tools for a while. The blocker is that **an agent cannot make a promise it is
+able to keep.** It says "I've booked your trip" having booked half of it,
+because nothing underneath it can compute what is actually being risked.
 
-The reasonable suspicion about a demo like this is that it is a few hardcoded
-pages talking to each other. The
-[**sandbox**](https://concord-sandbox.vercel.app) is the answer: its own origin,
-a text box, and ten lines.
-
-```js
-concord({
-  id: 'lounge',
-  title: 'Skyline Lounge',
-  steps: {
-    reserve: { tool: 'hold_pass', ttlSeconds: 600, run: ({ guests }) => ({ ref: id(), guests }) },
-    confirm: { tool: 'issue_pass', run: ({ ref }) => ({ ref, issued: true }) },
-    cancel:  { tool: 'drop_hold',  run: ({ ref }) => ({ ref, released: true }) },
-  },
-});
-```
-
-Press **Run**. The coordinator has never heard of it and says so:
-
-> Skyline Lounge registered a commitment surface at https://concord-sandbox.vercel.app.
-> I had never heard of it until now, and I can include it from here.
-
-Ask for *a flight and a Skyline Lounge pass* and you get **all-or-nothing up to
-the final confirm**. Then delete the `cancel` step and ask again:
-
-> **No honest promise available**
-> lounge declares only reserve, confirm, status, which is not a commitment
-> protocol anything can be promised over.
-
-Nothing was redeployed and nothing was configured. A hold you cannot release is
-not a hold, and the guarantee follows the declaration rather than the other way
-round.
-
-## Running it yourself
-
-```bash
-npm run dev     # eleven origins: the coordinator, six participants,
-                # the receipt verifier, and Ring 0's three
-```
-
-Then open <http://localhost:5173/concord.html> and break a vendor while it runs.
-Or kill the coordinator mid-commitment with *Go ahead, then kill the
-coordinator*, reload, and watch it find what is outstanding and ask each vendor
-what happened.
-
-```bash
-npm run check   # everything CI would run, including both round trips:
-                # a receipt checked on another origin, and a crash recovered
-```
-
-```bash
-npm test                          # the protocol, without a browser
-npm run probe:concord             # the protocol against real origins
-npm run export receipt.json       # ask the agent, consent, write the receipt out
-npm run verify receipt.json       # check it, with nothing from the coordinator
-```
-
-Those last two work against the deployment, not just localhost:
-
-```bash
-URL=https://concord-coordinator.vercel.app/ npm run export receipt.json
-npx concord-verify receipt.json
-```
+Concord computes exactly that, and publishes it over WebMCP — where the set of
+registered tools *is* the permission model, and it is live:
 
 ```
-  resolving fly → https://concord-fly.vercel.app/.well-known/concord.json
-  ✓ fly     reserve    in tree yes   signed yes   key in force
-  ✓ stay    execute    in tree yes   signed yes   key in force
-  ✓ visa    execute    in tree yes   signed yes   key in force
-  ✓ fly     confirm    in tree yes   signed yes   key in force
-
-VERIFIED — 4/4 statements signed by the party named and provably part of this receipt.
+boot                     list_vendors  inspect_vendor  propose_commitment  get_surface
+the agent proposes       … + explain_guarantee
+the agent explains it    … unchanged. explaining is not consent
+▸ a person clicks Accept … + concord_commit        ← it did not exist until now
+the commitment begins    … − concord_commit        ← and it does not exist again
 ```
 
-Nothing of this project is involved in that second command — not the
-coordinator, not this repository. [`concord-verify`](https://www.npmjs.com/package/concord-verify)
-is published, so it runs from the registry on a machine with nothing installed.
-It reads the file, fetches each vendor's key from that vendor's own origin over
-TLS, and checks every statement was signed by the party it names, with a key
-that was entitled to sign at the time.
+`concord_commit` is not disabled when you may not commit. It is **not
+registered**. `AbortController` is the only unregister WebMCP has, so a tool
+that must not be callable is a tool that is not there — and `toolchange` fires
+on every line above, so an agent watching this surface finds out the same way
+you do.
 
-Edit what a vendor charged and it says the entries do not hash to the stated
-root, naming the entry that moved. Remove the statement proving the flight was
-ticketed and rebuild the receipt around what is left, and it says the receipt
-does not account for the whole commitment its own participants signed up to.
-Both exit non-zero. `--explain` prints the algorithm as it runs.
+There is no tool that grants that permission and there is not going to be one.
+A person accepts by clicking on the page, and what they accept is identified by
+the SHA-256 of the exact guarantee they were shown — so an agent that proposes
+twice cannot carry an acceptance from the first to the second, and a page
+displaying one set of promises cannot arm another.
+
+- **Nothing here spends anything.** There is no `send_funds`. The only effectful
+  tool is `commit`, and it will only run a plan the ladder already guaranteed.
+- **A refused plan yields nothing committable at all**, and explaining a refusal
+  in full does not conjure one.
+- **One state in thirty-two** permits committing. A unit test sweeps all of
+  them; [`evals/surface.mjs`](evals/surface.mjs) walks the real thing in a
+  browser through the same `getTools()` an agent would call.
+
+The safety is not in the prompt. Delete the prompt and the refusal is identical,
+because it lives in the shape of the surface rather than in anyone's
+instructions. An agent cannot overpromise here because the words for it do not
+exist.
+
+## It runs on the real API
+
+**`provider=native`, Chrome 151, against the live deployment.** The integration
+suite passes 20/20, five participants reach conformance L3, the surface matrix
+passes, and a commitment completes across separate HTTPS origins with a receipt
+that verifies on a different origin again.
+
+Running it natively found two things a polyfill could never have surfaced, which
+is the whole argument for doing it:
+
+- **The coordinator was not delegating `tools` to the origins it embeds.**
+  `allow="tools"` delegates a feature the *embedder* already has, and the
+  coordinator's `Permissions-Policy` named only itself. Every participant
+  registered its tools happily, the coordinator saw none of them, and there was
+  no error anywhere. Under a polyfill that enforces none of this, it worked
+  perfectly.
+- **Chrome returns `inputSchema` as a JSON string**, where the polyfill returns
+  the object. Reading `.properties` off it yields nothing, so anything driving a
+  tool from its own declaration silently sent no arguments.
+
+Check it on your own machine:
+[**is WebMCP native here?**](https://concord-coordinator.vercel.app/native.html)
+reports which implementation your browser has, then checks each behaviour this
+project depends on — `exposedTo`, `getTools({fromOrigins})`, whether
+`executeTool` takes a JSON string, duplicate-name rejection, `AbortSignal`
+revocation, `toolchange`.
+
+Where WebMCP is absent, `shim/adapter.mjs` falls back to a spec-faithful
+polyfill and **says so on every run**. A green suite against the shim proves the
+logic and proves nothing about the platform, so the two are never reported as
+the same thing.
 
 ## The hard part is refusing to lie
 
@@ -226,6 +171,40 @@ From that, one of four honest answers:
 Two irreversible vendors is the refusal case: if the second fails, nothing can
 undo the first. Concord says so and stops. An irreversible step that something
 must *follow* is refused for the same reason.
+
+## Write a participant yourself
+
+The reasonable suspicion about a demo like this is that it is a few hardcoded
+pages talking to each other. The [**sandbox**](https://concord-sandbox.vercel.app)
+is the answer: its own origin, a text box, and ten lines.
+
+```js
+concord({
+  id: 'lounge',
+  title: 'Skyline Lounge',
+  steps: {
+    reserve: { tool: 'hold_pass',  ttlSeconds: 600, run: ({ guests }) => ({ ref: id(), guests }) },
+    confirm: { tool: 'issue_pass', run: ({ ref }) => ({ ref, issued: true }) },
+    cancel:  { tool: 'drop_hold',  run: ({ ref }) => ({ ref, released: true }) },
+  },
+});
+```
+
+Press **Run**. The coordinator has never heard of it and says so:
+
+> Skyline Lounge registered a commitment surface at https://concord-sandbox.vercel.app.
+> I had never heard of it until now, and I can include it from here.
+
+Ask for *a flight and a Skyline Lounge pass* and you get **all-or-nothing up to
+the final confirm**. Then delete the `cancel` step and ask again:
+
+> **This is not a promise I can make.**
+> lounge declares only reserve, confirm, status, which is not a commitment
+> protocol anything can be promised over.
+
+Nothing was redeployed and nothing was configured. A hold you cannot release is
+not a hold, and the guarantee follows the declaration rather than the other way
+round.
 
 ## Phase order is the safety property
 
@@ -271,32 +250,34 @@ acted. Two consequences follow, and both are enforced:
 
 Recovery does not guess. The idempotency key was journalled before the call, and
 every vendor exposes `concord.status` — *did you ever honour this key* — which
-performs nothing. So the coordinator asks, and only then decides what to undo.
-
-A vendor declaring no status step is reported **unresolved**, never assumed:
+performs nothing. So the coordinator asks, and only then decides what to undo. A
+vendor declaring no status step is reported **unresolved**, never assumed:
 assuming it did not happen strands the charge, and assuming it did refunds a
 booking that was never made.
 
-Press **Commit, then kill the coordinator** on the coordinator page. It stops
-two calls in, with the hotel charged. Reload, and the page says an interrupted
-commitment was found and offers to resolve it:
+Press **Go ahead, then kill the coordinator** on the coordinator page. It stops
+two calls in, with the hotel charged. Reload, and the page shows what is
+outstanding — separating what the journal can *prove* from what only the vendor
+knows — and offers to ask:
 
-```
-Resolved — unwound
-stay.execute undone via compensate
-fly.reserve  undone via cancel
-```
+| Party | Step | What the journal proves | What the vendor said |
+|---|---|---|---|
+| Northwind Air | reserve | it happened | undone, via cancel |
+| Rowan House | execute | unknown; the intent was written and no result was | undone, via compensate |
 
-The exhaustive test crashes at every step boundary, both before and after the
-vendor acted, and asserts that whatever really happened was undone exactly once.
-It caught two real bugs: the confirm loop was retrying a dead process, and the
-status probe named its parameter `idempotencyKey`, so the key it asked about was
-overwritten by the key of the asking and recovery quietly found nothing.
+Building that screen ran the path end to end for the first time and found two
+real bugs in the participants — a vendor that remembered *that* it had charged
+you and had forgotten *what*, and storage that corrupted a `Map` into `{}` so a
+release failed during recovery. `npm run check` now crashes a commitment,
+reopens in the same browser profile, and requires everything outstanding to come
+back undone.
 
 ## The participants
 
-Four independent businesses with no relationship to each other. None has an API
-with another; none knows the others exist.
+Six independent businesses with no relationship to each other. None has an API
+with another; none knows the others exist. Each is its own product, with its own
+colour and its own lettering — an airline is not set in the same face as a
+consulate.
 
 | | | |
 |---|---|---|
@@ -315,6 +296,11 @@ injection is a feature of the system, not a mode of the test harness: break the
 consular fee mid-commitment and watch the hotel refund and the seat release, on
 the vendors' own pages.
 
+**Meridian Holdings lies on purpose.** It declares `compensable` and then refuses
+to compensate, keeping the money. Concord cannot prevent that and does not claim
+to. What it does is make the lie *attributable*: Meridian's own signature is on
+the statement it later declines to reverse.
+
 ## The receipt
 
 Afterwards each party knows only its own half. Northwind knows it ticketed a
@@ -323,122 +309,181 @@ elsewhere, and neither has any reason to trust the coordinator's account — the
 coordinator is the traveller's agent, and it is the one party with a motive to
 misreport.
 
-So the receipt is not the coordinator's story. It is a Merkle tree over
-statements **each vendor signed with a key held by that vendor's server**. The
-coordinator can order those statements and prove the ordering. It cannot write
-one, because it never holds a vendor's key.
+So the receipt is a Merkle tree of statements, each signed by the party that made
+it, with the signature kept *outside* the leaf. That separation is what lets the
+verifier distinguish **"this record was altered"** from **"this vendor never said
+that"** — collapse them into one hash and both become the same indistinguishable
+accusation.
 
-The key is published at `/.well-known/concord.json` **on the vendor's own
-origin**, and the receipt records where to look rather than carrying the key
-itself:
+Each vendor signs the shape of the whole commitment, not just its own part. Sign
+only your own part and a coordinator can drop one of a vendor's two statements
+and rebuild the receipt around the rest: every party is still represented, so
+nothing objects. Attesting to the whole means the survivors testify that
+something is missing.
 
-```json
-"vendors": { "fly": { "origin": "https://fly.example", "keyId": "e545001194dcf27a" } }
+### Check one somewhere we do not run
+
+The receipt panel on the coordinator says VERIFIED, and it was drawn by the same
+page that produced the receipt — which is the arrangement a receipt exists to
+make unnecessary. So there is an eighth origin,
+[**concord-receipts.vercel.app**](https://concord-receipts.vercel.app), and it is
+defined by what it is not: it ships the receipt code, a page, and the palette.
+No coordinator, no participants, no WebMCP. It registers no tools, publishes no
+key because it signs nothing, and serves `Permissions-Policy: tools=()`.
+
+Click **Check it on another origin** and it opens there with the receipt in the
+URL fragment, which never reaches a server. What it shows is not really the
+verdict:
+
+```
+Every origin this page contacted, in the order it contacted them
+  https://concord-fly.vercel.app/.well-known/concord.json  — answers to "fly"
+  https://concord-stay.vercel.app/.well-known/concord.json — answers to "stay"
+  https://concord-visa.vercel.app/.well-known/concord.json — answers to "visa"
+
+https://concord-coordinator.vercel.app is not in that list. The coordinator
+that produced this receipt was not asked anything, and could not have changed
+this answer.
 ```
 
-That is the anchor. A key handed over on the same channel as the claim it
-authenticates proves nothing; a key fetched from the vendor over TLS is bound to
-that vendor by the guarantee the web already provides. No registry, no CA of our
-own, nothing extra to run — and the receipt still verifies in a year, because
-the key outlives the tab.
-
-### Verify one yourself
+Or do it at a terminal, with nothing of ours installed:
 
 ```bash
-npm run verify receipt.json
+URL=https://concord-coordinator.vercel.app/ npm run export receipt.json
+npx concord-verify receipt.json
 ```
 
-Nothing from the coordinator is involved. The verifier reads the file, fetches
-each vendor's published key from that vendor's origin, and reports per statement:
-
 ```
-  ✓ fly     reserve    in tree yes   signed yes
-  ✓ stay    execute    in tree yes   signed yes
-  ✓ visa    execute    in tree yes   signed yes
-  ✓ fly     confirm    in tree yes   signed yes
+  resolving fly → https://concord-fly.vercel.app/.well-known/concord.json
+  ✓ fly     reserve    in tree yes   signed yes   key in force
+  ✓ stay    execute    in tree yes   signed yes   key in force
+  ✓ visa    execute    in tree yes   signed yes   key in force
+  ✓ fly     confirm    in tree yes   signed yes   key in force
 
 VERIFIED — 4/4 statements signed by the party named and provably part of this receipt.
 ```
 
-A failure is a claim about a specific party rather than a generic error. Edit
-what a vendor charged and the root breaks. Give a statement someone else's
-signature and it reads `fly reserve — in tree yes, signed NO`, with the other
-three still valid: the receipt names the bad statement instead of collapsing
-into "invalid".
+[`concord-verify`](https://www.npmjs.com/package/concord-verify) is published, so
+it runs from the registry on a machine with nothing installed. It reads the file,
+fetches each vendor's key from that vendor's own origin over TLS, and checks
+every statement was signed by the party it names, with a key that was entitled to
+sign at the time.
 
+Edit what a vendor charged and it says the entries do not hash to the stated
+root, naming the entry that moved. Remove the statement proving the flight was
+ticketed and rebuild the receipt around what is left, and it says the receipt
+does not account for the whole commitment its own participants signed up to.
+Both exit non-zero. `--explain` prints the algorithm as it runs.
+
+## Running it yourself
+
+```bash
+npm run dev     # eleven origins: the coordinator, six participants,
+                # the receipt verifier, and Ring 0's three
 ```
-receipt root  7c67482c3a3b73eb3a09fb7a42cc29db0e33ac129f365df9f465159553ea1094   VERIFIED
 
-fly    reserve   in the tree ✓   signed by fly  ✓
-stay   execute   in the tree ✓   signed by stay ✓
-visa   execute   in the tree ✓   signed by visa ✓
-fly    confirm   in the tree ✓   signed by fly  ✓
+Then open <http://localhost:5173/concord.html> and break a vendor while it runs.
+
+```bash
+npm test                          # the protocol, without a browser
+npm run check                     # everything CI would run, end to end
+npm run surface                   # what an agent may call, in every state
+npm run probe:concord             # the protocol against real origins
+npm run conformance               # every participant against the specification
+npm run export receipt.json       # ask the agent, accept, write the receipt out
+npm run verify receipt.json       # check it, with nothing from the coordinator
 ```
 
-The tree earns its place commercially, not just cryptographically. A vendor
-verifies its own entry through an **inclusion proof made of opaque hashes** —
-two of them here — without being shown what anyone else charged. Airlines will
-not reveal fares to hotels, and a receipt that made disclosure the price of
-verifiability would never be used.
-
-Two details worth the trouble:
-
-**A leaf commits to the statement, not to the signature over it.** Hashing both
-collapses two different accusations into one. Keeping them apart means an edited
-statement reports *the entries do not hash to the stated root*, while a borrowed
-signature reports *in the tree, but this vendor never said it* — and the receipt
-can say which party is being accused of what.
-
-**An odd node is promoted, not hashed with a copy of itself.** Duplicating the
-tail is the common shortcut, and it makes `[a,b,c]` and `[a,b,c,c]` share a
-root, which turns an inclusion proof into a forgery.
-
-The coordinator page has an *Edit one entry and re-verify* button, because the
-claim is only worth as much as your ability to break it.
+**Requirements.** Node 20+, and Chrome for the probes. Chrome 149+ with the
+WebMCP origin trial (or `chrome://flags/#enable-webmcp-testing`) to run against
+the native API.
 
 ## Tests
 
-```bash
-npm test                 # 77 assertions, pure logic, no browser
-npm run probe:concord    # the protocol against real origins in a real browser
-```
+**98 assertions with no browser**, six browser suites against real origins, and
+two end-to-end round trips that had never been checked before they were written.
 
-The protocol core is pure and tested without a browser: ordering, reverse
-unwind, idempotency keys stable across retries, in-doubt reporting, failed
-compensation surfaced, refusal *before* any vendor is contacted, inclusion at
-every tree size, and the two forgeries above. The integration suite proves it
-survives contact with three separately written origins — including breaking one
-while it runs, and confirming that a coordinator which edits a vendor's
-statement is caught by the vendor's own signature.
+The protocol core is pure and tested without a browser: ordering, reverse unwind,
+idempotency keys stable across retries, in-doubt reporting, failed compensation
+surfaced, refusal *before* any vendor is contacted, inclusion at every tree size,
+and every receipt forgery in the threat model.
 
-## Ring 0 — the substrate
+Three of them are worth naming, because each checks a claim that would otherwise
+only be a sentence in this file:
 
-Underneath Concord is a capability kernel: policy, information-flow labels, and
-a hash-chained transcript that makes a cross-vendor commitment auditable. It
-was built first, on its own terms, and its four phase suites still run.
+- **[`evals/surface.mjs`](evals/surface.mjs)** drives the real page and asserts
+  the exact set of tool names in every state, through the same `getTools()` an
+  agent calls. Verified it can fail: registering `commit` at boot trips four
+  checks, treating explaining as consent trips one, and adding a tool named
+  `concord_accept` trips four.
+- **The receipt round trip** runs a commitment, hands the receipt to the verifier
+  origin, and requires an honest one to pass there and a tampered one to fail —
+  with the coordinator contacted neither time.
+- **[`app/contrast.test.mjs`](app/contrast.test.mjs)** reads the colour tokens out
+  of `ui/instrument.css` and puts every pair that carries meaning through the
+  WCAG formula against both grounds in both themes. A token edited to something
+  unreadable fails the build rather than the reader.
 
-## What Phase 01 does *not* prove
+`deploy/verify-live.mjs` confirms each deployed origin answers, carries the
+headers the cross-origin path needs, publishes a key that does not change between
+requests, and **signs with the key it publishes** — and that the verifier origin
+delegates `tools` to nobody and publishes no key at all.
 
-**WebMCP is in no stable browser.** It runs as a Chrome origin trial from 149 to
-156, and the API is mid-rename from `navigator.modelContext` to
-`document.modelContext`. This repository was developed against Chrome 134, so
-the suite ran against `shim/webmcp.mjs`, a spec-faithful implementation of
-`registerTool` / `getTools` / `executeTool` / `toolchange` and the `exposedTo`
-and `fromOrigins` origin rules over `postMessage`.
+## The protocol, written down
 
-That distinction is load-bearing and the probe prints it on every run: a green
-suite against the shim proves the kernel's logic and proves nothing about the
-platform. `shim/adapter.mjs` prefers native on both spellings and falls back
-only when neither exists, so moving to a real Chrome 149+ is a browser upgrade,
-not a code change.
+- **[SPEC.md](SPEC.md)** — the convention as a protocol document: the
+  declaration, the ladder, guarantee computation, phase order, attestation, key
+  publication, the receipt, the exact algorithm a verifier must run, and §14, the
+  coordinator's surface — which tools may be registered when, normatively. Its
+  §16 is the unresolved problems, written down rather than hedged; §17 proposes
+  the reversibility annotation upstream.
+- **[THREAT-MODEL.md](THREAT-MODEL.md)** — who is trusted for what, the attacks
+  that are closed with the verifier's exact response to each, and the ones that
+  are not.
+- **[spec/conformance.mjs](spec/conformance.mjs)** — a suite that checks a live
+  participant against the specification and reports which level it meets. Every
+  line names the section it enforces.
 
-The shim cannot enforce the `tools` permissions policy, which only a browser
-can. The probe reports `tools-policy=absent` rather than implying otherwise.
+Open **<https://concord-coordinator.vercel.app/conformance.html>** to run it
+against the live participants, in your browser, with nothing installed — and
+**there is a box: put your own origin in it.** Five participants reach **L3 —
+attesting**: they declare a commitment surface, can be asked afterwards what
+happened, are idempotent under a repeated key, and sign statements against a key
+published on their own origin. The suite exercises those rather than assuming
+them — it calls a step twice and compares, asks the status probe about a key it
+has never seen, and verifies a real signature against the real key document.
 
-## Requirements
+## Known limits
 
-Node 20+, and Chrome for the probe. Chrome 149+ with the WebMCP origin trial
-(or `chrome://flags/#enable-webmcp-testing`) to run against the native API.
+Stated here rather than left to be found.
+
+**A confirm fan-out can partially commit.** With several reservable vendors,
+confirming is a sequence: a late failure leaves earlier confirms standing. That
+is ordinary two-phase commit and cannot be removed without a coordinator both
+sides trust, which is the thing this design says does not exist. The plan says so
+before you commit, and the outcome names exactly what stands.
+
+**The signing endpoint still takes its result from the page.** It will only sign
+for its own vendor at its own origin, and only for same-origin requests, so a
+compromised page cannot forge another party's word. But it remembers which
+idempotency keys it has signed in *process memory*, and on a serverless host two
+invocations each believe they are the first — so it cannot reliably stop a
+compromised page restating its own. What holds instead is a check at
+verification: two statements under one idempotency key are two accounts of the
+same step, and a receipt containing both is rejected. Closing it properly means
+holding the vendor's transaction record server-side and building the statement
+from it. That is the port a production deployment has to make.
+
+**Vendors keep their books in the browser.** They survive a reload, which is what
+recovery depends on, and they are still `localStorage` — so a user can edit them,
+and a private window is a vendor with no memory. Real vendors have databases.
+That is a property of these reference participants rather than of the protocol,
+and it is the same port as the paragraph above.
+
+**A participant can lie about its commitment surface**, and no protocol can
+prevent it. Meridian Holdings demonstrates it on the live deployment. The result
+is IN DOUBT, the failure is recorded, and the participant's own signature is on
+the statement it declined to reverse.
 
 ## Layout
 
@@ -448,112 +493,80 @@ concord/saga.mjs          the executor: phase order, deadlines, unwind
 concord/journal.mjs       write-ahead log, durable across reloads
 concord/recover.mjs       resolving a commitment its coordinator did not finish
 concord/receipt.mjs       Merkle receipts, inclusion proofs, key validity
+concord/agent-surface.mjs the permission model: which tools may exist, when
 concord/client.mjs        binds the protocol to WebMCP
 concord/*.test.mjs        the protocol proved without a browser
 
-vendors/byo    :5182      the sandbox — a participant you write, live
-vendors/shady  :5181      declares it can reverse what it does, and cannot
+app/concord.html          :5173 — the coordinator, and the agent
+app/reconciler.mjs        registration as the permission system
+app/native.html           what your browser's WebMCP actually does
+app/conformance.html      any origin against the specification, including yours
+app/contrast.test.mjs     the palette, checked against the stylesheet itself
+evals/surface.mjs         the tool surface, asserted state by state in a browser
+
+verifier/                 :5183 — a receipt checked where we do not run
 vendors/fly    :5177      reservable — hold, ticket, release
 vendors/stay   :5178      compensable — book and charge, cancel and refund
 vendors/visa   :5179      irreversible — declares no compensate, because there is none
+vendors/permit :5180      a second irreversible, so the refusal is real
+vendors/shady  :5181      declares it can reverse what it does, and cannot
+vendors/byo    :5182      the sandbox — a participant you write, live
+
 kit/vendor.mjs            what every participant gets: protocol declaration,
                           idempotency, signing, status, break switches
 kit/keystore.mjs          signing keys, published at /.well-known/concord.json
 kit/canonical.mjs         RFC 8785 serialisation, so a stranger reaches the same bytes
 
-app/concord.html          :5173 — the coordinator, and the agent
-app/concord-test.mjs      the protocol against four real origins
-server.mjs                seven origins, with Origin-Agent-Cluster and Permissions-Policy
+ui/instrument.css         one palette, one type scale, shared by every page
+brand/                    the mark, and the script that draws it
 shim/webmcp.mjs           spec-faithful WebMCP for browsers that lack it
 shim/adapter.mjs          native-first resolution; reports which provider you got
+server.mjs                eleven origins, with the headers the real API needs
+deploy/verify-live.mjs    the deployment is usable, checked from outside
 
-tools/export-receipt.mjs  run a commitment, write the receipt to a file
-tools/verify-receipt.mjs  check that file, with nothing from the coordinator
-tools/probe.mjs           headless Chrome over CDP
-
-ring0/                    the capability kernel Concord was built on — a
-                          different argument, kept because it is where several
-                          of these ideas were worked out
+ring0/                    the capability kernel Concord was built on — a different
+                          argument, kept because it is where several of these
+                          ideas were worked out
 experiments/              a documented negative result
+```
+
+## Brand
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/concord-mark-dark.svg">
+  <img src="brand/concord-mark-color.svg" width="96" align="right" alt="">
+</picture>
+
+The mark is a return path that cannot close. The ring is the round trip —
+everything given back, everything as it was. The solid square is where that
+stops, and it is the only part of the mark that is a different colour, because
+it is the only part that means something the ring does not.
+
+Reversibility is the one thing colour is allowed to mean here. Blue is *can be
+released*, green is *can be reversed*, red-orange is *cannot be undone* — and
+green never means "success" anywhere in this project, because a committed
+irreversible step succeeded and still cannot be taken back.
 
 ```
+brand/concord-mark.svg          monochrome, inherits currentColor
+brand/concord-mark-color.svg    the primary mark (and -dark)
+brand/concord-ladder.svg        the ring drawn as the three rungs — explanatory,
+                                not a logo: three colours at logo size read as a
+                                progress ring, which is what this must not be
+brand/concord-lockup.svg        mark and wordmark, outlines, no font required (and -dark)
+brand/favicon.svg               adapts to the reader's colour scheme
+brand/concord-banner.png        the image at the top of this file (and -dark)
+brand/build.py                  redraws all of it, from the geometry and the font
+```
+
+The wordmark is outlined from `ui/fonts/serif-600.woff2` — the same Source Serif
+4 SemiBold the site serves — so it needs no font installed and cannot render as a
+substitute face. Ink `oklch(23% 0.015 250)`, paper `oklch(98.5% 0.004 95)`, the
+terminal `oklch(56% 0.20 35)`.
 
 ## For judges
 
 **[SUBMISSION.md](SUBMISSION.md)** — the four required answers, the objections
 answered before they are raised, and every link in one place.
-
-## The protocol, written down
-
-- **[SPEC.md](SPEC.md)** — the convention as a protocol document: the
-  declaration, the ladder, guarantee computation, phase order, attestation, key
-  publication, the receipt, and the exact algorithm a verifier must run. Its
-  §16 is the unresolved problems, written down rather than hedged.
-- **[THREAT-MODEL.md](THREAT-MODEL.md)** — who is trusted for what, the attacks
-  that are closed with the verifier's exact response to each, and the ones that
-  are not.
-- **[spec/conformance.mjs](spec/conformance.mjs)** — a suite that checks a live
-  participant against the specification and reports which level it meets. Point
-  it at your own origin; every line names the section it enforces.
-
-```bash
-npm run conformance                                    # locally
-```
-
-Or open **<https://concord-coordinator.vercel.app/conformance.html>** — it runs
-against the live participants, in your browser, with nothing installed.
-
-All five participants here reach **L3 — attesting**: they declare a commitment
-surface, can be asked afterwards what happened, are idempotent under a repeated
-key, and sign statements against a key published on their own origin. The suite
-exercises those rather than assuming them — it calls a step twice and compares,
-asks the status probe about a key it has never seen, and verifies a real
-signature against the real key document.
-
-## Known limits
-
-Stated here rather than left to be found.
-
-**The native API is verified.** It was not, until it was run. On Chrome 151
-against the live deployment, `provider=native`: the integration suite passes
-20/20, every participant reaches conformance L3, and a commitment completes
-across five separate HTTPS origins with a receipt that verifies.
-
-Running it natively found two things the polyfill could never have surfaced,
-which is the whole argument for doing it:
-
-- **The coordinator was not delegating `tools` to the origins it embeds.**
-  `allow="tools"` delegates a feature the *embedder* already has, and the
-  coordinator's `Permissions-Policy` named only itself. Every participant
-  registered its tools happily and the coordinator saw none of them, with no
-  error anywhere. Under a polyfill that enforces none of this, it worked
-  perfectly.
-- **Chrome returns `inputSchema` as a JSON string**, where the polyfill returns
-  the object. Reading `.properties` off it yields nothing, so anything driving a
-  tool from its own declaration silently sent no arguments.
-
-You can check this yourself:
-[**is WebMCP native here?**](https://concord-coordinator.vercel.app/native.html)
-reports which implementation your browser has and then checks each behaviour
-this project depends on — `exposedTo`, `getTools({fromOrigins})`, whether
-`executeTool` takes a JSON string, duplicate-name rejection, `AbortSignal`
-revocation, `toolchange`.
-
-**A confirm fan-out can partially commit.** With several reservable vendors,
-confirming is a sequence: a late failure leaves earlier confirms standing. That
-is ordinary two-phase commit and cannot be removed without a coordinator both
-sides trust, which is the thing this design says does not exist. The plan says
-so before you commit, and the outcome names exactly what stands.
-
-**The signing endpoint still takes its result from the page.** It will only sign
-for its own vendor at its own origin, and only once per idempotency key, so a
-compromised page cannot forge another party's word or restate its own. But
-closing this properly means holding the vendor's transaction record server-side
-and building the statement from it. That is the port a production deployment
-has to make.
-
-**Vendors keep their business state in the page.** Idempotency memory survives a
-reload, which is what recovery depends on; inventory and bookings do not. Real
-vendors have databases.
 
 MIT.

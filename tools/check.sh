@@ -10,6 +10,10 @@ echo "── the protocol, no browser ──────────────
 npm test 2>&1 | grep -E "^ℹ (tests|pass|fail)" || true
 
 echo ""
+echo "── the README describes this repository ──────────"
+node tools/check-readme.mjs
+
+echo ""
 echo "── the published verifier matches this repository ─"
 node verify/build.mjs >/dev/null
 git diff --quiet verify/lib && echo "  ✓ verify/lib is current" \

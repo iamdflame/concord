@@ -4,52 +4,74 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Concord — native WebMCP check</title>
+<meta name="description" content="Which WebMCP implementation this browser has, and what it actually does.">
+<script>
+try{var t=localStorage.getItem('concord.theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
+</script>
+<link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/ui/instrument.css">
 <style>
-  :root{--ground:#0B1014;--panel:#141B21;--line:#26313A;--ink:#DBE3E9;--muted:#71818D;
-        --accent:#E8A33D;--ok:#3FBA86;--bad:#EA5257}
-  *{box-sizing:border-box}
-  body{background:var(--ground);color:var(--ink);margin:0;padding:20px;
-       font:13.5px/1.6 ui-monospace,Menlo,Consolas,monospace}
-  h1{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0}
-  p.sub{color:var(--muted);max-width:72ch;margin:8px 0 18px}
-  #verdict{display:inline-block;padding:10px 18px;border-radius:3px;font-size:19px;
-    font-weight:600;letter-spacing:.02em;margin-bottom:6px;background:var(--panel);color:var(--muted)}
-  #verdict[data-s="native"]{background:var(--ok);color:#04150F}
-  #verdict[data-s="shim"]{background:var(--accent);color:#1A1000}
-  #where{color:var(--muted);margin:0 0 20px;font-size:12px}
-  table{border-collapse:collapse;width:100%;max-width:940px}
-  th{text-align:left;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
-     border-bottom:1px solid var(--line);padding:0 12px 8px 0;font-weight:600}
-  td{padding:8px 12px 8px 0;border-bottom:1px solid #1A232B;vertical-align:top}
-  td.r{font-weight:600;white-space:nowrap}
-  .ok{color:var(--ok)} .no{color:var(--bad)} .na{color:var(--muted)}
-  td.n{color:var(--muted);font-size:12.5px}
-  #copy{margin-top:18px}
-  button{font:inherit;font-weight:600;background:var(--panel);color:var(--ink);
-    border:1px solid var(--line);border-radius:2px;padding:9px 16px;cursor:pointer}
-  button:hover{border-color:var(--accent);color:var(--accent)}
-  pre{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:12px;
-    margin-top:12px;overflow:auto;max-height:280px;font-size:11.5px;color:var(--muted)}
+.instrument{max-width:900px}
+.hero{font-family:var(--display);font-size:clamp(1.7rem,1.3rem+1.8vw,2.6rem);font-weight:600;
+  line-height:1.1;letter-spacing:-0.02em;margin:6px 0 12px;max-width:22ch;text-wrap:balance}
+.hero.native{color:var(--compensable-ink)}
+.hero.shim{color:var(--reservable-ink)}
+.lead{font-size:var(--t-lead);line-height:1.5;color:var(--ink-2);max-width:66ch}
+#where{font-family:var(--mono);font-size:var(--t-data);color:var(--ink-3);margin:14px 0 0}
+.checks{margin:32px 0 0;max-width:1000px;border-top:1px solid var(--rule-firm);overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:640px}
+th{text-align:left;font-family:var(--display);font-weight:400;font-size:var(--t-cap);
+   color:var(--ink-3);padding:8px 14px 8px 0;border-bottom:1px solid var(--rule)}
+td{padding:11px 14px 11px 0;border-bottom:1px solid var(--rule);vertical-align:baseline;
+   font-family:var(--mono);font-size:var(--t-data);color:var(--ink-2)}
+td:first-child{padding-left:16px;border-left:3px solid transparent}
+tr.no td:first-child{border-left-color:var(--irreversible)}
+tr.yes td:first-child{border-left-color:var(--compensable)}
+td.r{font-weight:600;white-space:nowrap;font-family:var(--display);color:var(--ink)}
+.ok{color:var(--compensable-ink)} .no{color:var(--irreversible-ink)} .na{color:var(--ink-3)}
+td.n{color:var(--ink-2)}
+#copy{margin-top:24px}
+pre{background:var(--paper-sunk);border:1px solid var(--rule);border-radius:2px;padding:14px;
+  margin-top:14px;overflow:auto;max-height:320px;font-size:var(--t-cap);color:var(--ink-2)}
 </style>
 </head>
 <body>
-<h1>Concord · is WebMCP native here?</h1>
-<p class="sub">Concord ships a polyfill for browsers without WebMCP, and reports which one it is using
-on every run. This page answers that in one line, and then checks each specific behaviour the
-implementation assumes — so a difference between the polyfill and the real API shows up as a named
-row rather than as a demo that quietly does nothing.</p>
 
-<div id="verdict">checking…</div>
-<p id="where"></p>
+<header class="masthead" role="banner">
+  <span class="wordmark"><svg class="mark" viewBox="0 0 64 64" width="21" height="21" fill="none" aria-hidden="true"><path d="M44.53 17.06A19.5 19.5 0 1 1 22.25 15.11" stroke="currentColor" stroke-width="5.5"/><rect x="15.75" y="8.61" width="13.0" height="13.0" fill="var(--irreversible)"/></svg>Concord</span>
+  <span class="margin">is WebMCP native here?</span>
+  <nav aria-label="About this project">
+    <a href="/">Coordinator</a>
+    <a href="https://github.com/iamdflame/concord/blob/main/SPEC.md">Spec</a>
+    <a href="/conformance.html">Conformance</a>
+    <button type="button" class="link" id="theme" aria-label="Switch between light and dark">Light / dark</button>
+  </nav>
+</header>
 
-<table>
-  <thead><tr><th style="width:78px">Result</th><th style="width:270px">Behaviour</th><th>What was observed</th></tr></thead>
-  <tbody id="rows"></tbody>
-</table>
+<main>
+  <section class="instrument">
+    <p class="margin">Which implementation this browser has, and what it does</p>
+    <h1 class="hero" id="verdict">checking…</h1>
+    <p class="lead">Concord ships a polyfill for browsers without WebMCP and reports which one it is
+      using on every run. This page answers that in one line, then checks each specific behaviour
+      the implementation assumes — so a difference between the polyfill and the real API shows up as
+      a named row rather than as a demo that quietly does nothing.</p>
+    <p id="where"></p>
+  </section>
 
-<div id="copy"><button id="copyBtn">Copy this report</button></div>
-<pre id="report" hidden></pre>
+  <div class="checks">
+    <table>
+      <thead><tr>
+        <th style="width:96px">Result</th><th style="width:300px">Behaviour</th>
+        <th>What was observed</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
 
+  <div id="copy"><button class="primary" id="copyBtn">Copy this report</button></div>
+  <pre id="report" hidden></pre>
+</main>
 <script type="module" src="./native.mjs"></script>
 </body>
 </html>

@@ -36,6 +36,7 @@ const TYPES = {
   '.css':  'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg':  'image/svg+xml',
+  '.png':  'image/png',
   '.woff2':'font/woff2',
 };
 
@@ -119,7 +120,7 @@ function serve(port) {
 
     // Shared modules live outside the per-origin roots; every origin needs them.
     // Shared modules and the origin table live outside the per-origin roots.
-    const base = /^\/(shim|kit|concord|experiments|spec|ring0|ui)\//.test(path)
+    const base = /^\/(shim|kit|concord|experiments|spec|ring0|ui|brand)\//.test(path)
       || /^\/(config|origins)\.mjs$/.test(path) ? '.'
       // Ring 0's own shared stylesheet, kept with Ring 0.
       : path.startsWith('/shared/') ? 'ring0' : root;

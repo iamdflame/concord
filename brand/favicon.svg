@@ -1,0 +1,12 @@
+<!-- Follows the reader's system colour scheme, which is what a browser
+     tab strip does. Do not use this in a document; use the mark. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <title>Concord</title>
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .ring { stroke: #e9e8e2 } .stop { fill: #dd5230 }
+    }
+  </style>
+  <path class="ring" d="M44.53 17.06A19.5 19.5 0 1 1 22.25 15.11" stroke="#181e24" stroke-width="7"/>
+  <rect x="14.75" y="7.61" width="15" height="15" class="stop" fill="#cf3100"/>
+</svg>

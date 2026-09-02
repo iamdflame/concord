@@ -1,0 +1,10 @@
+<!-- The commitment ladder drawn on the same ring: what can be released,
+     what can be reversed, what cannot be undone, in the order the executor
+     runs them. Explanatory, not a logo. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none" role="img" aria-label="The commitment ladder: reservable, compensable, irreversible">
+  <title>The commitment ladder</title>
+  <path d="M44.53 17.06A19.5 19.5 0 0 1 39.93 49.81" stroke="#0072a8" stroke-width="5.5"/>
+  <path d="M39.93 49.81A19.5 19.5 0 0 1 12.77 35.25" stroke="#187c49" stroke-width="5.5"/>
+  <path d="M12.77 35.25A19.5 19.5 0 0 1 22.25 15.11" stroke="#cf3100" stroke-width="5.5"/>
+  <rect x="15.75" y="8.61" width="13.0" height="13.0" fill="#cf3100"/>
+</svg>

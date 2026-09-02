@@ -22,7 +22,8 @@ const SHARED = ['config.mjs', 'origins.mjs', 'shim/webmcp.mjs', 'shim/adapter.mj
 // The shared look. Two bundles serve pages, and a palette copied into each is
 // two palettes that agree until someone edits one.
 const UI = ['ui/instrument.css', 'ui/fonts/serif-400.woff2', 'ui/fonts/serif-600.woff2',
-            'ui/fonts/mono-400.woff2', 'ui/fonts/mono-600.woff2'];
+            'ui/fonts/mono-400.woff2', 'ui/fonts/mono-600.woff2',
+            'brand/favicon.svg', 'brand/concord-mark-color.svg', 'brand/concord-mark-dark.svg'];
 
 /**
  * Rebuild a bundle without losing which project it deploys to.

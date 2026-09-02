@@ -9,6 +9,7 @@
 /* Before first paint, so a stored choice never flashes the other theme. */
 try{var t=localStorage.getItem('concord.theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
 </script>
+<link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/ui/instrument.css">
 <style>
 /* ── the document ──────────────────────────────────────────────────────── */
@@ -222,7 +223,7 @@ tr.stuck .answer{color:var(--irreversible-ink)}
 <a class="skip" href="#ask">Skip to the agent</a>
 
 <header class="masthead" role="banner">
-  <span class="wordmark">Concord</span>
+  <span class="wordmark"><svg class="mark" viewBox="0 0 64 64" width="21" height="21" fill="none" aria-hidden="true"><path d="M44.53 17.06A19.5 19.5 0 1 1 22.25 15.11" stroke="currentColor" stroke-width="5.5"/><rect x="15.75" y="8.61" width="13.0" height="13.0" fill="var(--irreversible)"/></svg>Concord</span>
   <span class="margin" id="sub">reading declarations…</span>
   <nav aria-label="About this project">
     <a href="https://github.com/iamdflame/concord/blob/main/SPEC.md">Spec</a>

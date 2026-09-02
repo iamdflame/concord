@@ -1,0 +1,9 @@
+<!-- Concord. A return path that cannot close.
+     Monochrome: inherits currentColor, so it takes the colour of whatever it
+     is set in. The square stays solid, because a mark whose only asymmetry is
+     a gap is a mark with no asymmetry at small sizes. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none" role="img" aria-label="Concord">
+  <title>Concord</title>
+  <path d="M44.53 17.06A19.5 19.5 0 1 1 22.25 15.11" stroke="currentColor" stroke-width="5.5"/>
+  <rect x="15.75" y="8.61" width="13.0" height="13.0" fill="currentColor"/>
+</svg>
