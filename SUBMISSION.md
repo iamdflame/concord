@@ -2,9 +2,11 @@
 
 **Live:** <https://concord-coordinator.vercel.app>
 **Repository:** <https://github.com/iamdflame/concord>
-**Verify a receipt yourself:** `npx concord-verify receipt.json`
-([on npm](https://www.npmjs.com/package/concord-verify) — nothing of ours runs)
+**Check a receipt on an origin that is not ours:** <https://concord-receipts.vercel.app>
+(or `npx concord-verify receipt.json` — [on npm](https://www.npmjs.com/package/concord-verify),
+nothing of ours runs)
 **Conformance, in your browser:** <https://concord-coordinator.vercel.app/conformance.html>
+— there is a box; put your own origin in it.
 
 ## In three sentences
 
@@ -151,6 +153,7 @@ way it judges these.
 
 ## Numbers
 
-80 unit tests over the protocol with no browser · 6 browser suites against real
-origins · 5 participants at conformance level L3 · 6 independent HTTPS
-deployments · 0 backends in the commitment path.
+86 unit tests over the protocol with no browser · 6 browser suites against real
+origins · 5 participants at conformance level L3 · 7 independent HTTPS
+deployments · 0 backends in the commitment path · 1 of those seven serves
+`Permissions-Policy: tools=()`, holds no key, and exists to check the other six.

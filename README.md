@@ -9,6 +9,7 @@ incapable of overpromising.
 [is WebMCP native here?](https://concord-coordinator.vercel.app/native.html) ·
 [SPEC.md](SPEC.md) ·
 [THREAT-MODEL.md](THREAT-MODEL.md) ·
+[check a receipt elsewhere](https://concord-receipts.vercel.app) ·
 [`npx concord-verify`](https://www.npmjs.com/package/concord-verify)
 
 ---
@@ -86,11 +87,13 @@ prompt.
 
 **<https://concord-coordinator.vercel.app>**
 
-Four independent businesses, each its own deployment on its own HTTPS origin —
+Six independent businesses, each its own deployment on its own HTTPS origin —
 [Northwind Air](https://concord-fly.vercel.app),
 [Rowan House](https://concord-stay.vercel.app),
 [Consular Fee](https://concord-visa.vercel.app),
-[Entry Permit](https://concord-permit.vercel.app). Separate projects, separate
+[Entry Permit](https://concord-permit.vercel.app),
+[Meridian Holdings](https://concord-meridian.vercel.app),
+[the Sandbox](https://concord-sandbox.vercel.app). Separate projects, separate
 origins, separate signing keys held by each vendor's own backend. The browser
 boundary between them is the real one; five paths on one host would have been a
 lie about the only thing this project claims.
@@ -136,10 +139,19 @@ round.
 ## Running it yourself
 
 ```bash
-npm run dev     # nine origins: the coordinator, four vendors, Ring 0's three
+npm run dev     # eleven origins: the coordinator, six participants,
+                # the receipt verifier, and Ring 0's three
 ```
 
 Then open <http://localhost:5173/concord.html> and break a vendor while it runs.
+Or kill the coordinator mid-commitment with *Go ahead, then kill the
+coordinator*, reload, and watch it find what is outstanding and ask each vendor
+what happened.
+
+```bash
+npm run check   # everything CI would run, including both round trips:
+                # a receipt checked on another origin, and a crash recovered
+```
 
 ```bash
 npm test                          # the protocol, without a browser
