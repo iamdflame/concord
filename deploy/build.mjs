@@ -134,6 +134,12 @@ async function buildApp(appOrigin) {
     ['app/conformance.html', 'conformance.html'],
     ['app/conformance.mjs', 'conformance.mjs'],
     ['spec/conformance.mjs', 'spec/conformance.mjs'],
+    // Self-hosted. A page whose argument is about who you trust should not open
+    // with a request to a third party's font server.
+    ['app/fonts/serif-400.woff2', 'fonts/serif-400.woff2'],
+    ['app/fonts/serif-600.woff2', 'fonts/serif-600.woff2'],
+    ['app/fonts/mono-400.woff2', 'fonts/mono-400.woff2'],
+    ['app/fonts/mono-600.woff2', 'fonts/mono-600.woff2'],
   ]) {
     await mkdir(join(bundle, dirname(to)), { recursive: true });
     await cp(join(root, from), join(bundle, to));

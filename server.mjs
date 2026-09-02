@@ -35,6 +35,7 @@ const TYPES = {
   '.css':  'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg':  'image/svg+xml',
+  '.woff2':'font/woff2',
 };
 
 // The spec requires an origin-keyed agent cluster for cross-document tool

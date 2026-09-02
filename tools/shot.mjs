@@ -8,6 +8,9 @@ import { join } from 'node:path';
 const CHROME = process.env.CHROME ?? 'google-chrome';
 const URL_ = process.env.URL ?? 'http://localhost:5173/monitor.html';
 const OUT = process.env.OUT ?? 'shot.png';
+const W = Number(process.env.W ?? 1400);
+const H = Number(process.env.H ?? 900);
+const FULL = process.env.FULL === '1';
 const STEPS = Number(process.env.STEPS ?? 0);   // ArrowLeft presses from the end
 const PORT = 9600 + Math.floor(Math.random() * 300);
 
@@ -41,12 +44,13 @@ try {
   await send('Runtime.enable', {}, sessionId);
   await send('Page.enable', {}, sessionId);
   await send('Emulation.setDeviceMetricsOverride',
-    { width: 1400, height: 900, deviceScaleFactor: 2, mobile: false }, sessionId);
+    { width: W, height: H, deviceScaleFactor: 2, mobile: false }, sessionId);
   await send('Page.navigate', { url: URL_ }, sessionId);
 
   for (let i = 0; i < 90; i++) {
     const { result } = await send('Runtime.evaluate',
-      { expression: 'Boolean(globalThis.__RING0_MONITOR__)', returnByValue: true }, sessionId);
+      { expression: 'Boolean(globalThis.__RING0_MONITOR__ || globalThis.__CONCORD_READY__ || globalThis.__CONCORD_ERROR__)',
+        returnByValue: true }, sessionId);
     if (result.value) break;
     await sleep(200);
   }
@@ -75,16 +79,17 @@ try {
       denied: document.getElementById('denied')?.textContent ?? '',
       chain: document.getElementById('chain')?.textContent ?? '',
       settled: document.getElementById('settled')?.textContent.trim().slice(0,70) ?? '',
-      outcome: document.querySelector('.outcome b')?.textContent ?? '',
+      outcome: document.querySelector('.outcome h2')?.textContent ?? '',
       stranded: document.querySelector('.outcome p')?.textContent?.slice(0,180) ?? '',
-      pending: document.querySelector('.pending b')?.textContent ?? '',
+      pending: document.querySelector('.pending h2')?.textContent ?? '',
       pendingDetail: document.querySelector('.pending ul, .pending p:last-of-type')?.textContent?.trim().slice(0,150) ?? '',
-      receipt: document.querySelector('.rstate')?.textContent ?? '',
-      receiptDetail: document.querySelector('.receipt .rfoot')?.textContent?.trim().slice(0,110) ?? '',
+      receipt: document.querySelector('.receipt .seal')?.textContent ?? '',
+      receiptDetail: document.querySelector('.receipt p')?.textContent?.trim().slice(0,110) ?? '',
     })`, returnByValue: true }, sessionId);
   console.log(state.value);
 
-  const { data } = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+  const { data } = await send('Page.captureScreenshot',
+    { format: 'png', ...(FULL && { captureBeyondViewport: true }) }, sessionId);
   await writeFile(OUT, Buffer.from(data, 'base64'));
   console.log(`saved ${OUT}`);
 } finally {

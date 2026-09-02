@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { AgentSurface, Refused } from './agent-surface.mjs';
 import { OUTCOME } from './saga.mjs';
 
@@ -26,10 +27,26 @@ function surface(participants = [fly, stay, visa]) {
 test('the surface offers no way to move money', () => {
   // The safety property is the shape of the tools, not a prompt asking an agent
   // to behave. There is nothing here that spends anything directly.
-  const callable = Object.getOwnPropertyNames(AgentSurface.prototype)
-    .filter((n) => n !== 'constructor')
-    .filter((n) => typeof Object.getOwnPropertyDescriptor(AgentSurface.prototype, n).value === 'function');
-  assert.deepEqual(callable.sort(), ['commit', 'explain', 'listVendors', 'propose']);
+  //
+  // What is asserted is what an agent can actually reach -- the tools published
+  // over WebMCP -- and not every method on the class. Those are two different
+  // sets, and the earlier version of this test conflated them: `update` is how
+  // the coordinator hands the surface a fresh participant list after
+  // rediscovery, it is deliberately never registered, and an assertion over
+  // prototype methods failed the moment it existed while proving nothing about
+  // what an agent could call.
+  //
+  // agent-tools.mjs imports over browser-absolute paths and cannot be loaded
+  // here, so its registrations are read out of the source. That is a weaker
+  // mechanism and a stronger claim: it fails if a fifth tool is ever added,
+  // whatever that tool happens to do.
+  const src = readFileSync(new URL('../app/agent-tools.mjs', import.meta.url), 'utf8');
+  const registered = [...src.matchAll(/registerTool\(\{\s*\n\s*name: '([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(registered.sort(),
+    ['concord_commit', 'concord_explain_guarantee', 'concord_list_vendors',
+     'concord_propose_commitment']);
+  assert.equal(registered.length, (src.match(/registerTool\(/g) ?? []).length,
+    'every registration must be one of the four named above');
 
   // And of those, exactly one has any effect in the world.
   const { s } = surface();
