@@ -138,6 +138,8 @@ code,.mono{font-family:var(--mono);font-size:var(--t-data)}
 }
 .masthead a:hover,.masthead button.link:hover{color:var(--ink);text-decoration:underline}
 .masthead a[aria-current]{color:var(--ink);font-weight:600}
+/* A participant that did not turn up is worth noticing, and is not an error. */
+.margin.short{color:var(--irreversible-ink)}
 
 main{padding:clamp(28px,5vw,56px) clamp(20px,5vw,64px) 80px;max-width:1080px;margin-inline:auto}
 

@@ -400,7 +400,7 @@ the native API.
 
 ## Tests
 
-**98 assertions with no browser**, six browser suites against real origins, and
+**102 assertions with no browser**, six browser suites against real origins, and
 two end-to-end round trips that had never been checked before they were written.
 
 The protocol core is pure and tested without a browser: ordering, reverse unwind,
@@ -423,6 +423,11 @@ only be a sentence in this file:
   of `ui/instrument.css` and puts every pair that carries meaning through the
   WCAG formula against both grounds in both themes. A token edited to something
   unreadable fails the build rather than the reader.
+- **[`concord/discovery.test.mjs`](concord/discovery.test.mjs)** requires that one
+  unreachable participant does not hide the other five. It pins a real failure:
+  `getTools({ fromOrigins })` rejects for the whole call when any one origin
+  cannot be reached, discovery batched them, and a single dead site produced
+  "0 of 6 answered" and a failure screen with five participants healthy.
 
 `deploy/verify-live.mjs` confirms each deployed origin answers, carries the
 headers the cross-origin path needs, publishes a key that does not change between
@@ -479,6 +484,16 @@ recovery depends on, and they are still `localStorage` — so a user can edit th
 and a private window is a vendor with no memory. Real vendors have databases.
 That is a property of these reference participants rather than of the protocol,
 and it is the same port as the paragraph above.
+
+**An agent that can click bypasses the tool surface.** "Structurally incapable
+of overpromising" is a property of Concord's tool surface, not of the browser. A
+computer-use agent, or an extension with DOM access, can click *Accept this
+guarantee* itself — no permission model built out of `registerTool` can stop
+that, because the thing being bypassed is not a tool. What it still cannot do is
+make an unpromisable plan committable, commit a guarantee that was never
+displayed, or alter a receipt signed by counterparties. It defeats *the human's*
+consent, not the guarantee. Written up in
+[THREAT-MODEL.md](THREAT-MODEL.md#an-agent-that-can-click-bypasses-the-tool-surface-entirely).
 
 **A participant can lie about its commitment surface**, and no protocol can
 prevent it. Meridian Holdings demonstrates it on the live deployment. The result

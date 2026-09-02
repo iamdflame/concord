@@ -101,9 +101,12 @@ standing — which is why the date matters and deleting the key would not do.
 
 ### An agent commits without disclosing what it is promising
 
-`concord_commit` refuses a proposal whose guarantee has not been read back, and
-refuses any plan the ladder would not guarantee. There is no tool on the agent's
-surface that moves money directly.
+`concord_commit` is not registered until a person has accepted the guarantee,
+and a refused plan never produces one to accept. An agent that has proposed and
+explained still has no tool to call: explaining is not consent. What it accepts
+is bound to the SHA-256 of the explanation it was shown, so a second proposal
+cannot inherit the first one's acceptance. There is no tool on the surface that
+moves money directly, and none that grants permission.
 
 ### A page is compromised and asks its own backend to sign
 
@@ -141,6 +144,36 @@ declined to reverse.
 
 Selective disclosure protects participants from each other. It does not protect
 them from the coordinator, which necessarily sees everything it orders.
+
+### An agent that can click bypasses the tool surface entirely
+
+This is the honest boundary of the headline claim, and it is worth stating
+plainly: **"structurally incapable of overpromising" is a property of Concord's
+tool surface, not of the browser.** An agent driving a mouse — a computer-use
+agent, an extension with DOM access, a script in the page's own context — can
+click *Accept this guarantee* itself. No permission model built out of
+`registerTool` can prevent that, because the thing being bypassed is not a
+tool.
+
+What such an agent still cannot do is worth being equally precise about:
+
+- It cannot make an unpromisable plan committable. There is no button on a
+  refusal to click, because the ladder computed the refusal before anything was
+  contacted.
+- It cannot commit a guarantee that was never displayed. The accept path hashes
+  the explanation the page actually rendered and refuses if that is not the
+  explanation the surface issued.
+- It cannot cause the coordinator to promise atomicity it cannot deliver, and it
+  cannot alter the receipt: every statement in it is signed by a counterparty
+  whose key never entered this page.
+
+So what a clicking agent defeats is *the human's* consent, not the guarantee.
+It can accept a promise nobody read; it cannot manufacture a promise nobody can
+keep. Closing the first properly needs something the browser does not currently
+offer — a user activation an automated click cannot produce, distinguishable
+from a real one. `navigator.userActivation` does not draw that line, and neither
+does a trusted-events check, since an extension with DOM access dispatches
+trusted events.
 
 ### The result in a statement still originates in the page
 

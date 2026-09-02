@@ -48,11 +48,48 @@ export function createSuite(name) {
 }
 
 /**
+ * Wait for participants, and report who arrived and who did not.
+ *
+ * Each origin is asked on its own. A batched getTools({ fromOrigins }) rejects
+ * for the whole call when one origin is unreachable, which made a single dead
+ * participant look like six dead participants -- and took the coordinator's
+ * page down with it.
+ *
+ * This resolves rather than rejects. Who is present is a fact the caller has to
+ * act on, not an exception: a commitment is over whoever granted, and a
+ * coordinator that refuses to start because one site is down is a coordinator
+ * that has made itself as fragile as the marketplace it replaces. Deciding
+ * what to do about an absence belongs to whoever is going to display it.
+ */
+export async function awaitParticipants(ctx, origins, ms = 8000) {
+  const deadline = Date.now() + ms;
+  const present = new Map();
+
+  for (;;) {
+    await Promise.all(origins.map(async (origin) => {
+      if (present.has(origin)) return;
+      try {
+        const tools = await ctx.getTools({ fromOrigins: [origin] });
+        if (tools.some((t) => t.origin === origin && t.name === 'concord.protocol')) {
+          present.set(origin, tools);
+        }
+      } catch { /* this one is not here; the others still might be */ }
+    }));
+    if (present.size === origins.length || Date.now() > deadline) break;
+    await new Promise((r) => setTimeout(r, 120));
+  }
+
+  return {
+    present: origins.filter((o) => present.has(o)),
+    absent: origins.filter((o) => !present.has(o)),
+  };
+}
+
+/**
  * Resolves once a predicate holds over discovered tools, rather than on a sleep.
  *
- * On timeout it rejects. Resolving with whatever had arrived meant discovery
- * could silently come back short, a plan be computed over an incomplete set of
- * vendors, and a guarantee be displayed about parties never reached.
+ * Kept for the phase suites, which are testing one origin at a time and do want
+ * a rejection when it never appears.
  */
 export function awaitTools(ctx, origins, predicate, ms = 8000) {
   return new Promise((resolve, reject) => {

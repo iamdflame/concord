@@ -37,11 +37,23 @@ export function schemaOf(tool) {
 }
 
 export async function discover(ctx, origins) {
-  const tools = await ctx.getTools({ fromOrigins: origins });
   const participants = [];
 
   for (const origin of origins) {
-    const mine = tools.filter((t) => t.origin === origin);
+    // One origin at a time, on purpose.
+    //
+    // getTools({ fromOrigins }) rejects for the whole call when any one of the
+    // origins cannot be reached -- so a single participant being down did not
+    // hide that participant, it hid all of them. The coordinator then reported
+    // "0 of 6 answered" with five of them healthy and replaced the page with a
+    // failure screen. A design whose premise is that participants are
+    // independent must not have a discovery path where they are not.
+    let mine = [];
+    try {
+      mine = (await ctx.getTools({ fromOrigins: [origin] })).filter((t) => t.origin === origin);
+    } catch {
+      continue;   // absent, and the caller is told which by comparing origins
+    }
     const declaration = mine.find((t) => t.name === 'concord.protocol');
     // A vendor that will not say what it can commit to is not a participant.
     // Guessing on its behalf is how you end up promising atomicity you cannot

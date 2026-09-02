@@ -7,7 +7,7 @@
 // promise exists, the button is not on the page.
 
 import { resolveModelContext } from '/shim/adapter.mjs';
-import { awaitTools } from '/kit/harness.mjs';
+import { awaitParticipants } from '/kit/harness.mjs';
 import { discover, bind, withInputs } from '/concord/client.mjs';
 import { plan, describe, GUARANTEE, RUNG } from '/concord/ladder.mjs';
 import { runSaga, OUTCOME } from '/concord/saga.mjs';
@@ -78,7 +78,15 @@ const duration = (s) => {
  * A blank page is the worst thing a first-time visitor can be handed, and it is
  * the failure mode most likely to happen on someone else's machine.
  */
+let dead = false;
+
 function fatal(err, context) {
+  // Terminal. fatal() replaces the whole document body, so anything that runs
+  // afterwards and touches an element inside it gets null -- which is how a
+  // principled refusal to start ended up printing "Cannot set properties of
+  // null" in the console beside it, and reading to a visitor as a crash.
+  if (dead) return;
+  dead = true;
   const main = document.querySelector('main');
   const detail = String(err?.message ?? err);
   if (main) {
@@ -87,10 +95,11 @@ function fatal(err, context) {
       <h1>${esc(context)}</h1>
       <p>${esc(detail)}</p>
       <ul>
-        <li>Concord needs its participant origins running. Start them with
-          <code>npm run dev</code> and reload — they are separate origins on
-          ${esc(VENDOR_ORIGINS.join(', '))}, and the coordinator deliberately cannot
-          proceed without hearing from all of them.</li>
+        <li>Not one participant answered. Concord plans over whoever is present, so it
+          only stops when there is nobody at all — with a single site here it would
+          still tell you what that site can promise.</li>
+        <li>Locally, start them with <code>npm run dev</code>: they are separate origins
+          on ${esc(VENDOR_ORIGINS.join(', '))}.</li>
         <li>Nothing was contacted and nothing is outstanding. A commitment that cannot be
           planned is never started.</li>
       </ul>
@@ -148,6 +157,7 @@ const NEVER = ['concord_commit'];
 let lastSurfaceChange = 'nothing has been asked yet';
 
 function paintReach(live = []) {
+  if (dead) return;
   // The names come in as an argument rather than being read back off the
   // surface: the first reconcile happens inside publishAgentTools, before the
   // const holding it is assigned, and `surface?.` does not save you from a
@@ -204,13 +214,24 @@ $('tabs').addEventListener('click', (e) => {
   for (const f of $('frames').children) f.hidden = f.id !== tab.dataset.id;
 });
 
-let ctx;
+let ctx, provider, absent = [];
 try {
-  ({ ctx } = await resolveModelContext());
-  await awaitTools(ctx, ALL, (t) =>
-    ALL.every((o) => t.some((x) => x.origin === o && x.name === 'concord.protocol')));
+  ({ ctx, provider } = await resolveModelContext());
+  // Whoever granted. Not everyone.
+  //
+  // Requiring all six was the wrong shape for this argument: a commitment is
+  // over the participants that are present, and a coordinator that will not
+  // start because one unrelated site is down has made itself exactly as
+  // fragile as the marketplace it exists to replace. The absent ones are named
+  // on the page instead, which is more useful than a failure screen and more
+  // honest than pretending they were considered.
+  ({ absent } = await awaitParticipants(ctx, ALL));
+  if (absent.length === ALL.length) {
+    throw new Error(`none of the ${ALL.length} participants answered within 8s `
+      + `(${ALL.join(', ')})`);
+  }
 } catch (err) {
-  fatal(err, 'The vendors could not be reached');
+  fatal(err, 'No participant could be reached');
   throw err;
 }
 
@@ -228,11 +249,11 @@ journal.prune().catch(() => {});
 let discovered;
 try {
   discovered = await discover(ctx, ALL);
-  if (discovered.length < ALL.length) {
-    throw new Error(`only ${discovered.length} of ${ALL.length} vendors declared a commitment protocol`);
+  if (!discovered.length) {
+    throw new Error('no participant declared a commitment protocol');
   }
 } catch (err) {
-  fatal(err, 'A vendor would not say what it can commit to');
+  fatal(err, 'No participant would say what it can commit to');
   throw err;
 }
 let running = false;
@@ -269,12 +290,22 @@ const surface = await publishAgentTools({
  *  its declared id need not match the key we filed it under, and one of them
  *  deliberately does not. */
 function markLive() {
+  if (dead) return;
   askTheme();
   const up = new Set(discovered.map((p) => p.origin));
+  const missing = [];
   for (const el of document.querySelectorAll('[data-dot]')) {
-    el.className = `dot ${up.has(ORIGINS[el.dataset.dot]) ? 'live' : 'broken'}`;
+    const here = up.has(ORIGINS[el.dataset.dot]);
+    el.className = `dot ${here ? 'live' : 'broken'}`;
+    if (!here) missing.push(TITLES[el.dataset.dot] ?? el.dataset.dot);
   }
-  $('sub').textContent = `${discovered.length} declarations read`;
+  // Both facts a visitor needs and neither of which was on this page: which
+  // WebMCP implementation is running, and who did not turn up. A missing
+  // participant is a smaller, truer statement than a failure screen.
+  $('sub').textContent = `${provider === 'native' ? 'native WebMCP' : 'polyfill'} · `
+    + `${discovered.length} of ${ALL.length} declarations read`
+    + (missing.length ? ` · ${missing.join(' and ')} did not answer` : '');
+  $('sub').classList.toggle('short', missing.length > 0);
 }
 markLive();
 
@@ -351,6 +382,7 @@ function showPromise(promise, andThen) {
 }
 
 function paintPromise(promise, refused) {
+  if (dead) return;
   proposal = promise;
 
   $('verdict').textContent = HEADLINE[promise.guarantee] ?? promise.guarantee;
@@ -663,6 +695,7 @@ function killAfter(call, n) {
  * nothing else on the page matters while it is true.
  */
 async function showPending() {
+  if (dead) return;
   const outstanding = await journal.incomplete();
   if (!outstanding.length) { $('pending').innerHTML = ''; return; }
 
