@@ -450,12 +450,30 @@ signature against the real key document.
 
 Stated here rather than left to be found.
 
-**The native API is unverified.** This was built against Chrome 134, which
-predates WebMCP, so every run reports `provider=shim`. `shim/adapter.mjs`
-prefers native on both spellings and arguments go out as the JSON string
-Chrome's API specifies, but nothing here has executed against the real
-implementation. Run `npm run probe:concord` on Chrome 149+ with the origin
-trial; if it prints `provider=native`, the platform claim is earned.
+**The native API is verified.** It was not, until it was run. On Chrome 151
+against the live deployment, `provider=native`: the integration suite passes
+20/20, every participant reaches conformance L3, and a commitment completes
+across five separate HTTPS origins with a receipt that verifies.
+
+Running it natively found two things the polyfill could never have surfaced,
+which is the whole argument for doing it:
+
+- **The coordinator was not delegating `tools` to the origins it embeds.**
+  `allow="tools"` delegates a feature the *embedder* already has, and the
+  coordinator's `Permissions-Policy` named only itself. Every participant
+  registered its tools happily and the coordinator saw none of them, with no
+  error anywhere. Under a polyfill that enforces none of this, it worked
+  perfectly.
+- **Chrome returns `inputSchema` as a JSON string**, where the polyfill returns
+  the object. Reading `.properties` off it yields nothing, so anything driving a
+  tool from its own declaration silently sent no arguments.
+
+You can check this yourself:
+[**is WebMCP native here?**](https://concord-coordinator.vercel.app/native.html)
+reports which implementation your browser has and then checks each behaviour
+this project depends on — `exposedTo`, `getTools({fromOrigins})`, whether
+`executeTool` takes a JSON string, duplicate-name rejection, `AbortSignal`
+revocation, `toolchange`.
 
 **A confirm fan-out can partially commit.** With several reservable vendors,
 confirming is a sequence: a late failure leaves earlier confirms standing. That

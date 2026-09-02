@@ -41,6 +41,9 @@ const TYPES = {
 // access. Without this header the browser may bucket same-site documents into
 // one agent cluster and getTools() will come back empty with no error, which
 // is a genuinely difficult failure to diagnose.
+// Every origin delegates to every other locally. Deployed, the split matters --
+// the coordinator must name what it embeds -- and getting it wrong there is
+// invisible under the polyfill, which enforces none of this.
 const ALLOWED = Object.keys(ORIGINS).map((p) => `"http://localhost:${p}"`).join(' ');
 
 function headers(type) {

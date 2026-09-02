@@ -14,6 +14,7 @@
 import { classify } from '../concord/ladder.mjs';
 import { canonical } from '../kit/canonical.mjs';
 import { fetchKeys, verifyStatement, keyValidAt } from '../concord/receipt.mjs';
+import { schemaOf } from '../concord/client.mjs';
 
 const RUNGS = { 3: 'reservable', 2: 'compensable', 1: 'irreversible' };
 
@@ -73,7 +74,7 @@ export async function conform({ ctx, origin, exec }) {
   if (status) {
     note(2, 'status-is-read-only', '§8', status.annotations?.readOnlyHint === true,
       'concord.status MUST perform nothing');
-    const params = Object.keys(status.inputSchema?.properties ?? {});
+    const params = Object.keys(schemaOf(status)?.properties ?? {});
     note(2, 'status-parameter-name', '§8', params.includes('lookupKey') && !params.includes('idempotencyKey'),
       `takes [${params.join(', ')}] — reusing "idempotencyKey" means the key being asked about is `
       + 'overwritten by the key of the asking');
@@ -151,7 +152,7 @@ const strip = (v) => {
 /** Plausible values for a participant's own declared parameters. */
 function sampleArgs(tool) {
   const out = {};
-  for (const [k, spec] of Object.entries(tool.inputSchema?.properties ?? {})) {
+  for (const [k, spec] of Object.entries(schemaOf(tool)?.properties ?? {})) {
     if (['idempotencyKey', 'sagaId', 'parties', 'plan'].includes(k)) continue;
     out[k] = spec.enum?.[0] ?? (spec.type === 'number' ? 1 : `conformance-${k}`);
   }

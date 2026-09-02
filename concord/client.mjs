@@ -20,6 +20,22 @@ async function invokeTool(ctx, tool, args, signal) {
   try { return JSON.parse(raw); } catch { return raw; }   // …or a bare string, per the docs
 }
 
+/**
+ * A tool's input schema, whichever way the implementation hands it over.
+ *
+ * Chrome returns inputSchema as a JSON string on a RegisteredTool; the polyfill
+ * returns the object it was registered with. Reading `.properties` off the
+ * string quietly yields nothing, so anything driving a tool from its own
+ * declaration silently sends no arguments -- which then fails validation for a
+ * reason that has nothing to do with the real problem.
+ */
+export function schemaOf(tool) {
+  const raw = tool?.inputSchema;
+  if (!raw) return null;
+  if (typeof raw !== 'string') return raw;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
 export async function discover(ctx, origins) {
   const tools = await ctx.getTools({ fromOrigins: origins });
   const participants = [];

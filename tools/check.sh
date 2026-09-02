@@ -25,7 +25,7 @@ until curl -sf -o /dev/null http://localhost:5181/; do sleep 0.3; done
 for page in concord-test.html conformance.html native.html; do
   printf '  %-24s ' "$page"
   URL="http://localhost:5173/$page" node tools/probe.mjs 2>&1 \
-    | grep -oE 'CONCORD (PASSED|FAILED)|^PASS|^FAIL|NO native WebMCP[^—]*' | head -1 || true
+    | grep -oE 'CONCORD (PASSED|FAILED)|NATIVE WebMCP is present|NO native WebMCP|^PASS|^FAIL' | head -1 || true
 done
 
 echo ""

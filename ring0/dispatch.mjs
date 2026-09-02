@@ -91,10 +91,13 @@ export class Kernel {
     validate(tool.inputSchema, args, toolId);
 
     const started = performance.now();
-    const raw = await this.#ctx.executeTool(tool, args, { signal: options.signal });
+    // Chrome's API takes arguments as a JSON string and returns one. Passing an
+    // object is rejected with "Failed to parse input arguments" -- which the
+    // polyfill accepted, so this only ever failed on the real thing.
+    const raw = await this.#ctx.executeTool(tool, JSON.stringify(args), { signal: options.signal });
     const ms = Math.max(1, Math.round(performance.now() - started));
-    let value;
-    try { value = JSON.parse(raw); } catch { value = raw; }
+    let value = raw;
+    if (typeof raw === 'string') { try { value = JSON.parse(raw); } catch { value = raw; } }
 
     // Propagate. Everything a tool returns carries its origin; a tool that
     // declared itself a source of untrusted content also carries UNTRUSTED.

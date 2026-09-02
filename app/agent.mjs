@@ -28,35 +28,66 @@ const REVERSIBLE_ONLY = /\b(refundable|reversible|can'?t take back|cannot take b
  * rather than implied, because a demo that quietly degrades is a demo that
  * lies about what it is.
  */
-export async function makeReader() {
-  try {
-    const LM = globalThis.LanguageModel ?? globalThis.ai?.languageModel;
-    if (LM && (await LM.availability?.()) !== 'unavailable') {
-      const session = await LM.create({
-        initialPrompts: [{ role: 'system', content:
-          'You choose which vendors a travel request needs. Reply with only a JSON array of ids '
-          + 'from the list you are given, no prose.' }],
-      });
-      return {
-        kind: "Chrome's built-in model",
-        async read(text, vendors) {
-          const reply = await session.prompt(
-            `Vendors: ${JSON.stringify(vendors.map((v) => ({ id: v.id, title: v.title })))}\n`
-            + `Request: ${text}\nWhich ids are needed?`);
-          const ids = JSON.parse(reply.match(/\[[\s\S]*\]/)?.[0] ?? '[]');
-          return { ids: ids.filter((id) => vendors.some((v) => v.id === id)), reversibleOnly: REVERSIBLE_ONLY.test(text) };
-        },
-      };
-    }
-  } catch { /* fall through to reading it here */ }
-
+/** Reading a request without a model. Always available, and the fallback. */
+function localReader(kind) {
   return {
-    kind: 'a local intent reader (this browser has no built-in model)',
+    kind,
     async read(text, vendors) {
       const ids = VENDOR_WORDS.filter((v) => v.words.test(text))
         .map((v) => v.id)
         .filter((id) => vendors.some((v) => v.id === id));
       return { ids, reversibleOnly: REVERSIBLE_ONLY.test(text) };
+    },
+  };
+}
+
+export async function makeReader({ onFallback } = {}) {
+  const local = localReader('a local intent reader (this browser has no built-in model)');
+  let session = null;
+
+  try {
+    const LM = globalThis.LanguageModel ?? globalThis.ai?.languageModel;
+    if (LM && (await LM.availability?.()) !== 'unavailable') {
+      session = await LM.create({
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+        initialPrompts: [{ role: 'system', content:
+          'You choose which vendors a travel request needs. Reply with only a JSON array of ids '
+          + 'from the list you are given, no prose.' }],
+      });
+    }
+  } catch { session = null; }
+
+  if (!session) return local;
+
+  // Present is not the same as usable. Chrome can report a built-in model and
+  // then answer "there was not an execution config available for the feature",
+  // which arrives when the request is made rather than when the session is
+  // created. Committing to it at startup and discovering that mid-conversation
+  // is how a demo dies in front of somebody, so a failure at use falls back for
+  // good and says which brain is now answering.
+  let usable = true;
+  return {
+    get kind() {
+      return usable ? "Chrome's built-in model"
+        : 'a local intent reader (the built-in model would not run)';
+    },
+    async read(text, vendors) {
+      if (usable) {
+        try {
+          const reply = await session.prompt(
+            `Vendors: ${JSON.stringify(vendors.map((v) => ({ id: v.id, title: v.title })))}\n`
+            + `Request: ${text}\nWhich ids are needed?`);
+          const ids = JSON.parse(reply.match(/\[[\s\S]*\]/)?.[0] ?? '[]');
+          const chosen = ids.filter((id) => vendors.some((v) => v.id === id));
+          // An empty answer is not an answer; read it here instead.
+          if (chosen.length) return { ids: chosen, reversibleOnly: REVERSIBLE_ONLY.test(text) };
+          usable = false;
+        } catch {
+          usable = false;
+        }
+        onFallback?.();
+      }
+      return local.read(text, vendors);
     },
   };
 }

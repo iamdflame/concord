@@ -16,7 +16,8 @@ import { LIVE } from '../origins.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, '.deploy');
 
-const SHARED = ['config.mjs', 'origins.mjs', 'shim/webmcp.mjs', 'shim/adapter.mjs', 'kit/canonical.mjs'];
+const SHARED = ['config.mjs', 'origins.mjs', 'shim/webmcp.mjs', 'shim/adapter.mjs',
+                'kit/canonical.mjs'];
 
 async function copy(bundle, files) {
   for (const f of files) {
@@ -25,15 +26,24 @@ async function copy(bundle, files) {
   }
 }
 
-/** Headers the cross-origin tool path actually requires. */
-const headersFor = (appOrigin) => [{
+/**
+ * Headers the cross-origin tool path actually requires.
+ *
+ * The allowlist differs by side, and getting it the same on both is the bug
+ * that only shows up on the real API. `allow="tools"` delegates a feature the
+ * *embedder* already has, so the coordinator's policy must name the origins it
+ * embeds. Naming only itself, it had nothing to delegate: every vendor
+ * registered its tools happily and the coordinator saw none of them, with no
+ * error anywhere -- which is precisely how a polyfill that enforces none of
+ * this hides the problem until you run it in a browser.
+ */
+const headersFor = (allow) => [{
   source: '/(.*)',
   headers: [
-    // Cross-document tool access requires an origin-keyed agent cluster. Without
-    // it getTools() comes back empty with no error, which is a hard thing to
-    // diagnose from the outside.
+    // Cross-document tool access requires an origin-keyed agent cluster.
+    // Without it getTools() comes back empty, also with no error.
     { key: 'Origin-Agent-Cluster', value: '?1' },
-    { key: 'Permissions-Policy', value: `tools=(self "${appOrigin}")` },
+    { key: 'Permissions-Policy', value: `tools=(self ${allow.map((o) => `"${o}"`).join(' ')})` },
   ],
 }];
 
@@ -85,7 +95,8 @@ export default async function handler(req, res) {
       { source: '/.well-known/concord.json', destination: '/api/wellknown' },
       { source: '/_concord/sign', destination: '/api/sign' },
     ],
-    headers: headersFor(appOrigin),
+    // A participant delegates back to the coordinator that embeds it.
+    headers: headersFor([appOrigin]),
   }, null, 2));
 
   await writeFile(join(bundle, 'package.json'), JSON.stringify({
@@ -100,7 +111,8 @@ async function buildApp(appOrigin) {
   await rm(bundle, { recursive: true, force: true });
   await mkdir(bundle, { recursive: true });
 
-  await copy(bundle, SHARED);
+  // The suite harness lives with the other shared machinery now.
+  await copy(bundle, [...SHARED, 'kit/harness.mjs']);
   await mkdir(join(bundle, 'concord'), { recursive: true });
   for (const f of ['ladder.mjs', 'saga.mjs', 'journal.mjs', 'recover.mjs', 'receipt.mjs',
                    'client.mjs', 'agent-surface.mjs']) {
@@ -111,9 +123,12 @@ async function buildApp(appOrigin) {
     ['app/concord.mjs', 'concord.mjs'],
     ['app/agent.mjs', 'agent.mjs'],
     ['app/agent-tools.mjs', 'agent-tools.mjs'],
-    ['app/harness.mjs', 'harness.mjs'],
     // The conformance suite ships with the deployment, so anyone can point it
     // at these participants -- or their own -- without cloning anything.
+    // The integration suite ships too: "the protocol against real origins" is
+    // worth more when the origins are the deployed ones and anyone can run it.
+    ['app/concord-test.html', 'concord-test.html'],
+    ['app/concord-test.mjs', 'concord-test.mjs'],
     ['app/native.html', 'native.html'],
     ['app/native.mjs', 'native.mjs'],
     ['app/conformance.html', 'conformance.html'],
@@ -129,8 +144,10 @@ async function buildApp(appOrigin) {
     .replace('./concord.mjs', '/concord.mjs');
   await writeFile(join(bundle, 'index.html'), html);
 
+  // The coordinator delegates to every origin it embeds. This is the half that
+  // was missing, and it is the half that matters.
   await writeFile(join(bundle, 'vercel.json'), JSON.stringify({
-    headers: headersFor(appOrigin),
+    headers: headersFor(VENDORS.map((id) => LIVE[id]).filter(Boolean)),
   }, null, 2));
   await writeFile(join(bundle, 'package.json'), JSON.stringify({
     name: 'concord-app', private: true, type: 'module',

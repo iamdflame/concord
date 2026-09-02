@@ -200,7 +200,9 @@ function clearPromise() {
 }
 
 // ── the conversation ──────────────────────────────────────────────────────
-const reader = await makeReader();
+// The label follows the brain, including when it changes mid-conversation
+// because the built-in model turned out not to run.
+const reader = await makeReader({ onFallback: () => { $('brain').textContent = reader.kind; } });
 $('brain').textContent = reader.kind;
 
 function say(who, text, extra = {}) {

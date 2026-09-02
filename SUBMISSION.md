@@ -100,12 +100,22 @@ someone wrote, is not something that existed before.
   also enforced by the coordinator, which does not assume a participant honours
   cancellation.
 
-**Where WebMCP is unavailable** the project installs a spec-faithful shim over
-`postMessage` and says so on every run (`provider=shim`). It was developed
-against Chrome 134, which predates the origin trial, so the native path is
-implemented and unverified — that caveat is printed by the test harness and
-stated in the README rather than buried. `shim/adapter.mjs` prefers native on
-both spellings.
+**Verified on the native API.** On Chrome 151 against the live deployment the
+harness reports `provider=native`, the integration suite passes 20/20, and all
+five participants reach conformance L3. Open
+<https://concord-coordinator.vercel.app/native.html> in any browser and it will
+tell you which implementation you have and whether each behaviour this depends
+on holds there.
+
+Running it natively is also what found the two defects a polyfill can never
+surface: the coordinator was not delegating `tools` to the origins it embeds,
+so every participant registered and none was discoverable; and Chrome returns
+`inputSchema` as a JSON string where the polyfill returns an object. Both are
+fixed, and both worked flawlessly under the shim — which is the argument for
+never trusting one.
+
+**Where WebMCP is unavailable** the project installs a spec-faithful polyfill
+over `postMessage` and says which is running on every single run.
 
 ## Objections, answered before they are raised
 
