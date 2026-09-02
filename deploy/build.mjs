@@ -180,6 +180,7 @@ async function buildApp(appOrigin) {
     ['app/concord.mjs', 'concord.mjs'],
     ['app/agent.mjs', 'agent.mjs'],
     ['app/agent-tools.mjs', 'agent-tools.mjs'],
+    ['app/reconciler.mjs', 'reconciler.mjs'],
     // The conformance suite ships with the deployment, so anyone can point it
     // at these participants -- or their own -- without cloning anything.
     // The integration suite ships too: "the protocol against real origins" is

@@ -43,6 +43,13 @@ for page in concord-test.html conformance.html native.html; do
 done
 
 echo ""
+echo "── the surface: what an agent may call, and when ──"
+# The central claim, checked through the same getTools() an agent would call.
+# concord_commit must not exist until a person has accepted the exact guarantee
+# they were shown, and must stop existing the moment that stops being true.
+node evals/surface.mjs 2>&1 | sed -n '/^  [✓✗]/p;/^SURFACE/p' | sed 's/^/  /'
+
+echo ""
 echo "── a receipt, checked on an origin that is not ours ─"
 # The claim is that a receipt survives leaving the coordinator. The only way to
 # know is to take one somewhere else and ask, so that is what this does: run a
@@ -73,10 +80,12 @@ if [ -z "$RECEIPT" ]; then echo "NO RECEIPT PRODUCED"; else
       await globalThis.__CONCORD_CHECK__(JSON.stringify(r), "tampered");
       const forged = globalThis.__CONCORD_VERDICT__;
       const coordinator = new URL(document.getElementById("coordLink").href).origin;
+      const entries = globalThis.__CONCORD_RECEIPT__?.entries?.length ?? 0;
       $("verdict").textContent =
-        (honest.ok && !forged.ok && !honest.reached.includes(coordinator)
+        (honest.ok && !forged.ok && entries >= 3 && !honest.reached.includes(coordinator)
           ? "RECEIPT PASSED" : "RECEIPT FAILED")
-        + ` honest=${honest.ok} tampered=${forged.ok} asked-coordinator=${honest.reached.includes(coordinator)}`;})()' \
+        + ` honest=${honest.ok} tampered=${forged.ok} statements=${entries}`
+        + ` asked-coordinator=${honest.reached.includes(coordinator)}`;})()' \
   node tools/shot.mjs 2>/dev/null | head -1 | node -e \
   'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).head||"NO ANSWER"))'
 fi

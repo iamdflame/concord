@@ -21,7 +21,7 @@ instructions.
 ## Who is trusted, and for what
 
 **Each participant is trusted about itself.** It says what it can commit to and
-whether a step happened. It can lie about both (§15.1 of SPEC.md), and the
+whether a step happened. It can lie about both (§16.1 of SPEC.md), and the
 receipt makes the lie attributable rather than preventing it.
 
 **TLS and the browser's origin model.** Key resolution rests entirely on
@@ -152,7 +152,7 @@ port a production deployment has to make, and it is the difference between
 
 ### A confirm fan-out can partially commit
 
-See SPEC.md §15.2. Not a defect in the implementation; a property of the
+See SPEC.md §16.2. Not a defect in the implementation; a property of the
 setting.
 
 ### Browser extensions

@@ -298,11 +298,52 @@ and `tools/verify-receipt.mjs` implement this.
 A coordinator MUST compute guarantees for L1 participants and MUST say that an
 L1 participant cannot be asked what happened (§5).
 
-## 14. Security considerations
+## 14. The coordinator's surface
+
+A coordinator publishes a small, **dynamic** set of tools. Which tools are
+registered at a given moment is the permission model, and it is the normative
+part of this section: a coordinator MUST express permission by registering and
+unregistering, not by refusing inside a tool that stays registered.
+
+| Registered | Condition |
+|---|---|
+| `concord_list_vendors`, `concord_inspect_vendor`, `concord_propose_commitment`, `concord_get_surface` | always |
+| `concord_explain_guarantee` | a proposal exists |
+| `concord_commit` | that proposal is committable, has been explained, has been **accepted by a person**, and has not been committed |
+
+Requirements:
+
+1. A coordinator MUST NOT register `concord_commit` before a person has
+   accepted the guarantee, and MUST unregister it once the commitment settles
+   or the accepted proposal is superseded. `AbortController` is the mechanism;
+   the WebMCP API has no other unregister.
+2. A coordinator MUST NOT register any tool that grants permission. Acceptance
+   is a human act in the coordinator's own document. A tool that arms another
+   tool is a tool an agent can use to arm itself.
+3. Acceptance MUST be bound to the **content** of the explanation, not to the
+   proposal's identifier. The binding in this implementation is the SHA-256 of
+   the canonical form (§2) of a named set of fields: `proposalId`, `guarantee`,
+   `summary`, `caveats`, `order`, `pointOfNoReturn`, `recoverable`,
+   `committable`. `concord_explain_guarantee` returns it as
+   `explanationDigest`. A coordinator MUST refuse an acceptance whose digest
+   does not match the explanation it issued, and SHOULD refuse a commit that
+   names a different one.
+4. Vendor tools MUST NOT appear on the coordinator's surface. A participant
+   exposes its steps to the coordinator (§3); an agent that could call
+   `hold_seat` directly has walked around the ladder.
+5. A coordinator SHOULD publish a tool that reports the current surface and the
+   reason each absent tool is absent. A tool that disappears without
+   explanation is indistinguishable from a broken page, and an agent has no
+   other way to tell the difference.
+
+`toolchange` fires on every transition, so an agent observing the surface
+learns of an acceptance the same way it would learn of a new participant.
+
+## 15. Security considerations
 
 See `THREAT-MODEL.md`.
 
-## 15. Open questions
+## 16. Open questions
 
 These are unresolved. They are written down because a specification that hides
 its limits is asking to be trusted rather than checked.
@@ -373,7 +414,7 @@ stolen key, not the participant itself.
 `concord.protocol` returns no version field. A participant changing its
 commitment surface between discovery and execution is not detected.
 
-## 16. Upstream
+## 17. Upstream
 
 This convention exists because WebMCP has no way to express reversibility. The
 natural home for it is the annotation block:

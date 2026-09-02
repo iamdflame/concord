@@ -172,7 +172,11 @@ export async function turn({ text, reader, tool, say, confirm, refuse }) {
   const go = await confirm(promise);
   if (!go) { say('agent', 'Left alone. Nothing was contacted.'); return null; }
 
-  const out = await tool('concord_commit', { proposalId: proposal.proposalId });
+  // The digest of the guarantee, carried through. The agent is naming the
+  // promises it read out, not just the proposal it read them from -- and if
+  // the person accepted something else, this is refused rather than committed.
+  const out = await tool('concord_commit',
+    { proposalId: proposal.proposalId, digest: promise.explanationDigest });
   if (out.refused) { say('agent', out.reason); return null; }
 
   // Name businesses the way they name themselves. "shady declared it could

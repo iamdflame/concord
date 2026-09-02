@@ -39,7 +39,7 @@ And it fills a gap in the standard rather than decorating it. `inputSchema`
 describes shape. `readOnlyHint` describes whether an effect exists. **Nothing in
 WebMCP describes whether an effect can be reversed** — which is the one fact an
 agent needs in order to plan across sites rather than to act and hope.
-[SPEC.md §16](SPEC.md) proposes the annotation upstream.
+[SPEC.md §17](SPEC.md) proposes the annotation upstream.
 
 ## How it creates a better user experience
 
@@ -80,10 +80,15 @@ someone wrote, is not something that existed before.
 
 ## How WebMCP is implemented
 
-- **`document.modelContext.registerTool`** — participants register their
-  commitment steps; the coordinator registers the four tools an agent may reach
-  (`concord_list_vendors`, `concord_propose_commitment`,
-  `concord_explain_guarantee`, `concord_commit`).
+- **`document.modelContext.registerTool`, and the `AbortController` that
+  unregisters** — the registered set is the permission model, and it changes
+  while you watch. Four read-only tools at boot; `concord_explain_guarantee`
+  once something has been proposed; `concord_commit` **only** while a person has
+  accepted the exact guarantee they were shown, identified by its SHA-256. Not
+  disabled — absent. `toolchange` fires on every transition, and
+  `evals/surface.mjs` asserts the whole matrix through `getTools()` in a real
+  browser. There is no tool that grants that permission, and a test sweeps all
+  thirty-two states to prove exactly one of them permits committing.
 - **`exposedTo`** — every participant exposes its tools only to the coordinator's
   origin, so cross-origin consent is explicit on the participant's side.
 - **`allow="tools"`** plus a `Permissions-Policy: tools=(self "…")` response
@@ -130,18 +135,21 @@ there is none. The saga is the easy part.
 **"A vendor can lie about being compensable."** Correct, and Concord cannot
 prevent it. Meridian Holdings does exactly that, on purpose, on the live URL.
 What Concord does is make the lie attributable: the vendor's own signature is on
-the statement it later declines to reverse. Stated in [SPEC.md §15.1](SPEC.md).
+the statement it later declines to reverse. Stated in [SPEC.md §16.1](SPEC.md).
 
-**"The safety is prompt engineering."** `concord_commit` refuses any proposal
-whose guarantee has not been read back, and any plan the ladder would not
-guarantee. There is no tool on the agent's surface that moves money. Nine tests
-assert this, including that explaining a refusal does not unlock it.
+**"The safety is prompt engineering."** Open the tool inspector before anyone
+accepts anything: `concord_commit` is not in `getTools()`. It is registered by a
+click on the page and unregistered when the commitment settles or when the
+person asks for something else. There is no tool that accepts a guarantee and
+none that moves money. `evals/surface.mjs` walks the states in a browser; a
+unit test sweeps all thirty-two and asserts that exactly one permits committing.
+Deleting the prompt changes nothing.
 
 **"You still have an intermediary."** Yes. Said first, in the README's opening.
 
 **"Confirm fan-out is not atomic."** Correct, and documented as an open question
 with the reason no in-tab protocol can fix it
-([SPEC.md §15.2](SPEC.md)).
+([SPEC.md §16.2](SPEC.md)).
 
 **"The vendors are fake."** Write one. <https://concord-sandbox.vercel.app> is
 its own origin with a text box: ten lines registers a participant the
@@ -153,7 +161,7 @@ way it judges these.
 
 ## Numbers
 
-86 unit tests over the protocol with no browser · 6 browser suites against real
+98 unit tests over the protocol with no browser · 6 browser suites against real
 origins · 5 participants at conformance level L3 · 7 independent HTTPS
 deployments · 0 backends in the commitment path · 1 of those seven serves
 `Permissions-Policy: tools=()`, holds no key, and exists to check the other six.

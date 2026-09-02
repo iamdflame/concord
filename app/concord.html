@@ -92,7 +92,13 @@ tr.counter td:first-child{border-left-color:var(--compensable)}
   margin:38px 0 0;max-width:560px;border-top:1px solid var(--rule-firm);padding-top:12px;
 }
 .reach ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:3px}
-.reach li{font-family:var(--mono);font-size:var(--t-data);color:var(--ink-2)}
+.reach li{font-family:var(--mono);font-size:var(--t-data);color:var(--ink-2);
+  padding-left:14px;border-left:2px solid var(--compensable)}
+.reach li.effectful{border-left-color:var(--irreversible);color:var(--irreversible-ink)}
+.reach li.arriving{animation:slide-in var(--base) var(--ease-out) both}
+#reachGone{margin-top:8px}
+#reachGone li{border-left-color:transparent;color:var(--ink-3);text-decoration:line-through;
+  text-decoration-color:var(--ink-3)}
 .reach .absent{
   margin-top:12px;padding-top:10px;border-top:1px solid var(--rule);
   font-size:var(--t-body);color:var(--ink);max-width:52ch;
@@ -255,7 +261,7 @@ tr.stuck .answer{color:var(--irreversible-ink)}
     <div id="caveats"></div>
 
     <div class="actions">
-      <button class="primary" id="commit" hidden>Go ahead</button>
+      <button class="primary" id="commit" hidden>Accept this guarantee</button>
       <span class="said" id="said">Nothing has been contacted. This was worked out from what each
         site declared about itself.</span>
       <button class="quiet" id="crash" hidden>Go ahead, then kill the coordinator</button>
@@ -263,15 +269,13 @@ tr.stuck .answer{color:var(--irreversible-ink)}
     </div>
 
     <section class="reach" aria-labelledby="reach-h">
-      <p class="margin" id="reach-h">What the agent can reach</p>
-      <ul>
-        <li>concord_list_vendors</li>
-        <li>concord_propose_commitment</li>
-        <li>concord_explain_guarantee</li>
-        <li>concord_commit</li>
-      </ul>
-      <p class="absent">There is no tool here that moves money. <code>commit</code> will only run a
-        plan this ladder already guaranteed, and only after the guarantee has been read back.</p>
+      <p class="margin" id="reach-h">What the agent can reach, right now</p>
+      <ul id="reachNow"></ul>
+      <ul id="reachGone"></ul>
+      <p class="absent">There is no tool that moves money, and no tool that accepts a guarantee.
+        <code>concord_commit</code> is not disabled when you may not commit — it is
+        <b>not registered</b>. Accepting the guarantee above is what puts it there, and it is a
+        click on this page, which no agent can make.</p>
     </section>
   </section>
 

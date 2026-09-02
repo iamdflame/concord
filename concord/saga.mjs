@@ -99,6 +99,11 @@ export async function runSaga({
   // Unguessable: anything that can guess a sagaId can pre-poison a vendor's
   // dedupe map, in a protocol whose safety story rests on those keys.
   sagaId = `saga_${crypto.randomUUID()}`,
+  // A signal from whoever asked for this: the host's, when an agent runtime
+  // hands one to execute, or the page's Stop button. It bounds the same thing
+  // sagaTimeoutMs bounds and for the same reason -- the difference is only who
+  // decided it had gone on long enough.
+  signal = null,
 }) {
   if (!(confirmRetries >= 1)) throw new TypeError('confirmRetries must be at least 1');
 
@@ -124,6 +129,15 @@ export async function runSaga({
   const plan = planSummary(planned);
   const startedAt = Date.now();
   const overallDeadline = () => {
+    // Checked in the same place and treated the same way: whoever asked has
+    // withdrawn the question, and no further exposure is taken on. What is
+    // already outstanding is still unwound -- an abort is not permission to
+    // walk away from a hold.
+    if (signal?.aborted) {
+      throw Object.assign(
+        new Error(signal.reason?.message ?? 'this commitment was stopped'),
+        { sagaTimedOut: true, stopped: true });
+    }
     if (Date.now() - startedAt <= sagaTimeoutMs) return;
     throw Object.assign(
       new Error(`this commitment exceeded ${Math.round(sagaTimeoutMs / 1000)}s overall and was abandoned`),
@@ -171,6 +185,14 @@ export async function runSaga({
     if (!tool) throw new Error(`${id} declares no "${step}" step`);
     const idempotencyKey = key(id, step);
     const limit = deadline(callTimeoutMs, `${id} did not answer ${step} within ${callTimeoutMs}ms`);
+    // Whoever asked can stop it, but only where stopping is safe. A vendor
+    // call that is taking on exposure may be abandoned; one that is giving
+    // exposure back is not, for the same reason its journal write is not
+    // allowed to block it. Stopping an unwind mid-way is how a hold survives
+    // the cancellation that was meant to release it.
+    const stop = mustRecord && signal
+      ? AbortSignal.any([limit.signal, signal])
+      : limit.signal;
 
     // Intent is written before the call, never after. A log of outcomes alone
     // cannot distinguish "about to reserve" from "never reserved", and those
@@ -195,7 +217,7 @@ export async function runSaga({
       // deadline at all.
       const result = await Promise.race([
         call(id, tool, args,
-          { idempotencyKey, step, sagaId, parties: planned.order, plan, signal: limit.signal }),
+          { idempotencyKey, step, sagaId, parties: planned.order, plan, signal: stop }),
         limit.expired,
       ]);
       await journal?.result(sagaId, id, step, idempotencyKey, result).catch(() => {});

@@ -43,23 +43,36 @@ blocker is that **an agent cannot make a promise it is able to keep.** It says
 "I've booked your trip" having booked half of it, because nothing underneath it
 can compute what is actually being risked.
 
-Concord computes exactly that, and publishes it as four WebMCP tools:
+Concord computes exactly that, and publishes it over WebMCP — where the set of
+registered tools *is* the permission model, and it is live. Open the tool
+inspector and watch it change:
 
-```js
-document.modelContext.registerTool({ name: 'concord_propose_commitment', … })
-document.modelContext.registerTool({ name: 'concord_explain_guarantee',  … })
-document.modelContext.registerTool({ name: 'concord_commit',             … })
-document.modelContext.registerTool({ name: 'concord_list_vendors',       … })
+```
+boot                    list_vendors  inspect_vendor  propose_commitment  get_surface
+agent proposes          … + explain_guarantee
+agent explains it       … unchanged. explaining is not consent
+▸ a person clicks Accept … + concord_commit          ← it did not exist until now
+committed               … − concord_commit           ← and it does not exist again
 ```
 
-That is the entire surface an agent gets, and it is a fence rather than an
-instruction:
+`concord_commit` is not disabled when you may not commit. It is **not
+registered**. `AbortController` is the only unregister WebMCP has, so a tool
+that must not be callable is a tool that is not there — and `toolchange` fires
+on every line above, so the agent watching this surface finds out the same way
+you do.
+
+There is no tool that grants that permission and there is not going to be one.
+A person accepts by clicking on this page, identified by the SHA-256 of the
+exact guarantee they were shown — so an agent that proposes twice cannot carry
+an acceptance from the first to the second, and a page that displays one set of
+promises cannot arm another.
 
 - **nothing here spends anything.** There is no `send_funds`. The only effectful
   tool is `commit`, and it will only run a plan the ladder already guaranteed;
-- **`commit` refuses a proposal that has not been explained**, so nobody is ever
-  committed to something they were not first told the shape of;
-- **a refused plan yields nothing committable at all.**
+- **a refused plan yields nothing committable at all**, and explaining a refusal
+  in full does not conjure one;
+- **one state in thirty-two** permits committing. `evals/surface.mjs` checks all
+  of it through the same `getTools()` an agent would call, in a real browser.
 
 An agent cannot overpromise here because the words for it do not exist. Ask for
 a flight, a visa fee and an entry permit — two things nobody can take back — and
@@ -475,7 +488,7 @@ answered before they are raised, and every link in one place.
 - **[SPEC.md](SPEC.md)** — the convention as a protocol document: the
   declaration, the ladder, guarantee computation, phase order, attestation, key
   publication, the receipt, and the exact algorithm a verifier must run. Its
-  §15 is the unresolved problems, written down rather than hedged.
+  §16 is the unresolved problems, written down rather than hedged.
 - **[THREAT-MODEL.md](THREAT-MODEL.md)** — who is trusted for what, the attacks
   that are closed with the verifier's exact response to each, and the ones that
   are not.

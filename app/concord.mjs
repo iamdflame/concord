@@ -15,6 +15,7 @@ import { buildReceipt, verifyReceipt } from '/concord/receipt.mjs';
 import { Journal, IndexedStore, LocalStore } from '/concord/journal.mjs';
 import { recover } from '/concord/recover.mjs';
 import { publishAgentTools } from './agent-tools.mjs';
+import { digestOf } from '/concord/agent-surface.mjs';
 import { ORIGINS, VENDORS, VENDOR_ORIGINS, TITLES, VERIFIER } from '/config.mjs';
 import { makeReader, turn } from './agent.mjs';
 
@@ -135,6 +136,26 @@ $('theme').addEventListener('click', () => {
 
 $('receiptsLink').href = VERIFIER;
 
+/**
+ * The registered set, on the page, as it changes.
+ *
+ * This panel used to be four names typed into the HTML. It is now read from
+ * the reconciler, so what it says is what getTools() would say -- and the
+ * moment a person accepts a guarantee, a fifth line appears in it. That is the
+ * permission model, visible without opening a tool inspector.
+ */
+const NEVER = ['concord_commit'];
+function paintReach(live = []) {
+  // The names come in as an argument rather than being read back off the
+  // surface: the first reconcile happens inside publishAgentTools, before the
+  // const holding it is assigned, and `surface?.` does not save you from a
+  // temporal dead zone -- it throws instead of yielding undefined.
+  $('reachNow').innerHTML = live.map((n) =>
+    `<li class="${n === 'concord_commit' ? 'effectful arriving' : ''}">${esc(n)}</li>`).join('');
+  $('reachGone').innerHTML = NEVER.filter((n) => !live.includes(n))
+    .map((n) => `<li>${esc(n)}</li>`).join('');
+}
+
 // ── the counterparties ─────────────────────────────────────────────────────
 // Embed the participants before asking who is there. Discovery walks the frame
 // tree, so a frame created after it has already run is a frame nobody sees --
@@ -222,6 +243,10 @@ const surface = await publishAgentTools({
     return crashAfter ? killAfter(call, crashAfter) : call;
   },
   onEvent: (e) => surfaceEventSink(e),
+  // Fires after each reconcile, with what is registered. Painting from here
+  // rather than from the state change means the panel cannot claim a tool
+  // exists before registerTool has actually returned.
+  onSurfaceChange: (names) => paintReach(names),
 });
 
 /** A participant is live if it answered the declaration question, by origin --
@@ -705,7 +730,37 @@ async function showPending() {
   });
 }
 
+/**
+ * A person accepting the guarantee that is on their screen.
+ *
+ * This is the only thing that causes concord_commit to be registered, and it
+ * is not reachable from any tool. The digest is recomputed here, from the
+ * explanation this page actually rendered, rather than taken on trust from the
+ * one handed to it -- so a page showing one set of promises and arming another
+ * disagrees with itself and arms nothing.
+ */
+async function acceptGuarantee() {
+  const shown = proposal;
+  if (!shown?.proposalId) return false;
+  const digest = await digestOf(shown);
+  if (shown.explanationDigest && digest !== shown.explanationDigest) {
+    say('agent', 'What is on the screen is not what was explained to me, so I have not accepted '
+      + 'anything and nothing has been contacted.');
+    return false;
+  }
+  try {
+    surface.accept({ proposalId: shown.proposalId, digest });
+  } catch (err) {
+    say('agent', `That could not be accepted: ${err.message}`);
+    return false;
+  }
+  return true;
+}
+
 async function commit() {
+  // Accept first, and only then release the agent. Until this returns, there
+  // is no concord_commit on the surface for it to call.
+  if (!(await acceptGuarantee())) return;
   running = true;
   commitBtn.disabled = true;
   crashBtn.disabled = true;
