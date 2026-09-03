@@ -387,9 +387,16 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
     const key = e.statement?.idempotencyKey;
     if (!key) continue;
     const body = canonical(e.statement);
-    if (byKey.has(key) && byKey.get(key) !== body) {
-      complaints.push(`two different statements are signed under the same idempotency key `
-        + `"${key}" — one step cannot have happened two ways`);
+    if (byKey.has(key)) {
+      // Either way this is malformed, and the two cases are worth telling
+      // apart. Different bodies is a signer that answered twice. The same body
+      // twice is a receipt that lists one charge as two, which a fuzzer found
+      // verifying clean: nothing is forged by it, and anyone tallying the
+      // amounts is still misled.
+      complaints.push(byKey.get(key) === body
+        ? `the same statement appears twice under idempotency key "${key}" — one step is one entry`
+        : `two different statements are signed under the same idempotency key "${key}" `
+          + '— one step cannot have happened two ways');
       break;
     }
     byKey.set(key, body);

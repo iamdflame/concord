@@ -124,7 +124,29 @@ export function plan(participants) {
     };
   }
 
-  const sequence = order(participants, classified);
+  // A cycle in the declared dependencies is not an exceptional condition
+  // either. classify() already says so about an incomplete protocol -- "it is
+  // the same answer as any other unpromisable plan, and it is returned, not
+  // thrown, so there is one failure mode for one concept" -- and ordering was
+  // the one place that still threw. A property test over generated
+  // dependencies found it: two participants naming each other produced an
+  // exception where every other unpromisable configuration produces a
+  // refusal, so the coordinator reported "I could not finish that" instead of
+  // saying what was wrong and that nothing had been contacted.
+  let sequence;
+  try {
+    sequence = order(participants, classified);
+  } catch (err) {
+    if (!(err instanceof PlanError)) throw err;
+    return {
+      guarantee: GUARANTEE.REFUSED,
+      order: participants.map((p) => p.id),
+      rungs: [], pointOfNoReturn: null, caveats: [], recoverable: false,
+      refusal: `${(err.detail?.cycle ?? []).join(' → ') || 'these participants'} depend on each `
+        + 'other in a cycle, so there is no order in which they could be committed. Nothing was '
+        + 'contacted.',
+    };
+  }
   const rungs = sequence.map((id) => ({ id, ...classified.get(id) }));
 
   const irreversible = rungs.filter((r) => r.rung === RUNG.IRREVERSIBLE);

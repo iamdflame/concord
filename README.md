@@ -400,7 +400,7 @@ the native API.
 
 ## Tests
 
-**104 assertions with no browser**, six browser suites against real origins, and
+**118 assertions with no browser**, six browser suites against real origins, and
 two end-to-end round trips that had never been checked before they were written.
 
 The protocol core is pure and tested without a browser: ordering, reverse unwind,
@@ -423,6 +423,19 @@ only be a sentence in this file:
   of `ui/instrument.css` and puts every pair that carries meaning through the
   WCAG formula against both grounds in both themes. A token edited to something
   unreadable fails the build rather than the reader.
+- **[`concord/properties.test.mjs`](concord/properties.test.mjs)** states what must
+  be true of *every* input rather than of chosen ones, over about three thousand
+  generated cases a run, with a shrinker that reports the smallest failing case
+  and a seed to replay it. It found a real inconsistency: two participants
+  declaring a dependency on each other made `plan()` **throw**, where every
+  other unpromisable configuration returns a refusal — so a cycle reached the
+  page as "I could not finish that" instead of as an answer.
+- **[`attacks/fuzz.test.mjs`](attacks/fuzz.test.mjs)** generates forgeries rather
+  than listing them: seventeen structured mutations across hundreds of cases,
+  and — the half that is easy to forget — three mutations that change nothing a
+  verifier reads and must *not* be rejected. A verifier that fails everything is
+  as useless as one that passes everything, and only the first looks safe. It
+  found that a duplicated statement verified clean.
 - **[`concord/discovery.test.mjs`](concord/discovery.test.mjs)** requires that one
   unreachable participant does not hide the other five. It pins a real failure:
   `getTools({ fromOrigins })` rejects for the whole call when any one origin
@@ -511,6 +524,8 @@ concord/receipt.mjs       Merkle receipts, inclusion proofs, key validity
 concord/agent-surface.mjs the permission model: which tools may exist, when
 concord/client.mjs        binds the protocol to WebMCP
 concord/*.test.mjs        the protocol proved without a browser
+kit/property.mjs          property testing, ~100 lines, no dependencies
+attacks/                  forged receipts, fired headless and at /attack.html
 
 app/concord.html          :5173 — the coordinator, and the agent
 app/reconciler.mjs        registration as the permission system

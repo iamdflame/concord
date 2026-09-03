@@ -95,11 +95,27 @@ test('declared dependencies are respected in the order', () => {
   assert.deepEqual(p.order, ['fly', 'stay']);
 });
 
-test('a dependency cycle is a planning error', () => {
-  assert.throws(() => plan([reservable('a', ['b']), reservable('b', ['a'])]),
-    (e) => e instanceof PlanError && /cycle/.test(e.message));
+test('an empty plan is a programming error, not a refusal', () => {
+  // The one case that still throws, and the distinction is deliberate: asking
+  // what can be promised over nobody is a caller mistake, where asking it over
+  // participants who cannot be ordered is a question with an answer.
+  assert.throws(() => plan([]), PlanError);
 });
 
-test('an empty plan is refused rather than trivially satisfied', () => {
-  assert.throws(() => plan([]), PlanError);
+test('participants that depend on each other in a cycle are refused, not thrown at', () => {
+  // Found by a property test over generated dependencies. Every other
+  // unpromisable configuration returns a refusal; ordering was the one place
+  // that raised, so a cycle surfaced to the coordinator as "I could not finish
+  // that" rather than as an answer with a reason and a promise that nothing
+  // had been contacted.
+  const a = { id: 'a', title: 'A', origin: 'https://a.example', dependsOn: ['b'],
+              protocol: { steps: { execute: { tool: 'x' } } } };
+  const b = { id: 'b', title: 'B', origin: 'https://b.example', dependsOn: ['a'],
+              protocol: { steps: { execute: { tool: 'y' } } } };
+
+  const planned = plan([a, b]);
+  assert.equal(planned.guarantee, GUARANTEE.REFUSED);
+  assert.match(planned.refusal, /depend on each other in a cycle/);
+  assert.match(planned.refusal, /Nothing was contacted/);
+  assert.deepEqual(planned.order.sort(), ['a', 'b'], 'the refusal still names everyone involved');
 });
