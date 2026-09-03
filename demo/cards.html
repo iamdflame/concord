@@ -47,7 +47,7 @@
 
   .links{margin-top:54px;display:grid;gap:22px;font-family:var(--mono);font-size:30px}
   .links a{color:var(--ink-2);text-decoration:none}
-  .links a b{color:var(--ink);font-weight:600;display:inline-block;width:430px}
+  .links a b{color:var(--ink);font-weight:600;display:inline-block;width:330px;vertical-align:top}
 
   .lower{width:1920px;height:1080px;background:transparent;position:relative}
   .lt{position:absolute;left:120px;bottom:130px;background:rgba(16,20,25,.92);
@@ -64,6 +64,7 @@ const brand = `<div class="mark">${MARK}<span>Concord</span></div>`;
 const foot = (l, r) => `<div class="foot"><span>${l}</span><span>${r}</span></div>`;
 
 const CARDS = {
+// ── the cut ────────────────────────────────────────────────────────────────
 '01-title': `<div class="card">
   <div class="mark" style="position:static;margin-bottom:60px">${MARK}<span>Concord</span></div>
   <h1>An agent that cannot overpromise.</h1>
@@ -72,15 +73,7 @@ const CARDS = {
   ${foot('concord-coordinator.vercel.app', 'The WebMCP Challenge')}
 </div>`,
 
-'02-problem': `<div class="card">${brand}
-  <div class="eyebrow">The gap</div>
-  <h2>An agent booking across two sites cannot know what it is risking.</h2>
-  <p class="sub">So a marketplace stands between them and charges
-    <b>15–30%</b> for the guarantee.</p>
-  ${foot('inputSchema says what a tool is', 'nothing says what it can take back')}
-</div>`,
-
-'03-surface': `<div class="card">${brand}
+'02-surface': `<div class="card">${brand}
   <div class="eyebrow">The tool surface is the permission model, and it is live</div>
   <h2 style="font-size:66px">The commit tool does not exist until a person accepts.</h2>
   <div class="surface">
@@ -93,7 +86,37 @@ const CARDS = {
   ${foot('registerTool + AbortController', 'toolchange fires on every line')}
 </div>`,
 
-'04-refusal': `<div class="card">${brand}
+'03-forge': `<div class="card">${brand}
+  <div class="eyebrow">Fourteen forged receipts, fired at the verifier this project ships</div>
+  <h2 class="red" style="font-size:70px">Seven of these used to get through.</h2>
+  <p class="sub">An audit found them. A coordinator could delete a charge, relabel
+    the outcome <b>"Committed"</b>, and the receipt verified clean.</p>
+  ${foot('the outcome is derived now, not believed', 'fire them yourself: /attack.html')}
+</div>`,
+
+'04-end': `<div class="card">
+  <div class="mark" style="position:static;margin-bottom:46px">${MARK}<span>Concord</span></div>
+  <h2 style="font-size:66px">Live, open, and checkable.</h2>
+  <div class="links">
+    <a><b>Start here</b>concord-coordinator.vercel.app/judge.html</a>
+    <a><b>The forge</b>concord-coordinator.vercel.app/attack.html</a>
+    <a><b>Verify a receipt</b>concord-receipts.vercel.app</a>
+    <a><b>Code &middot; MIT</b>github.com/iamdflame/concord</a>
+  </div>
+  ${foot('128 assertions &middot; 92% mutation score &middot; 4,164 ladder states',
+         '8 origins &middot; 0 backends in the commitment path')}
+</div>`,
+
+// ── spares, for a longer cut ───────────────────────────────────────────────
+'x-problem': `<div class="card">${brand}
+  <div class="eyebrow">The gap</div>
+  <h2>An agent booking across two sites cannot know what it is risking.</h2>
+  <p class="sub">So a marketplace stands between them and charges
+    <b>15–30%</b> for the guarantee.</p>
+  ${foot('inputSchema says what a tool is', 'nothing says what it can take back')}
+</div>`,
+
+'x-refusal': `<div class="card">${brand}
   <div class="eyebrow">Two things nobody can undo</div>
   <h2 class="red">This is not a promise I can make.</h2>
   <p class="sub">Nothing was contacted. There is <b>no button</b> on this answer,
@@ -101,7 +124,7 @@ const CARDS = {
   ${foot('refusal computed before contact', 'one state in thirty-two permits committing')}
 </div>`,
 
-'05-recovery': `<div class="card">${brand}
+'x-recovery': `<div class="card">${brand}
   <div class="eyebrow">Kill the coordinator mid-commitment, then reload</div>
   <h2>It asks each vendor what actually happened.</h2>
   <p class="sub">A step whose intent was written and whose result was not is
@@ -109,24 +132,12 @@ const CARDS = {
   ${foot('write-ahead journal, survives the tab', 'concord.status: did you ever honour this key')}
 </div>`,
 
-'06-receipt': `<div class="card">${brand}
+'x-receipt': `<div class="card">${brand}
   <div class="eyebrow">The receipt, checked on an origin we do not run</div>
   <h2 style="font-size:70px">The coordinator was not asked anything.</h2>
   <p class="sub">Every statement is signed by the counterparty, and the keys come
     from <b>each vendor's own origin</b>.</p>
   ${foot('concord-receipts.vercel.app', 'Permissions-Policy: tools=()')}
-</div>`,
-
-'07-end': `<div class="card">
-  <div class="mark" style="position:static;margin-bottom:52px">${MARK}<span>Concord</span></div>
-  <h2 style="font-size:64px;max-width:30ch">It is live, and it is open source.</h2>
-  <div class="links">
-    <a><b>Try it</b>concord-coordinator.vercel.app</a>
-    <a><b>Check a receipt elsewhere</b>concord-receipts.vercel.app</a>
-    <a><b>Write your own participant</b>concord-sandbox.vercel.app</a>
-    <a><b>Code &middot; MIT</b>github.com/iamdflame/concord</a>
-  </div>
-  ${foot('npx concord-verify receipt.json', 'nothing of ours runs')}
 </div>`,
 };
 
@@ -137,8 +148,9 @@ const LOWER = {
   'lt-3-accept':     ['a click on the page, which no agent can make', 'Accept the guarantee'],
   'lt-4-appeared':   ['getTools() · one second later', 'concord_commit now exists'],
   'lt-5-refused':    ['two irreversible vendors', 'Refused, and nothing contacted'],
-  'lt-6-crash':      ['the coordinator stopped, holding real effects', 'Reload, and it finds them'],
+  'lt-6-forge':      ['14 forged receipts, real signatures', 'None of them got through'],
   'lt-7-verified':   ['a different origin, no coordinator', 'Verified'],
+  'lt-x-crash':      ['the coordinator stopped, holding real effects', 'Reload, and it finds them'],
 };
 
 const out = document.getElementById('cards');

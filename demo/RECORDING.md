@@ -116,7 +116,7 @@ Before **every** clip:
 
 - Run the launch command from 1.4 (fresh profile every time = no leftover state)
 - **F11** full screen, **Ctrl +** to 150%
-- Click **Reset the counterparties** on the page and wait 2 seconds
+- Click **Reset the counterparties** on the coordinator and wait 2 seconds
 - In OBS click **Start Recording**, wait **2 seconds doing nothing**, then act
 - At the end, wait **2 seconds doing nothing**, then **Stop Recording**
 
@@ -127,116 +127,87 @@ Your clips land in `~/Videos`. Rename each one right after you record it.
 
 ---
 
-### Clip 1 — `01-guarantee.mp4` (about 25 seconds)
+### Clip 1 — `01-guarantee.mp4` (about 22 seconds)
 
 **What the viewer must see:** the page already knows what it can promise before
-anything is typed, and then answers a real question the same way.
+anything is typed, and answers a real question the same way.
 
-1. The page is loaded and still. The big headline reads
-   **"One of these cannot be taken back."**
-2. Slowly scroll down so the ledger table is centred. Pause 3 seconds. Let them
-   read *cancelled · refunded · not taken back*.
-3. Scroll down to the composer.
-4. Click the chip **"Book me London for three nights — flight, hotel and the
-   visa fee."** then click **Ask**.
-5. Wait for the answer. Let it sit for 4 seconds.
-6. Stop.
+Open the **Ask for the trip** link on the judge page. It loads with the question
+already asked.
+
+1. The answer is on screen. The headline reads **"One of these cannot be taken
+   back."** Hold still 3 seconds.
+2. Scroll slowly so the ledger table is centred. Pause 3 seconds — let them read
+   *cancelled · refunded · not taken back* down the middle column.
+3. Scroll a little further so the two caveats under it are visible.
+4. Stop.
 
 ---
 
-### Clip 2 — `02-surface.mp4` (about 40 seconds) — **the important one**
+### Clip 2 — `02-surface.mp4` (about 34 seconds) — **the important one**
 
 **What the viewer must see:** `concord_commit` is not in the tool list, a human
 clicks, and it appears. Do this one until it is clean.
 
-1. Start from a fresh page, ask the same question again (chip → Ask).
-2. When the guarantee appears, **scroll so that the Accept button and the
-   "What the agent can reach, right now" panel are both on screen at once.**
-   This is the single most important framing in the video. The list should
-   read five green tools with **concord_commit struck through underneath**, and
-   the line below it should say
-   *"5 registered · the agent read the guarantee out — explaining is not consent"*.
+1. Same link, fresh page, question already asked.
+2. **Scroll so that the Accept button and the "What the agent can reach, right
+   now" panel are both on screen at once.** This is the single most important
+   framing in the video. The list should read five green tools with
+   **concord_commit struck through underneath**, and the line below it:
+
+   > `5 registered · the agent read the guarantee out — explaining is not consent`
+
+   This is what the frame should look like — recorded at exactly the window
+   size and zoom in 1.4 and 1.5, so if yours looks like this, yours is right:
+
+   ![the framing for clip 2](framing-clip2.png)
+
 3. Hold completely still for **4 seconds**. Do not move the mouse.
 4. Move the mouse slowly to **Accept this guarantee** and click once.
-5. **Do not move the mouse or scroll for 6 seconds.** The list will change:
-   `concord_commit` moves up into the live list in red, then disappears again
-   when the commitment settles.
-6. Scroll down slowly through the execution log and the receipt. Pause on
+5. **Do not move or scroll for 6 seconds.** `concord_commit` moves up into the
+   live list in red, then disappears again when the commitment settles.
+6. Scroll down slowly through the execution log to the receipt. Pause on
    **VERIFIED**.
 7. Stop.
 
-> If you fumble the framing, just do it again. This clip is thirty seconds of
-> your life and it is the reason a judge scores you top of the field.
+> If you fumble the framing, do it again. This clip is thirty seconds of your
+> life and it is the reason a judge scores you top of the field.
 
 ---
 
 ### Clip 3 — `03-refusal.mp4` (about 20 seconds)
 
-1. Fresh page.
-2. Scroll to the composer, click the chip **"Flight, visa fee and the entry
-   permit."**, click **Ask**.
-3. The headline turns to **"This is not a promise I can make."**
-4. Hold 3 seconds. Then scroll down slowly to show the transcript, where the
-   agent says which two vendors are both irreversible.
-5. Scroll to the reach panel. **There is no Accept button and no
+Open **Ask for something impossible** on the judge page.
+
+1. The headline reads **"This is not a promise I can make."** Hold 3 seconds.
+2. Scroll down slowly to the transcript, where the agent names the two vendors
+   that are both irreversible.
+3. Scroll to the reach panel. **There is no Accept button and no
    `concord_commit`.** Hold 3 seconds.
-6. Stop.
+4. Stop.
 
 ---
 
-### Clip 4 — `04-crash.mp4` (about 30 seconds)
+### Clip 4 — `04-forge.mp4` (about 22 seconds)
 
-1. Fresh page. Ask the London question. Wait for the guarantee.
-2. Click **"Go ahead, then kill the coordinator"** (the small underlined link,
-   not the big button).
-3. Wait 3 seconds — the execution log stops part way.
-4. Press **Ctrl and R** to reload.
-5. Wait for the page to come back. A red-topped block appears at the top:
-   **"Something is outstanding."** with a table of two rows.
-6. Hold 4 seconds so the two rows can be read — one says *it happened*, the
-   other says *unknown; the intent was written and no result was*.
-7. Click **Ask each vendor what happened**.
-8. Hold 5 seconds while the right-hand column fills in with
-   *undone, via cancel* and *undone, via compensate*, and the headline turns
-   green: **"Nothing is outstanding any more."**
-9. Stop.
+Go to <https://concord-coordinator.vercel.app/attack.html>.
 
----
-
-### An alternative to Clip 4 — `04b-forge.mp4` (about 24 seconds)
-
-Both are good. **The crash** shows the thing nobody else in this field built.
-**The forge** shows a project that found seven holes in its own verifier and
-lets a stranger fire them. If you can only have one, pick the forge — it is
-faster to read on video and harder to disbelieve.
-
-Swap it in at the same slot and the same length, so the timings below still add
-up.
-
-1. Fresh page, go to <https://concord-coordinator.vercel.app/attack.html>.
-   **F11**, **Ctrl +** to 150%.
-2. Hold 3 seconds on the headline: *Try to get one past it.*
-3. Click **Fire all of them**. The rows fill in one at a time — do not touch
+1. Hold 3 seconds on the headline: *Try to get one past it.*
+2. Click **Fire all of them**. The rows fill in one at a time — do not touch
    anything while they do.
-4. When it finishes, the headline reads *None of them got through.* Hold 3
-   seconds.
-5. Scroll slowly through two or three rows so the right-hand column is readable:
-   that column is what the verifier objected to, in its own words.
-6. Stop.
+3. The headline becomes **"None of them got through."** Hold 3 seconds.
+4. Scroll slowly through two or three rows so the right-hand column is
+   readable. That column is what the verifier objected to, in its own words.
+5. Stop.
 
-If you use this, change the Clip 4 narration to:
+---
 
-> Seven of these forgeries verified clean until an external audit found them. A
-> coordinator could delete a charge, relabel the outcome, and the receipt
-> passed. The outcome is derived from the statements now, not believed — and
-> you can fire them yourself.
+### Clip 5 — `05-receipt.mp4` (about 27 seconds)
 
-### Clip 5 — `05-receipt.mp4` (about 30 seconds)
-
-1. Fresh page. Ask the London question, **Accept**, let it finish.
+1. Fresh page, ask the trip, **Accept**, let it finish.
 2. Scroll to the receipt. Hold 2 seconds on **VERIFIED**.
 3. Click **Check it on another origin**. A new tab opens.
-4. **Press F11** in the new tab (full screen again) and **Ctrl +** to 150%.
+4. **F11** in the new tab, **Ctrl +** to 150%.
 5. The headline says **"This receipt verifies."** Hold 3 seconds.
 6. Scroll down slowly to *"Every origin this page contacted"*.
 7. **Hold 5 seconds** on the bold line:
@@ -245,16 +216,38 @@ If you use this, change the Clip 4 narration to:
 
 ---
 
+### Optional — `x-crash.mp4`, if you want it instead of the forge
+
+Killing the coordinator mid-commitment and watching it recover is the thing
+nobody else in this field built. It is not in the cut because it needs a
+sentence of setup about write-ahead journals before it means anything, and in a
+two-minute-forty-five video an explanation-heavy beat is expensive. The forge
+lands instantly and answers the same question — *is any of this real?*
+
+If you prefer it, swap it into Clip 4's slot at the same length and use
+`lt-x-crash.png` and `x-recovery.png`.
+
+1. Ask the trip, wait for the guarantee.
+2. Click **Go ahead, then kill the coordinator** (the small underlined link).
+3. Wait 3 seconds — the execution log stops part way.
+4. **Ctrl+R** to reload. A red-topped block appears: **"Something is
+   outstanding."** with two rows.
+5. Hold 4 seconds — one row says *it happened*, the other *unknown; the intent
+   was written and no result was*.
+6. Click **Ask each vendor what happened**. Hold 5 seconds while the right-hand
+   column fills with *undone, via cancel* and *undone, via compensate*, and the
+   headline turns green.
+7. Stop.
+
+---
+
 ## Part 3 — The narration (15 minutes)
 
-Record your voice **after** the screen clips, reading this out. You can use
-your phone's voice recorder, or Audacity, or OBS with only the mic enabled.
+Record your voice **after** the screen clips, reading this out. Your phone's
+voice recorder is fine, or Audacity, or OBS with only the mic enabled.
 
 **How to say it:** normally. Do not perform it. Pause a full second between
 paragraphs — those pauses are where the edit breathes.
-
-Read it once out loud with a stopwatch first. If you land over **2:40**, slow
-down less, do not cut words; the timings below already have slack.
 
 ---
 
@@ -265,64 +258,56 @@ down less, do not cut words; the timings below already have slack.
 
 > **[Clip 1 — 0:07]**
 >
-> This is Concord. Before it contacts anybody, it works out what it can
-> honestly promise across sites that have never heard of each other. A flight
-> that can be cancelled. A hotel that can be refunded. And a visa fee that
-> cannot be taken back — so it goes last, and everything before it can still
-> be undone.
+> This is Concord. Before it contacts anybody, it works out what it can honestly
+> promise across sites that have never heard of each other. A flight that can be
+> cancelled. A hotel that can be refunded. And a visa fee that cannot be taken
+> back — so that one goes last.
 
-> **[Card: the surface — 0:30]**
+> **[Card: the surface — 0:29]**
 >
-> Here is how that is enforced. It is not a prompt, and it is not a check
-> inside a tool.
+> Here is how that is enforced. Not a prompt, and not a check inside a tool.
 
-> **[Clip 2 — 0:40]**
+> **[Clip 2 — 0:39]**
 >
 > This panel is the live output of `getTools`. Five read-only tools. The commit
 > tool is not disabled — it is **not registered**. The agent has proposed and
-> read the guarantee out loud, and it still has no way to commit, because
-> explaining is not consent.
+> read the guarantee out, and it still has no way to commit, because explaining
+> is not consent.
 >
 > Now I accept, and `registerTool` puts the commit tool on the surface. No tool
 > does that — a person clicked. And the moment the commitment starts, an
 > `AbortController` takes it away again.
 
-> **[Clip 3 — 1:15]**
+> **[Clip 3 — 1:13]**
 >
 > Ask for two things nobody can undo, and it refuses. Nothing was contacted,
 > there is no button, and no commit tool — a refused plan never produces one.
 
-> **[Clip 4 — 1:38]**
+> **[Card: the forge — 1:33]**
 >
-> Intent is written before every call, so I can kill the coordinator holding a
-> real charge. On reload it finds it, and it does not guess — it asks each site
-> whether it ever honoured that key.
+> Every statement in the receipt is signed by the counterparty, not by us.
 
-> **[Clip 5 — 2:02]**
+> **[Clip 4 — 1:41]**
 >
-> And the receipt is signed by the counterparties, not by us. Here it is on a
-> different origin, with no tools and no coordinator, fetching the keys from
-> each vendor's own site. The coordinator that produced this receipt was never
-> asked anything.
+> These are fourteen real receipts, each edited the way a coordinator with a
+> motive would. Seven of them verified clean until an audit found it. The
+> outcome is derived from the statements now, and you can fire these yourself.
+
+> **[Clip 5 — 2:03]**
+>
+> And here is one on a different origin, which has no tools and no coordinator.
+> It fetched each key from that vendor's own site. The coordinator that produced
+> this receipt was never asked anything.
 
 > **[Card: end — 2:30]**
 >
 > A permission model made of `registerTool` and `AbortController`, and an agent
-> that cannot overpromise because the words for it do not exist. Live, and open
-> source.
+> that cannot overpromise because the words for it do not exist.
 
-**333 words.** Measured, not estimated — `npm run demo:timing` counts them and
-does the arithmetic against the edit table above:
-
-| Pace | Speech | Silence inside the 2:45 cut |
-|---|---|---|
-| slow and careful, 130 wpm | 2:34 | 11 seconds |
-| normal, 150 wpm | 2:13 | 32 seconds |
-
-Either fits. Aim for the slow end — silence over a moving screen reads as
-confidence, and rushing is the most common way a good demo is spoiled. If you
-change a word of this script, run the check again: the first draft was three
-seconds too long for its own edit.
+Measured, not estimated — `npm run demo:timing` counts the words and does the
+arithmetic against the edit table below. If you change a word of this, run it
+again: the first draft of an earlier version was three seconds too long for its
+own cut.
 
 ---
 
@@ -332,9 +317,9 @@ Open **Kdenlive**.
 
 ### 4.1 Start the project
 
-1. **Project → Project Settings**. Set profile to **HD 1080p 30 fps**. OK.
-2. **Project → Add Clip or Folder**. Select all five `.mp4` files, all seven
-   `demo/cards/0*.png` cards, all seven `demo/cards/lt-*.png` lower thirds, and
+1. **Project → Project Settings**. Profile **HD 1080p 30 fps**. OK.
+2. **Project → Add Clip or Folder**. Select your five `.mp4` files, the four
+   `demo/cards/0*.png` cards, the seven `demo/cards/lt-*.png` lower thirds, and
    your voice recording. Open.
 
 ### 4.2 Lay the voice down first
@@ -347,41 +332,42 @@ picture is cut to fit it.**
 
 ### 4.3 Lay the picture on top
 
-Drag onto **Video 1** in this order, so each clip starts where its paragraph
+Drag onto **Video 1** in this order, so each item starts where its paragraph
 starts:
 
 | Track item | Starts at | Length |
 |---|---|---|
 | `01-title.png` | 0:00 | 7s |
-| `01-guarantee.mp4` | 0:07 | 23s |
-| `03-surface.png` | 0:30 | 10s |
-| `02-surface.mp4` | 0:40 | 35s |
-| `03-refusal.mp4` | 1:15 | 23s |
-| `04-crash.mp4` | 1:38 | 24s |
-| `05-receipt.mp4` | 2:02 | 28s |
-| `07-end.png` | 2:30 | 15s |
+| `01-guarantee.mp4` | 0:07 | 22s |
+| `02-surface.png` | 0:29 | 10s |
+| `02-surface.mp4` | 0:39 | 34s |
+| `03-refusal.mp4` | 1:13 | 20s |
+| `03-forge.png` | 1:33 | 8s |
+| `04-forge.mp4` | 1:41 | 22s |
+| `05-receipt.mp4` | 2:03 | 27s |
+| `04-end.png` | 2:30 | 15s |
 
-To make a clip shorter, drag its right edge left. To cut out a boring middle,
-put the playhead there, press **Shift and R** to razor, click the piece you do
-not want and press **Delete**, then drag the right piece left to close the gap.
+To make a clip shorter, drag its right edge left. To cut a boring middle, put
+the playhead there, press **Shift+R** to razor, click the piece you do not want,
+press **Delete**, then drag the right piece left to close the gap.
 
 **Speed up the slow bits.** If a clip has five seconds of nothing happening,
-right-click it → **Change Speed** → 150% or 200%. Do this to scrolling. Never
-do it to the moment in Clip 2 when the tool appears.
+right-click → **Change Speed** → 150% or 200%. Do this to scrolling. Never do it
+to the moment in Clip 2 when the tool appears.
 
 ### 4.4 Add the lower thirds
 
 Drag each `lt-*.png` onto **Video 2** (above Video 1). They have transparent
-backgrounds, so they sit over the recording. Give each one about **4 seconds**.
+backgrounds, so they sit over the recording. About **4 seconds** each.
 
 | Lower third | Put it over | Roughly at |
 |---|---|---|
 | `lt-1-guarantee.png` | Clip 1, on the ledger | 0:13 |
-| `lt-2-nocommit.png` | Clip 2, while the list is still | 0:44 |
+| `lt-2-nocommit.png` | Clip 2, while the list is still | 0:43 |
 | `lt-3-accept.png` | Clip 2, as you click | 0:52 |
 | `lt-4-appeared.png` | Clip 2, right after it appears | 0:57 |
-| `lt-5-refused.png` | Clip 3 | 1:20 |
-| `lt-6-crash.png` | Clip 4, after the reload | 1:47 |
+| `lt-5-refused.png` | Clip 3 | 1:18 |
+| `lt-6-forge.png` | Clip 4, after the rows finish | 1:50 |
 | `lt-7-verified.png` | Clip 5, on the "is not in that list" line | 2:20 |
 
 ### 4.5 The one piece of polish worth doing
@@ -389,25 +375,24 @@ backgrounds, so they sit over the recording. Give each one about **4 seconds**.
 In **Clip 2**, when `concord_commit` appears, zoom in on the panel so it fills
 more of the frame.
 
-1. Click the clip. In the panel on the right, **Effects** → search **Transform**
-   → drag it onto the clip.
-2. Set a keyframe at the moment you click Accept: *Size* **100%**.
-3. Move the playhead 1 second later, set *Size* **160%** and drag the *Position*
-   so the tool list is centred.
-4. Two seconds later, set another keyframe back to **100%**.
+1. Click the clip. Right panel → **Effects** → search **Transform** → drag it on.
+2. Keyframe at the moment you click Accept: *Size* **100%**.
+3. One second later: *Size* **160%**, and drag *Position* so the tool list is
+   centred.
+4. Two seconds after that: back to **100%**.
 
 That is the only effect in the whole video. Resist adding more.
 
 ### 4.6 Transitions
 
-**Do not add transitions.** Straight cuts, everywhere. The one exception:
-select the very first and very last clip and add **Fade in** / **Fade out**
-(right-click → *Fade in* / *Fade out*).
+**Do not add transitions.** Straight cuts everywhere. The one exception: select
+the first and last clip and add **Fade in** / **Fade out** (right-click → *Fade
+in* / *Fade out*).
 
 ### 4.7 Check the length
 
-Look at the total duration in the timeline ruler. **It must be under 3:00.**
-If you are at 2:55, trim the pauses at the start of clips, not the content.
+Look at the total duration in the timeline ruler. **It must be under 3:00.** If
+you are at 2:55, trim the pauses at the start of clips, not the content.
 
 ---
 

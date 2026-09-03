@@ -6,7 +6,7 @@
 // both are counted here rather than estimated, and the estimate in the guide
 // is the output of this rather than a guess somebody typed.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
 const md = readFileSync(new URL('./RECORDING.md', import.meta.url), 'utf8');
 const LIMIT = 180;
@@ -35,6 +35,25 @@ say(slow <= picture, `at a slow 130 wpm that is ${Math.floor(slow / 60)}:`
 for (const term of ['registerTool', 'AbortController', 'getTools']) {
   say(part3.includes(term), `the narration names ${term}`);
 }
+
+// Every card the edit names has to exist. Renaming the card set is exactly the
+// kind of change that leaves a guide pointing at files nobody has, and it is
+// discovered at midnight in a video editor rather than here.
+const cards = shots.map((s) => s.name).filter((n) => n.endsWith('.png'));
+const missing = cards.filter((n) => !existsSync(new URL(`./cards/${n}`, import.meta.url)));
+say(missing.length === 0, `every card in the edit exists${missing.length ? `: missing ${missing}` : ''}`);
+
+// And the lower thirds, from their own table.
+const lowers = [...md.matchAll(/\| `(lt-[^`]+\.png)` \|/g)].map(([, n]) => n);
+const lostLowers = lowers.filter((n) => !existsSync(new URL(`./cards/${n}`, import.meta.url)));
+say(lowers.length >= 5 && lostLowers.length === 0,
+  `${lowers.length} lower thirds, all present${lostLowers.length ? `: missing ${lostLowers}` : ''}`);
+
+// The narration cues and the edit table must describe the same film. A cue
+// with no shot, or a shot no cue introduces, is a cut nobody has planned.
+const cues = [...part3.matchAll(/\*\*\[(Card: [^\]]+|Clip \d+)[^\]]*\]\*\*/g)].length;
+say(cues === shots.length,
+  `${cues} narration cues for ${shots.length} shots`);
 
 console.log(bad ? `\nDEMO FAILED — ${bad}` : '\nDEMO FITS');
 process.exit(bad ? 1 : 0);
