@@ -166,9 +166,9 @@ for (const [name, [k, v]] of Object.entries(LOWER)) {
 globalThis.__CARDS__ = [...document.querySelectorAll('section')].map((s) => s.dataset.name);
 globalThis.__SHOW__ = (name) => {
   for (const s of document.querySelectorAll('section')) s.style.display = s.dataset.name === name ? '' : 'none';
-  document.body.style.background =
-    document.querySelector(`[data-name="${name}"]`).dataset.transparent ? 'transparent' : 'var(--paper)';
-  return true;
+  const bare = Boolean(document.querySelector(`[data-name="${name}"]`).dataset.transparent);
+  document.body.style.background = bare ? 'transparent' : 'var(--paper)';
+  return bare;   // the renderer needs to know, to ask for an alpha channel
 };
 globalThis.__READY__ = true;
 </script>

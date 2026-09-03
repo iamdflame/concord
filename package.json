@@ -23,6 +23,7 @@
     "surface": "node evals/surface.mjs",
     "brand": "python3 brand/build.py && bash brand/build.sh",
     "demo:cards": "node demo/build.mjs",
+    "demo:thumb": "PAGE=thumbnail.html W=1280 H=720 OUT=. DOWNSCALE=1 node demo/build.mjs",
     "demo:timing": "node demo/timing.mjs",
     "publish:verify": "cd verify && npm publish --access public",
     "check": "bash tools/check.sh"

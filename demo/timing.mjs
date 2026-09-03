@@ -49,11 +49,36 @@ const lostLowers = lowers.filter((n) => !existsSync(new URL(`./cards/${n}`, impo
 say(lowers.length >= 5 && lostLowers.length === 0,
   `${lowers.length} lower thirds, all present${lostLowers.length ? `: missing ${lostLowers}` : ''}`);
 
+// And they have to be transparent. A lower third is laid over the recording,
+// so one without an alpha channel is a white rectangle across the whole frame
+// -- which is exactly what all eight of these were, silently, until the
+// renderer was asked for one. Byte 25 of a PNG is the IHDR colour type; 6 is RGBA.
+const flat = lowers
+  .map((n) => new URL(`./cards/${n}`, import.meta.url))
+  .filter((u) => existsSync(u) && readFileSync(u).readUInt8(25) !== 6);
+say(flat.length === 0, `the lower thirds have an alpha channel`
+  + `${flat.length ? `: ${flat.length} would cover the shot` : ''}`);
+
 // The narration cues and the edit table must describe the same film. A cue
 // with no shot, or a shot no cue introduces, is a cut nobody has planned.
 const cues = [...part3.matchAll(/\*\*\[(Card: [^\]]+|Clip \d+)[^\]]*\]\*\*/g)].length;
 say(cues === shots.length,
   `${cues} narration cues for ${shots.length} shots`);
+
+// The thumbnail is the only part of the entry most people will ever see, and
+// YouTube rejects it outright over two things a person cannot eyeball: the
+// dimensions and the 2MB ceiling. So neither is eyeballed.
+const thumb = new URL('./thumb.png', import.meta.url);
+if (!existsSync(thumb)) {
+  say(false, 'demo/thumb.png exists — run `npm run demo:thumb`');
+} else {
+  const png = readFileSync(thumb);
+  const dim = (at) => png.readUInt32BE(at);          // straight out of the IHDR
+  say(dim(16) === 1280 && dim(20) === 720,
+    `the thumbnail is ${dim(16)}x${dim(20)} (YouTube wants 1280x720)`);
+  say(png.length < 2 * 1024 * 1024,
+    `the thumbnail is ${(png.length / 1024).toFixed(0)}KB (ceiling 2MB)`);
+}
 
 console.log(bad ? `\nDEMO FAILED — ${bad}` : '\nDEMO FITS');
 process.exit(bad ? 1 : 0);

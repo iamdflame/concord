@@ -396,6 +396,35 @@ you are at 2:55, trim the pauses at the start of clips, not the content.
 
 ---
 
+## The thumbnail
+
+Already rendered — `demo/thumb.png`, 1280x720, the size YouTube asks for.
+Rebuild it with `npm run demo:thumb` (needs `CHROME=` set the same way the
+cards do).
+
+It says **"Explaining is not consent."** over the live tool surface: five tools
+answered, and `concord_commit` struck through. That is the whole thesis in
+four words and one picture, and both halves survive being shrunk to the 210
+pixels a search result actually gives you — which is the only size that
+matters. Everything else on it is deliberately texture.
+
+Two things about it are constraints rather than taste, and both are checked by
+`npm run demo:timing`:
+
+- It is **exactly 1280x720** and **under 2MB**. YouTube rejects the file
+  outright on either, with a message that does not tell you which.
+- The **bottom-right corner is empty**. YouTube stamps the duration there in a
+  black pill, and anything you put underneath is gone.
+
+Two alternates are rendered beside it if you want a different angle:
+`demo/thumb-forge.png` (the fourteen forgeries, louder) and
+`demo/thumb-thesis.png` (the plain claim and the commitment ladder). Ship
+`thumb.png` unless you have a reason — the forge one reads as "Seven used to
+get through" with no clue what *seven* refers to once it is small, because the
+line that explains it is too small to read.
+
+---
+
 ## Part 5 — Export and upload (10 minutes)
 
 ### 5.1 Export
@@ -435,9 +464,14 @@ allow="tools" plus Permissions-Policy: tools=(...), and Origin-Agent-Cluster.
 Verified on native WebMCP in Chrome 151.
 ```
 
-4. **Visibility: Public.** Not unlisted. The rules say public.
-5. Turn **off** "Made for kids".
-6. Publish, then **open the link in a private window** to prove it is really
+4. **Thumbnail:** click **Upload thumbnail** and choose
+   `demo/thumb.png`. Do not let YouTube pick a frame — every auto-frame of
+   this video is a dark screenshot of a tool list, which is unreadable at the
+   size a thumbnail is actually seen.
+
+5. **Visibility: Public.** Not unlisted. The rules say public.
+6. Turn **off** "Made for kids".
+7. Publish, then **open the link in a private window** to prove it is really
    public.
 
 ### 5.3 Submit on Devpost

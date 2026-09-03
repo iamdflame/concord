@@ -1,0 +1,150 @@
+<!doctype html>
+<!-- YouTube thumbnails, 1280x720, rendered at 2x and downsampled by demo/build.mjs.
+     Same fonts, palette and mark as the product and the demo cards.
+
+     A thumbnail is judged at about 210px wide in a search result and smaller
+     than that on a phone. So: one idea, four or five large words, and a second
+     element that survives as texture with a single point of colour in it. Long
+     lines of explanation are a card, not a thumbnail. -->
+<meta charset="utf-8">
+<title>Concord — thumbnails</title>
+<style>
+  @font-face{font-family:"Source Serif 4";src:url(../ui/fonts/serif-600.woff2)format("woff2");font-weight:600}
+  @font-face{font-family:"Source Serif 4";src:url(../ui/fonts/serif-400.woff2)format("woff2");font-weight:400}
+  @font-face{font-family:"IBM Plex Mono";src:url(../ui/fonts/mono-400.woff2)format("woff2");font-weight:400}
+  @font-face{font-family:"IBM Plex Mono";src:url(../ui/fonts/mono-600.woff2)format("woff2");font-weight:600}
+  :root{
+    --paper:#101419; --ink:#f2f1ec; --ink-2:#a6abb1; --ink-3:#7b8187;
+    --rule:#2b3138; --blue:#008bc2; --red:#e85b36;
+    /* lifted from the product's #34925d: at 210px a dot is four pixels, and
+       four dim pixels are no pixels. */
+    --green:#45b477;
+    --serif:"Source Serif 4",Georgia,serif; --mono:"IBM Plex Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{width:1280px;background:var(--paper);color:var(--ink);
+       font:20px/1.5 var(--serif);-webkit-font-smoothing:antialiased;
+       font-variant-numeric:tabular-nums}
+  .t{width:1280px;height:720px;padding:52px 68px 46px;position:relative;overflow:hidden;
+     display:flex;flex-direction:column}
+
+  .top{display:flex;justify-content:space-between;align-items:center}
+  .mark{display:flex;align-items:center;gap:14px}
+  .mark svg{width:50px;height:50px}
+  .mark span{font-size:35px;font-weight:600;letter-spacing:-0.02em}
+  .tag{font-family:var(--mono);font-size:18px;color:var(--ink-3);letter-spacing:.03em}
+
+  .body{flex:1;display:flex;align-items:center;gap:56px;margin-top:6px}
+  .say{flex:1}
+  .eyebrow{font-family:var(--mono);font-size:19px;line-height:1.55;color:var(--ink-2);
+           margin-bottom:24px;white-space:nowrap}
+  h1{margin:0;font-size:107px;font-weight:600;line-height:0.99;letter-spacing:-0.035em}
+  h1 em{font-style:normal;color:var(--red)}
+  .say .sub{margin:24px 0 0;font-size:25px;line-height:1.4;color:var(--ink-2);max-width:26ch}
+  .say .sub b{color:var(--ink);font-weight:600}
+
+  .foot{font-family:var(--mono);font-size:19px;color:var(--ink-3);
+        border-top:1px solid var(--rule);padding-top:18px;padding-right:240px}
+  .foot b{color:var(--ink-2);font-weight:400}
+  .foot i{font-style:normal;color:var(--rule);padding:0 10px}
+
+  /* the tool surface, as texture with one red line in it */
+  .surface{width:430px;font-family:var(--mono);font-size:20px;line-height:1}
+  .surface .row{display:flex;align-items:center;gap:15px;color:var(--ink-2);padding:9px 0}
+  .dot{width:11px;height:11px;border-radius:2px;background:var(--green);flex:none}
+  .surface .last{margin-top:12px;padding-top:20px;border-top:1px solid var(--rule)}
+  .surface .last .dot{background:none;border:2px solid var(--red);border-radius:2px}
+  .surface .last .name{font-size:30px;font-weight:600;color:var(--ink-3);
+                       text-decoration:line-through;text-decoration-color:var(--red);
+                       text-decoration-thickness:3px}
+  .surface .note{font-family:var(--mono);font-size:18px;color:var(--red);
+                 margin:14px 0 0 26px;letter-spacing:.01em}
+
+  /* fourteen forgeries */
+  .grid{width:396px;display:grid;grid-template-columns:repeat(5,1fr);gap:15px}
+  .grid i{height:64px;border:2px solid var(--rule);border-radius:3px;display:block;
+          position:relative;background:#151a20}
+  .grid i.bad{border-color:var(--red)}
+  .grid i.bad::after,.grid i.bad::before{content:"";position:absolute;left:14px;right:14px;
+          top:50%;height:3px;background:var(--red);border-radius:2px}
+  .grid i.bad::after{transform:rotate(45deg)}
+  .grid i.bad::before{transform:rotate(-45deg)}
+
+  /* the ladder */
+  .rungs{width:400px;display:grid;gap:16px;font-family:var(--mono);font-size:21px}
+  .rungs div{border-left:5px solid var(--green);padding:15px 0 15px 20px;color:var(--ink-2);
+             background:linear-gradient(90deg,#161b21,transparent)}
+  .rungs div small{display:block;font-size:16px;color:var(--ink-3);margin-top:6px}
+  .rungs div.mid{border-left-color:var(--blue)}
+  .rungs div.hot{border-left-color:var(--red);color:var(--ink)}
+</style>
+<body>
+<div id="thumbs"></div>
+<script type="module">
+const MARK = `<svg viewBox="0 0 64 64" fill="none"><path d="M44.53 17.06A19.5 19.5 0 1 1 22.25 15.11" stroke="currentColor" stroke-width="5.5"/><rect x="15.75" y="8.61" width="13" height="13" fill="var(--red)"/></svg>`;
+const top = (tag) => `<div class="top"><div class="mark">${MARK}<span>Concord</span></div>
+  <div class="tag">${tag}</div></div>`;
+const foot = (l, r) => `<div class="foot">${l}<i>&middot;</i>${r}</div>`;
+const live = ['concord_list_vendors', 'concord_inspect_vendor', 'concord_propose_commitment',
+              'concord_get_surface', 'concord_explain_guarantee']
+  .map((n) => `<div class="row"><span class="dot"></span>${n}</div>`).join('');
+
+const THUMBS = {
+
+// The one to ship. The claim is short enough to read on a phone, and the
+// picture is the claim: five tools answered, and the sixth is not there.
+'thumb': `<div class="t">${top('The WebMCP Challenge')}
+  <div class="body">
+    <div class="say">
+      <div class="eyebrow">the agent proposed the booking,<br>then read the guarantee out loud</div>
+      <h1>Explaining<br>is <em>not</em><br>consent.</h1>
+    </div>
+    <div class="surface">${live}
+      <div class="row last"><span class="dot"></span><span class="name">concord_commit</span></div>
+      <div class="note">not registered — no one has said yes</div>
+    </div>
+  </div>
+  ${foot('getTools() &middot; <b>5 registered</b>', 'native WebMCP &middot; no backend')}
+</div>`,
+
+// Alternate: the adversarial angle. Louder, less about the thesis.
+'thumb-forge': `<div class="t">${top('The WebMCP Challenge')}
+  <div class="body">
+    <div class="say">
+      <div class="eyebrow">real signatures, fired at the<br>verifier this project ships</div>
+      <h1>Seven <em>used</em><br>to get<br>through.</h1>
+    </div>
+    <div class="grid">${'<i class="bad"></i>'.repeat(14)}<i style="border:0;background:none"></i></div>
+  </div>
+  ${foot('14 forged receipts &middot; <b>0 accepted</b>', 'fire them yourself: /attack.html')}
+</div>`,
+
+// Alternate: the plain thesis, for anywhere the audience is colder.
+'thumb-thesis': `<div class="t">${top('The WebMCP Challenge')}
+  <div class="body">
+    <div class="say">
+      <div class="eyebrow">WebMCP says what a site can do.<br>Nothing says what it can take back.</div>
+      <h1>An agent<br>that cannot<br><em>overpromise</em>.</h1>
+    </div>
+    <div class="rungs">
+      <div>reservable<small>hold it, drop it, nothing happened</small></div>
+      <div class="mid">compensable<small>undoable, but it leaves a mark</small></div>
+      <div class="hot">irreversible<small>two of these and the answer is no</small></div>
+    </div>
+  </div>
+  ${foot('the commitment ladder', 'refused before anything is contacted')}
+</div>`,
+};
+
+const out = document.getElementById('thumbs');
+for (const [name, html] of Object.entries(THUMBS)) {
+  out.insertAdjacentHTML('beforeend', `<section data-name="${name}">${html}</section>`);
+}
+globalThis.__CARDS__ = [...document.querySelectorAll('section')].map((s) => s.dataset.name);
+globalThis.__SHOW__ = (name) => {
+  for (const s of document.querySelectorAll('section')) s.style.display = s.dataset.name === name ? '' : 'none';
+  return false;  // a thumbnail is never overlaid on anything
+};
+globalThis.__READY__ = true;
+</script>

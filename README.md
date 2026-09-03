@@ -586,6 +586,7 @@ brand/                    the mark, and the script that draws it
 demo/RECORDING.md         how to record and cut the demo, step by step
 demo/cards/               the four cards of the cut, four spares, seven lower thirds
 demo/framing-clip2.png    what the one shot that matters should look like
+demo/thumb.png            the YouTube thumbnail, and two alternates beside it
 demo/timing.mjs           does the demo still fit, and do its files exist
 shim/webmcp.mjs           spec-faithful WebMCP for browsers that lack it
 shim/adapter.mjs          native-first resolution; reports which provider you got
