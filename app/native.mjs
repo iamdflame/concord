@@ -6,6 +6,8 @@
 // specific assumptions hold on the real API. Each row below is one assumption
 // the implementation makes, checked rather than believed.
 
+import { canRequestAttention } from './attention.mjs';
+
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[<>&"']/g, (c) =>
   ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -166,11 +168,13 @@ row(policy === 'granted' ? 'yes' : 'na', 'the "tools" permissions policy', polic
 // not exist until a person accepts. The obvious question is why it does not
 // use the platform's own consent affordances instead, and the answer is what
 // these rows report on the browser you are actually holding.
-row(typeof mc?.requestUserInteraction === 'function' ? 'yes' : 'no',
+row(canRequestAttention(mc) ? 'yes' : 'no',
   'requestUserInteraction exists',
-  typeof mc?.requestUserInteraction === 'function'
-    ? 'present — Concord would use it as a second door onto the same accept'
-    : 'absent on this build; the surface is getTools, registerTool, executeTool, ontoolchange');
+  canRequestAttention(mc)
+    ? 'present — Concord uses it, as a second door onto the same accept. It asks for a '
+      + 'person\u2019s attention and grants nothing; the lock is still the registration'
+    : 'absent on this build; the surface is getTools, registerTool, executeTool, ontoolchange. '
+      + 'Concord feature-detects it and behaves identically without it');
 
 row(typeof navigator.userActivation === 'object' ? 'yes' : 'no',
   'navigator.userActivation is readable',

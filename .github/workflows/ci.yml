@@ -9,8 +9,17 @@ name: ci
 #   push: { branches: [main] }
 #   pull_request:
 #   schedule: [{ cron: '0 7 * * *' }]
+#
+# Everything here is also `bash tools/check.sh`, which anyone can run without
+# an Actions runner. That is deliberate: CI you cannot reproduce locally is
+# evidence only its owner can produce.
 on:
   workflow_dispatch:
+    inputs:
+      mutants:
+        description: 'Run every mutant (slow: ~40 minutes) rather than a sample'
+        type: boolean
+        default: false
 
 jobs:
   protocol:
@@ -22,11 +31,40 @@ jobs:
         with: { node-version: '22' }
       - run: npm test
 
-      - name: the published verifier matches this repository
+      - name: the protocol, model-checked exhaustively
+        run: node spec/check.mjs
+
+      - name: every forgery is rejected
+        run: node attacks/run.mjs
+
+      - name: the generated artefacts are not stale
         run: |
           node verify/build.mjs
-          git diff --exit-code verify/lib \
-            || (echo "::error::verify/lib is stale — run node verify/build.mjs and commit"; exit 1)
+          node spec/build.mjs
+          git diff --exit-code verify/lib spec/Concord.tla spec/Concord.cfg \
+            || (echo "::error::a generated file is stale — run node verify/build.mjs and node spec/build.mjs, then commit"; exit 1)
+
+      - name: the docs describe this repository
+        run: node tools/check-readme.mjs
+
+      - name: the demo still fits in three minutes
+        run: node demo/timing.mjs
+
+  mutants:
+    name: how many of these tests actually bite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      # A sample by default so the job stays inside a coffee break; the whole
+      # set on request, and on the nightly schedule once one is running.
+      - name: mutation score
+        run: |
+          if [ "${{ inputs.mutants }}" = "true" ]; then SAMPLE=100000; else SAMPLE=60; fi
+          SAMPLE=$SAMPLE node tools/mutants.mjs | tee mutants.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: mutants, path: mutants.txt }
 
   browser:
     name: against real origins
@@ -37,6 +75,7 @@ jobs:
         with: { node-version: '22' }
       - run: node server.mjs &
       - run: npx wait-on http://localhost:5173 http://localhost:5181 -t 30000
+
       - name: interception, gate, composition, replay
         run: |
           for page in "" phase02.html phase03.html phase04.html; do
@@ -46,6 +85,15 @@ jobs:
         run: URL=http://localhost:5173/concord-test.html node tools/probe.mjs
       - name: every participant conforms
         run: URL=http://localhost:5173/conformance.html node tools/probe.mjs
+      - name: the drop-in receipt element verifies, and refuses a forgery
+        run: URL=http://localhost:5173/element.html node tools/probe.mjs
+
+      # The central claim, checked through the same getTools() an agent calls:
+      # concord_commit must not exist until a person accepts, and must stop
+      # existing the moment that stops being true. A deploy that breaks this
+      # must not be able to ship.
+      - name: the surface matrix
+        run: node evals/surface.mjs
 
   deployment:
     name: the live deployment is usable
@@ -58,3 +106,16 @@ jobs:
       # needs, publishes a key that does not change between requests, and signs
       # with the key it publishes.
       - run: node deploy/verify-live.mjs
+
+      # And the surface invariants against the deployment itself, not just a
+      # local server. These are the assertions a bad deploy has to fail: the
+      # coordinator's tool surface state by state, and every participant's
+      # declared commitment surface against the specification.
+      - name: the surface matrix, against production
+        run: URL=https://concord-coordinator.vercel.app/ node evals/surface.mjs
+
+      - name: every deployed participant still conforms
+        run: URL=https://concord-coordinator.vercel.app/conformance.html node tools/probe.mjs
+
+      - name: the drop-in element still verifies against production
+        run: URL=https://concord-coordinator.vercel.app/element.html node tools/probe.mjs

@@ -21,7 +21,13 @@ for (const [, target] of md.matchAll(/\]\((?!https?:|#)([^)]+)\)/g)) {
   const file = target.split('#')[0];
   want(!file || existsSync(file), `broken link: ${target}`);
 }
-for (const [, src] of md.matchAll(/(?:src|srcset)="([^"]+)"/g)) {
+// Outside fenced blocks only. A ```html sample showing somebody how to use the
+// receipt element contains src="/receipts/RH-9.json", which is a path on *their*
+// site and not a file here; checking it fails the build over an example that is
+// doing its job. Commands are still checked inside fences, because a command
+// this README tells you to run has to exist.
+const prose = md.replace(/```[\s\S]*?```/g, '');
+for (const [, src] of prose.matchAll(/(?:src|srcset)="([^"]+)"/g)) {
   want(src.startsWith('http') || existsSync(src), `broken image: ${src}`);
 }
 

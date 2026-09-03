@@ -1,0 +1,86 @@
+name: Verify Concord receipts
+description: >
+  Check that every Concord receipt in a repository still verifies -- each
+  statement signed by the party it names, with a key resolved from that party's
+  own origin, and the ledger accounting for the whole commitment. Fails the
+  build if any receipt does not, or if a receipt claims an outcome its entries
+  do not support.
+author: Concord
+
+branding:
+  icon: check-circle
+  color: red
+
+inputs:
+  path:
+    description: >
+      Glob for the receipts to check, relative to the workspace.
+      Default catches the conventional location and anything named *.receipt.json.
+    required: false
+    default: 'receipts/**/*.json *.receipt.json'
+  explain:
+    description: Print the full reasoning for each receipt rather than one line.
+    required: false
+    default: 'false'
+  allow-empty:
+    description: >
+      Pass when the glob matches nothing. Off by default: a workflow that
+      verifies receipts and silently finds none is a workflow that proves
+      nothing, and that is the failure mode worth catching.
+    required: false
+    default: 'false'
+
+outputs:
+  checked:
+    description: How many receipts were verified.
+    value: ${{ steps.verify.outputs.checked }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with: { node-version: '22' }
+
+    - id: verify
+      shell: bash
+      run: |
+        set -uo pipefail
+        shopt -s globstar nullglob
+
+        files=()
+        for pattern in ${{ inputs.path }}; do
+          for f in $pattern; do [ -f "$f" ] && files+=("$f"); done
+        done
+
+        if [ ${#files[@]} -eq 0 ]; then
+          if [ "${{ inputs.allow-empty }}" = "true" ]; then
+            echo "checked=0" >> "$GITHUB_OUTPUT"
+            echo "no receipts matched, and allow-empty is set"
+            exit 0
+          fi
+          echo "::error::no receipts matched '${{ inputs.path }}'. A receipt check that checks nothing passes for the wrong reason; set allow-empty: true if that is really what you want."
+          exit 1
+        fi
+
+        flag=""
+        [ "${{ inputs.explain }}" = "true" ] && flag="--explain"
+
+        bad=0
+        for f in "${files[@]}"; do
+          echo "::group::$f"
+          if npx --yes concord-verify@latest "$f" $flag; then
+            echo "::notice file=$f::receipt verifies"
+          else
+            echo "::error file=$f::this receipt does not verify"
+            bad=$((bad + 1))
+          fi
+          echo "::endgroup::"
+        done
+
+        echo "checked=${#files[@]}" >> "$GITHUB_OUTPUT"
+        echo
+        if [ $bad -gt 0 ]; then
+          echo "$bad of ${#files[@]} receipts failed to verify"
+          exit 1
+        fi
+        echo "all ${#files[@]} receipts verify"

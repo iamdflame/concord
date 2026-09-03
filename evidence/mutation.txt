@@ -1,21 +1,21 @@
-mutation score: 92% (36/39 sampled, of 116 possible)
+mutation score: 97% (112/116 of 116 possible)
 files: concord/ladder.mjs, concord/saga.mjs, concord/receipt.mjs, concord/recover.mjs, kit/canonical.mjs
-regenerate: npm run mutants
+at: 2026-09-03T12:34:40.458Z
 
-Was 77%. concord/boundaries.test.mjs closed six survivors, all of them
-boundaries: the instant a key comes into force, the instant one is reported
-stolen, the index one past the end of a tree, a vendor checking its own entry
-against a key that was not in force, a signed step outside the plan, and a
-handle returned as a bare string.
+112 killed, 0 unexamined, 4 examined and documented below
 
-Three survive, and are listed rather than hidden:
+survived concord/saga.mjs:148 flip <=
+  if (Date.now() - startedAt < sagaTimeoutMs) return;
+  EXAMINED: equivalent in practice. `<` against `<=` on elapsed milliseconds differs only when the elapsed time is exactly the deadline, which no test can arrange without an injectable clock. Injecting one would add a production parameter that exists only to be mocked; the behaviour either side of that instant is covered.
 
-  concord/saga.mjs        the overall deadline comparison, <= against <
-                          a millisecond either side of a two-minute limit
-  concord/saga.mjs        the confirmRetries argument check, >= 1 against > 1
-                          nothing calls it with exactly 1
-  concord/receipt.mjs     which of two wordings a duplicate statement gets
-                          both are complaints, so the receipt is refused either
-                          way -- an equivalent mutant rather than a gap
+survived concord/saga.mjs:431 flip <=
+  if (left < 0) {
+  EXAMINED: equivalent in practice, same reason: a hold whose remaining time is exactly zero. Expiry either side of the instant is covered by concord/boundaries.test.mjs.
 
-The full run, including every survivor, is in mutation-run.txt.
+survived concord/saga.mjs:437 flip <
+  if (left <= record.ttlSeconds * 1000 * 0.2) {
+  EXAMINED: equivalent in practice. This is the threshold for warning that a hold is expiring soon; the mutant moves it by one millisecond, and the warning is advisory.
+
+survived concord/receipt.mjs:116 flip >=
+  if (p > path.length) return false;
+  EXAMINED: equivalent. With `>` the walk reads one index past the end of the audit path, folds an undefined into the hash, and the result stops matching the root -- so a truncated proof is still refused, for a different reason. Checked rather than argued: 2,124 genuinely malformed proofs (every truncation, every over-length padding, and a reversed path, over trees of size 1 to 24) are refused identically by both versions. The length check stays, because failing for the right reason is worth one line.

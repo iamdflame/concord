@@ -494,3 +494,73 @@ annotations: {
 `readOnlyHint` already establishes that WebMCP cares about the category of a
 tool's effect. Reversibility is the next axis, and an agent needs it to plan
 safely rather than to act hopefully.
+
+## 20. The formal model
+
+The safety properties in this document are stated in English above and as an
+executable state machine in [`spec/model.mjs`](spec/model.mjs). Both are
+normative; where they disagree, that is a defect in this specification and the
+model is the one that has been checked.
+
+[`spec/check.mjs`](spec/check.mjs) enumerates every reachable state of that
+machine, breadth-first, over every plan shape of up to three participants — 855
+states — and evaluates every invariant in every one of them. When an invariant
+fails it reports the shortest action sequence that reaches the failure, because
+a counterexample nobody can read is a counterexample nobody fixes.
+
+The invariants, in the machine's own names:
+
+| Invariant | In words |
+|---|---|
+| `NoEffectWithoutAcceptance` | nothing is contacted unless a person accepted first (§4, §14) |
+| `NoAcceptanceOfRefused` | a plan with no honest guarantee cannot be accepted (§5) |
+| `JournalBeforeEffect` | no effect happens whose intent was not written down (§9) |
+| `IrreversibleIsLast` | nothing irreversible is touched while anything reversible is unsettled (§5) |
+| `AtMostOneIrreversible` | a committable plan holds at most one unreversible step (§5) |
+| `UnwoundMeansNothingIrreversibleRan` | "this did not happen" is never said after something that cannot be undone (§6) |
+| `UnwoundMeansEverythingReversed` | an unwound commitment left nothing standing (§6) |
+| `CommitToolIffUnspentAcceptance` | the commit tool exists exactly while an unspent acceptance does (§14) |
+| `RefusedTouchesNothing` | a refusal is computed before contact (§5) — *derived, not independent* |
+
+`RefusedTouchesNothing` is marked derived because no mutation of the model
+breaks it without first breaking `NoAcceptanceOfRefused` or
+`NoEffectWithoutAcceptance`. It is stated because it is the sentence a person
+wants to hear, and marked because an implementer should know which properties
+are load-bearing.
+
+### 20.1 The TLA+ module
+
+[`spec/Concord.tla`](spec/Concord.tla) and its TLC configuration are **generated**
+by `spec/build.mjs` from the same action and invariant declarations
+`spec/check.mjs` executes. It is not hand-written and must not be hand-edited; a
+test fails if the committed file is not what the generator produces.
+
+This is deliberate. A model in a second notation is a second artefact that can
+drift from the code, and a stale formal model is worse than none — it reads as a
+guarantee about software it no longer describes. Generation removes the drift
+for structure: every action and invariant appears in the module, under the same
+name. It does not remove it for meaning: the TLA+ text of each action is written
+beside its JavaScript by a person, and only a run of TLC would check that the
+two agree.
+
+That run has not happened here — this machine has no Java — and the honest
+statement of what is proved is therefore:
+
+- the invariants hold over every reachable state of the model, checked by
+  `spec/check.mjs` on every test run;
+- each invariant is falsifiable, demonstrated by a targeted mutation of the
+  model that makes it fail with a readable trace;
+- the model's permission rule is the implementation's, checked by handing every
+  reachable state to the shipped `desiredNames()`;
+- the module is a faithful transcription offered to anyone with TLC, and is not
+  itself evidence.
+
+### 20.2 What the model does not cover
+
+The model abstracts away time, concurrency between commitments, network
+partitions, and the contents of a statement. Those are covered by
+`concord/simulation.test.mjs` (fault injection at every step),
+`attacks/coordinator.test.mjs` (every receipt a malicious coordinator can build)
+and `concord/recover.test.mjs` (crash recovery at every crash point) — by
+execution rather than by enumeration. A property this specification asserts is
+either in the table above or in one of those.

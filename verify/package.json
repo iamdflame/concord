@@ -1,6 +1,6 @@
 {
   "name": "concord-verify",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Verify a Concord receipt without trusting the coordinator that produced it.",
   "type": "module",
   "bin": {
@@ -9,10 +9,12 @@
   "main": "./lib/receipt.mjs",
   "exports": {
     ".": "./lib/receipt.mjs",
-    "./canonical": "./lib/canonical.mjs"
+    "./canonical": "./lib/canonical.mjs",
+    "./element": "./concord-receipt.mjs"
   },
   "files": [
     "cli.js",
+    "concord-receipt.mjs",
     "lib/",
     "README.md"
   ],

@@ -212,6 +212,14 @@ async function buildApp(appOrigin) {
     ['app/attack.mjs', 'attack.mjs'],
     ['attacks/browser.mjs', 'attacks/browser.mjs'],
     ['spec/conformance.mjs', 'spec/conformance.mjs'],
+    // The drop-in element, and the page that shows it verifying an honest
+    // receipt and refusing a forged one. A vendor copying two lines into their
+    // own site should be able to see it working first, on an origin that is
+    // not theirs and not ours-pretending-to-be-theirs.
+    ['app/element.html', 'element.html'],
+    ['verify/concord-receipt.mjs', 'verify/concord-receipt.mjs'],
+    ['verify/lib/receipt.mjs', 'verify/lib/receipt.mjs'],
+    ['verify/lib/canonical.mjs', 'verify/lib/canonical.mjs'],
   ]) {
     await mkdir(join(bundle, dirname(to)), { recursive: true });
     await cp(join(root, from), join(bundle, to));

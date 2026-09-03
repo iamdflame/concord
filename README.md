@@ -15,6 +15,7 @@ incapable of overpromising.
 > · [**fire forged receipts at the verifier**](https://concord-coordinator.vercel.app/attack.html)
 
 **Live: <https://concord-coordinator.vercel.app>** ·
+[**the two-minute demo**](https://youtu.be/S3rHWHG-tqo) ·
 [the five-minute path](https://concord-coordinator.vercel.app/judge.html) ·
 [the forge](https://concord-coordinator.vercel.app/attack.html) ·
 [is WebMCP native here?](https://concord-coordinator.vercel.app/native.html) ·
@@ -383,6 +384,54 @@ ticketed and rebuild the receipt around what is left, and it says the receipt
 does not account for the whole commitment its own participants signed up to.
 Both exit non-zero. `--explain` prints the algorithm as it runs.
 
+### Three ways to use it that do not involve us
+
+A protocol only becomes one when other people can adopt it without asking. Six
+origins we deployed is a demonstration; a convention other sites can implement
+is the thing worth building. So the pieces a stranger needs are shipped
+separately from the coordinator, and none of them contacts it.
+
+**A tag, for a vendor's own site.** A customer being shown "your booking was
+confirmed" is being asked to believe the site telling them. This does not ask —
+it resolves each key from the origin that signed the statement and verifies in
+the visitor's own browser, and it derives the outcome from the statements rather
+than reading the coordinator's `outcome` field, so a receipt that says
+*committed* over statements that say *in-doubt* is contradicted on the page.
+
+```html
+<script type="module" src="https://unpkg.com/concord-verify/concord-receipt.mjs"></script>
+<concord-receipt src="/receipts/RH-9.json"></concord-receipt>
+```
+
+It loads from the registry rather than from us **on purpose**: a vendor pulling
+its verification code from the coordinator's origin is trusting the coordinator
+to serve honest verification code, which is the whole thing this design refuses
+to do. (It ships in `concord-verify` **0.3.0**. The registry currently has
+0.1.0 — `npm run publish:verify` is the step that closes that, and it needs
+credentials this repository does not contain.)
+
+Live, with an honest receipt and a forged one side by side, at
+[**/element.html**](https://concord-coordinator.vercel.app/element.html) — and
+checked in CI, because a component nobody runs is a component that has stopped
+working.
+
+**A GitHub Action, so receipts cannot rot.**
+[`.github/actions/verify-receipt`](.github/actions/verify-receipt/action.yml)
+fails the build if any receipt in a repository stops verifying — a key rotated
+past its window, a statement edited, an outcome relabelled. It fails on matching
+*nothing*, too, by default: a receipt check that checks no receipts passes for
+the wrong reason.
+
+```yaml
+- uses: iamdflame/concord/.github/actions/verify-receipt@main
+  with: { path: 'receipts/**/*.json' }
+```
+
+**A conformance suite, so a site can certify itself.**
+[/conformance.html](https://concord-coordinator.vercel.app/conformance.html)
+points at any origin, including one we have never seen, and reports which level
+of the specification it meets and exactly which clause it fails.
+
 ## Running it yourself
 
 ```bash
@@ -408,7 +457,7 @@ the native API.
 
 ## Tests
 
-**128 assertions with no browser**, six browser suites against real origins, and
+**163 assertions with no browser**, seven browser suites against real origins, and
 two end-to-end round trips that had never been checked before they were written.
 
 The protocol core is pure and tested without a browser: ordering, reverse unwind,
@@ -438,6 +487,50 @@ only be a sentence in this file:
   declaring a dependency on each other made `plan()` **throw**, where every
   other unpromisable configuration returns a refusal — so a cycle reached the
   page as "I could not finish that" instead of as an answer.
+- **[`spec/`](spec/)** is the protocol as a state machine, model-checked.
+  [`spec/check.mjs`](spec/check.mjs) walks **855 reachable states** breadth-first
+  over every plan shape and checks **nine safety invariants** in every one,
+  reporting the shortest counterexample trace when one fails. Among them:
+  *nothing is contacted without an acceptance*, *no effect happens whose intent
+  was not written down first*, and *concord_commit is registered exactly when a
+  person has accepted and not yet spent it*.
+  [`spec/Concord.tla`](spec/Concord.tla) is **generated** from the same
+  declaration the checker executes, so the TLA+ module cannot drift from what is
+  actually verified — a test fails if it is stale, the same discipline
+  `verify/lib` is held to. Every invariant was checked to be *falsifiable*: one
+  targeted mutation of the model each, and each produces a readable trace
+  (`Propose → Explain → Accept → BeginCommitment` for the commit-tool one). The
+  ninth is documented as **derived rather than independent**, because no
+  mutation breaks it that does not break two others first.
+- **[`concord/model.test.mjs`](concord/model.test.mjs)** runs randomised command
+  sequences against the real `AgentSurface` *and* against an independent model,
+  and compares them after every single step. The model never reads the surface's
+  bookkeeping — it reads a log of what an outside observer saw and decides for
+  itself whether a person has accepted something unspent. That makes the central
+  claim a machine-checked **iff** rather than a sentence here. Its first draft
+  was vacuous: `concord_commit` was registered in 1% of the states it checked and
+  the unwind-ordering property was empty in 95% of its runs, so every property
+  now **asserts how much of the interesting space it reached** and fails rather
+  than going green faster.
+- **[`attacks/coordinator.test.mjs`](attacks/coordinator.test.mjs)** gives the
+  coordinator its full power — every subset of the statements, every ordering,
+  every duplication, every value of the unsigned outcome field, the tree rebuilt
+  each time — and asserts an **iff over all 180 constructions**: a receipt
+  verifies exactly when every party the plan names has said something and the
+  outcome field is the one those statements imply. It corrected the claim twice.
+  A partial ledger honestly labelled *in-doubt* is not a forgery; and a receipt
+  that omits a party is refused however it is labelled, because the survivors
+  testify that somebody is missing.
+- **[`attacks/hostile.test.mjs`](attacks/hostile.test.mjs)** attacks from the
+  other side: a vendor that stalls forever, double-spends, lies about its rung,
+  returns prototype-pollution payloads and `Proxy` objects that throw on every
+  read — and one whose every field, including its tool names, is an instruction
+  to commit. None of it moves the surface, because nothing reads a vendor's
+  strings to decide what is registered. That is the difference between a
+  permission model and a prompt.
+- **[`concord/gaps.test.mjs`](concord/gaps.test.mjs)** exists only because
+  mutation testing said the suite was silent somewhere, and each test names the
+  mutant it kills.
 - **[`concord/exhaustive.test.mjs`](concord/exhaustive.test.mjs)** enumerates
   **every** configuration of up to three participants — each reservable,
   compensable, irreversible or unusable, under every pattern of declared
@@ -466,12 +559,48 @@ only be a sentence in this file:
   "0 of 6 answered" and a failure screen with five participants healthy.
 
 **Do the tests bite?** `npm run mutants` changes the code in ways that must break
-something and reports what nothing noticed. **92%** — 36 of 39 sampled mutants
-killed, up from 77%: the six survivors it found were all *boundaries*, which is
-where a real dispute lands, and closing them is
-[`concord/boundaries.test.mjs`](concord/boundaries.test.mjs). The three that
-remain are listed in [`evidence/mutation.txt`](evidence/mutation.txt) rather
-than hidden, and one of them is an equivalent mutant.
+something and reports what nothing noticed.
+
+The honest version of that number took a correction. The score reported here was
+**92%**, from a run of 60 sampled mutants — but the sampler takes every Nth entry
+from a list sorted by file and by operator, which is a stratified sample, and it
+flattered the result. Running **all 116** gave **87%**, five points
+lower. Every survivor is now listed in
+[`evidence/mutation.txt`](evidence/mutation.txt), with each one classified as
+killed, closed, or equivalent-with-a-reason — and `npm run mutants` defaults to
+the whole set rather than a sample, because a sampled score is not a score.
+
+Closing them is [`concord/gaps.test.mjs`](concord/gaps.test.mjs), which took the
+score to **97% — 112 of 116, with no unexamined survivors left**. They were more
+interesting than expected: an off-by-one in the confirm
+retry budget that nothing counted, a proof path that could be truncated, the
+difference between a hold and a booking in three places, and the entire origin
+resolver — the one path that needs the network, and so the one path nothing
+exercised. The four that remain are **equivalent, and argued rather than asserted**. Three
+are one-millisecond windows — `<` against `<=` on elapsed time — that no test can
+pin without injecting a clock that would exist only to be mocked. The fourth
+looked like a hole in the Merkle proof check, and was worth measuring rather
+than reasoning about: 2,124 genuinely malformed proofs (every truncation, every
+over-length padding, a reversed path, over trees of size 1 to 24) are refused
+identically by both versions, because reading one index past the end of the path
+folds an `undefined` into the hash and the root stops matching anyway. The length
+check stays, because failing for the right reason is worth one line.
+
+The runner keeps that honest for the next person. Each examined survivor carries
+its reasoning in `tools/mutants.mjs`, keyed by the mutated line rather than a
+line number; a survivor with no entry is reported as **unexamined**, and an entry
+whose mutant no longer survives is reported as a **stale claim** to be deleted.
+That check immediately caught one of mine that had never matched a real mutant
+at all.
+
+**And the property tests are mutation-tested too**, because a property that
+cannot fail passes loudest. Every invariant in the formal model was checked
+against a targeted mutation of the model; every property in
+`concord/model.test.mjs` against a mutation of the implementation. Two of them
+survived the first attempt — the unwind-ordering property was trivially true
+because the fixture had only one participant of each rung, and an
+"irreversible-then-unwound" property was checking a state that is unreachable by
+construction. Both were rewritten until they bit.
 
 Every number above comes from a run that is committed in
 [`evidence/`](evidence/), regenerated by `npm run evidence`.
@@ -489,6 +618,8 @@ delegates `tools` to nobody and publishes no key at all.
   coordinator's surface — which tools may be registered when, normatively. Its
   §18 is the unresolved problems, written down rather than hedged; §19 proposes
   the reversibility annotation upstream.
+- **[SPEC §20](SPEC.md)** — the formal model: nine safety invariants, 855 states,
+  and exactly what the generated TLA+ module is and is not evidence of.
 - **[THREAT-MODEL.md](THREAT-MODEL.md)** — who is trusted for what, the attacks
   that are closed with the verifier's exact response to each, and the ones that
   are not.
@@ -559,14 +690,25 @@ concord/agent-surface.mjs the permission model: which tools may exist, when
 concord/client.mjs        binds the protocol to WebMCP
 concord/*.test.mjs        the protocol proved without a browser
 kit/property.mjs          property testing, ~100 lines, no dependencies
-attacks/                  forged receipts, fired headless and at /attack.html
+
+spec/model.mjs            the protocol as a state machine, actions and invariants
+spec/check.mjs            an explicit-state model checker; 855 states, 9 invariants
+spec/Concord.tla          generated from spec/model.mjs — never hand-edited
+attacks/browser.mjs       forged receipts, fired headless and at /attack.html
+attacks/coordinator.test.mjs  every receipt a malicious coordinator can build
+attacks/hostile.test.mjs  a participant that stalls, lies, and tries to give orders
 
 app/concord.html          :5173 — the coordinator, and the agent
 app/reconciler.mjs        registration as the permission system
+app/attention.mjs         requestUserInteraction: the second door, which is not a lock
 app/native.html           what your browser's WebMCP actually does
 app/conformance.html      any origin against the specification, including yours
+app/element.html          the drop-in receipt tag, verifying and refusing
 app/contrast.test.mjs     the palette, checked against the stylesheet itself
 evals/surface.mjs         the tool surface, asserted state by state in a browser
+
+verify/concord-receipt.mjs  <concord-receipt>, for a vendor's own site
+.github/actions/verify-receipt  fail a build when a receipt stops verifying
 
 verifier/                 :5183 — a receipt checked where we do not run
 vendors/fly    :5177      reservable — hold, ticket, release

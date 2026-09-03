@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concord — &lt;concord-receipt&gt;</title>
+<meta name="description" content="The drop-in receipt element, verified in your own browser.">
+<link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/ui/instrument.css">
+<style>
+  .instrument{max-width:860px}
+  .hero{font-family:var(--display);font-size:var(--t-hero);font-weight:600;line-height:1.08;
+        letter-spacing:-0.022em;margin:6px 0 14px;max-width:20ch}
+  .lead{font-size:var(--t-lead);line-height:1.5;color:var(--ink-2);max-width:64ch}
+  section{margin:34px 0 0;border-top:1px solid var(--rule-firm);padding-top:18px}
+  h2{font-size:1.05rem;margin:0 0 6px}
+  p.note{color:var(--ink-2);margin:0 0 14px;max-width:64ch}
+  pre{overflow-x:auto;background:var(--paper-2);padding:12px 14px;border-radius:8px;
+      font-size:.82rem;line-height:1.55}
+  #verdict{font-family:var(--mono);font-size:.85rem;color:var(--ink-3);margin-top:26px}
+</style>
+</head>
+<body>
+<main class="instrument">
+  <h1 class="hero">One tag, and the customer checks it themselves.</h1>
+  <p class="lead">A vendor showing “your booking was confirmed” is asking to be believed.
+    This element does not ask. It resolves every key from the origin that signed the
+    statement and verifies in the visitor’s own browser — it never contacts the
+    coordinator that produced the receipt.</p>
+
+  <p class="note" style="max-width:64ch">
+    <b>About this page.</b> The two receipts below are generated here, in your browser,
+    with keys that exist for a few milliseconds and that no origin publishes — so the
+    element is handed a matching resolver instead of fetching over TLS, and it
+    <em>says so</em> in its own footer rather than claiming an origin check it did not do.
+    Everything else is the shipped element. For a receipt with real signatures from the
+    real participants, use
+    <a href="https://concord-receipts.vercel.app">the verifier origin</a> or
+    <code>npx concord-verify</code>.
+  </p>
+
+  <pre>&lt;script type="module" src="https://unpkg.com/concord-verify/concord-receipt.mjs"&gt;&lt;/script&gt;
+
+&lt;concord-receipt src="/receipts/RH-9.json"&gt;&lt;/concord-receipt&gt;</pre>
+
+  <section>
+    <h2>An honest receipt</h2>
+    <p class="note">Every statement signed by the party that made it.</p>
+    <div id="slot-good"></div>
+  </section>
+
+  <section>
+    <h2>The same receipt with one charge removed</h2>
+    <p class="note">What a dishonest coordinator would hand you: the charge deleted and the
+      outcome still reading “committed”. The element derives the outcome from the statements
+      instead of reading that field, so it contradicts it rather than showing a tick.</p>
+    <div id="slot-forged"></div>
+  </section>
+
+  <section>
+    <h2>Compact</h2>
+    <div id="slot-small"></div>
+  </section>
+
+  <p id="verdict">checking…</p>
+</main>
+
+<script type="module">
+import { honestReceipt, rebuild, drop } from '/attacks/browser.mjs';
+import '/verify/concord-receipt.mjs';
+
+// The element normally resolves keys over TLS from each vendor's own origin.
+// These fixtures are generated in-page with ephemeral keys that no origin
+// publishes, so the page hands the element the matching resolver -- the same
+// one attacks/browser.mjs builds, which still refuses a key from the wrong
+// origin. Swapping the resolver is a property of the test, not of the element.
+const honest = await honestReceipt();
+const forged = await rebuild(honest.receipt, drop(honest.receipt, 'stay', 'execute'), 'committed');
+
+for (const [id, receipt, compact] of [
+  ['good', honest.receipt, false], ['forged', forged, false], ['small', honest.receipt, true],
+]) {
+  const el = document.createElement('concord-receipt');
+  el.id = id;
+  if (compact) el.setAttribute('compact', '');
+  el.resolve = honest.resolve;
+  const script = document.createElement('script');
+  script.type = 'application/json';
+  script.textContent = JSON.stringify(receipt);
+  el.append(script);
+  // Appended last: connectedCallback runs on insertion, and it needs the JSON
+  // to already be there. Building the element first is the difference between
+  // one clean run and an error followed by a retry.
+  document.getElementById(`slot-${id}`).append(el);
+}
+
+const settled = new Map();
+addEventListener('concord-verified', (e) => {
+  settled.set(e.target.id, e.detail);
+  if (settled.size < 3) return;
+
+  const checks = [
+    { id: 'honest.verifies', ok: settled.get('good')?.ok === true },
+    { id: 'honest.outcome', ok: settled.get('good')?.outcome === 'committed' },
+    { id: 'forged.rejected', ok: settled.get('forged')?.ok === false },
+    { id: 'forged.explains', ok: (settled.get('forged')?.complaints ?? []).length > 0 },
+    { id: 'forged.outcome.disputed', ok: settled.get('forged')?.disputed === true },
+    { id: 'forged.outcome.derived', ok: settled.get('forged')?.outcome === 'in-doubt' },
+    { id: 'honest.not.disputed', ok: settled.get('good')?.disputed === false },
+    { id: 'compact.verifies', ok: settled.get('small')?.ok === true },
+    { id: 'element.registered', ok: Boolean(customElements.get('concord-receipt')) },
+    { id: 'shadow.rendered', ok: Boolean(document.getElementById('good').shadowRoot?.textContent?.includes('Verified')) },
+  ];
+  const pass = checks.every((c) => c.ok);
+  document.getElementById('verdict').textContent =
+    `${checks.filter((c) => c.ok).length} of ${checks.length} checks passed`;
+  document.title = `RING0_VERDICT ${pass ? 'PASS' : 'FAIL'}`;
+  globalThis.__RING0_RESULTS__ = {
+    done: true, verdict: pass ? 'PASS' : 'FAIL', provider: 'concord-receipt element',
+    rows: checks.map((c) => ({ id: c.id, state: c.ok ? 'pass' : 'fail',
+      assertion: 'the element verifies in the browser and refuses a forgery' })),
+  };
+});
+</script>
+</body>
+</html>

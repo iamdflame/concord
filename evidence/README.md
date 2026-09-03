@@ -9,7 +9,8 @@ without installing anything. Regenerate with `npm run evidence`.
 | `attacks.txt` | every forged receipt, and what the verifier objected to |
 | `surface.txt` | the tool surface asserted state by state, against the live deployment |
 | `live.txt` | every deployed origin checked from outside |
-| `mutation.txt` | how many deliberate defects the suite catches |
+| `model.txt` | every safety invariant, over every reachable state of the protocol |
+| `mutation.txt` | how many deliberate defects the suite catches — every mutant, not a sample |
 
 None of this is a substitute for running it yourself. `npm run check` does all
 of it at once, and `tools/check.sh` is forty lines you can read first.

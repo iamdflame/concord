@@ -20,6 +20,7 @@
 
 import { AgentSurface, Refused, desiredNames, FORBIDDEN } from '/concord/agent-surface.mjs';
 import { Reconciler, budget } from './reconciler.mjs';
+import { askForAttention } from './attention.mjs';
 
 const asText = (value) => ({
   content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }],
@@ -231,11 +232,30 @@ export async function publishAgentTools({ ctx, participants, inputs, journal, bi
           explanationDigest: { type: 'string',
             description: 'SHA-256 of these promises. What a person accepts is this, not the id.' },
           acceptedByPerson: { type: 'boolean' },
+          attention: {
+            type: 'object',
+            description: 'Whether the browser was able to bring a person to the page. '
+              + 'If asked is false, relay the guarantee yourself and wait — nobody has been '
+              + 'summoned. This never grants anything either way.',
+            properties: { asked: { type: 'boolean' }, why: { type: 'string' } },
+            required: ['asked', 'why'],
+          },
         },
         required: ['proposalId', 'guarantee', 'summary', 'explanationDigest'],
       },
       annotations: { readOnlyHint: true },
-      execute: guard(({ proposalId }) => surface.explain({ proposalId })),
+      execute: guard(async ({ proposalId }) => {
+        const explained = await surface.explain({ proposalId });
+        // The second door. Explaining is the moment a person is needed, so this
+        // is where the host is asked to fetch them -- and the answer is
+        // reported rather than assumed, because an agent that thinks somebody
+        // has been summoned when nobody has will wait forever. Nothing about
+        // what is registered depends on this call; see app/attention.mjs.
+        const attention = explained.committable
+          ? await askForAttention(mc, { reason: 'a person needs to accept this guarantee' })
+          : { asked: false, why: 'there is no honest guarantee here to accept' };
+        return { ...explained, attention };
+      }),
       refuse: asRefusal,
     },
 

@@ -10,6 +10,13 @@ echo "── the protocol, no browser ──────────────
 npm test 2>&1 | grep -E "^ℹ (tests|pass|fail)" || true
 
 echo ""
+echo "── the protocol, model-checked ───────────────────"
+# Every reachable state of the commitment machine, and every safety property in
+# every one of them. The TLA+ module in spec/ is generated from the same
+# declaration this executes, so the two cannot drift.
+node spec/check.mjs 2>&1 | sed -n '/^  [✓✗]/p;/^MODEL/p;/reachable states/p' | sed 's/^/  /'
+
+echo ""
 echo "── the forge: every attack must be rejected ──────"
 node attacks/run.mjs 2>&1 | sed -n '/^  [✓✗]/p;/^All\|^[0-9]* of/p' | sed 's/^/  /'
 
@@ -49,7 +56,7 @@ verdict() {
   echo "${out:-NO VERDICT — the page never reported one}"
 }
 
-for page in concord-test.html conformance.html native.html; do
+for page in concord-test.html conformance.html native.html element.html; do
   printf '  %-24s ' "$page"
   verdict "http://localhost:5173/$page"
 done
