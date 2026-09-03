@@ -67,6 +67,11 @@ mkdir -p ~/concord-demo-profile
   https://concord-coordinator.vercel.app/
 ```
 
+> **The one URL to have open before you start:**
+> <https://concord-coordinator.vercel.app/judge.html> — it has a link to every
+> state you are about to record, so you never type into the address bar on
+> camera.
+
 When it opens:
 
 1. Press **F11** to go full screen. No tabs, no address bar, nothing but the
@@ -197,6 +202,34 @@ clicks, and it appears. Do this one until it is clean.
 9. Stop.
 
 ---
+
+### An alternative to Clip 4 — `04b-forge.mp4` (about 24 seconds)
+
+Both are good. **The crash** shows the thing nobody else in this field built.
+**The forge** shows a project that found seven holes in its own verifier and
+lets a stranger fire them. If you can only have one, pick the forge — it is
+faster to read on video and harder to disbelieve.
+
+Swap it in at the same slot and the same length, so the timings below still add
+up.
+
+1. Fresh page, go to <https://concord-coordinator.vercel.app/attack.html>.
+   **F11**, **Ctrl +** to 150%.
+2. Hold 3 seconds on the headline: *Try to get one past it.*
+3. Click **Fire all of them**. The rows fill in one at a time — do not touch
+   anything while they do.
+4. When it finishes, the headline reads *None of them got through.* Hold 3
+   seconds.
+5. Scroll slowly through two or three rows so the right-hand column is readable:
+   that column is what the verifier objected to, in its own words.
+6. Stop.
+
+If you use this, change the Clip 4 narration to:
+
+> Seven of these forgeries verified clean until an external audit found them. A
+> coordinator could delete a charge, relabel the outcome, and the receipt
+> passed. The outcome is derived from the statements now, not believed — and
+> you can fire them yourself.
 
 ### Clip 5 — `05-receipt.mp4` (about 30 seconds)
 
