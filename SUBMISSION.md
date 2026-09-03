@@ -3,7 +3,7 @@
 **Start here:** <https://concord-coordinator.vercel.app/judge.html> — five claims,
 each with the link that shows it, and nothing to type.
 
-**Demo video (2:45):** <https://youtu.be/S3rHWHG-tqo>
+**Demo video (1:56):** <https://youtu.be/S3rHWHG-tqo>
 
 **Live:** <https://concord-coordinator.vercel.app>
 **Fire forged receipts at our own verifier:** <https://concord-coordinator.vercel.app/attack.html>
