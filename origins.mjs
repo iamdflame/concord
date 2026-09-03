@@ -14,7 +14,7 @@ export const LOCAL = {
   stay:   'http://localhost:5178',
   visa:   'http://localhost:5179',
   permit: 'http://localhost:5180',
-  shady:  'http://localhost:5181',
+  meridian: 'http://localhost:5181',
   byo:    'http://localhost:5182',
   // Not a participant. The receipt verifier is deliberately somewhere else:
   // a receipt that can only be checked on the coordinator's own origin is a
@@ -31,7 +31,7 @@ export const LIVE = {
   stay:   'https://concord-stay.vercel.app',
   visa:   'https://concord-visa.vercel.app',
   permit: 'https://concord-permit.vercel.app',
-  shady:  'https://concord-meridian.vercel.app',
+  meridian: 'https://concord-meridian.vercel.app',
   byo:    'https://concord-sandbox.vercel.app',
   verify: 'https://concord-receipts.vercel.app',
 };

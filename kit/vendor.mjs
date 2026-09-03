@@ -259,37 +259,6 @@ export async function participant({ id, title, protocol, steps, state, render, b
 
   // The commitment surface. WebMCP says what a tool is, not what it promises,
   // so this declaration is the only thing the coordinator trusts about us.
-  await ctx.registerTool({
-    name: 'concord.protocol',
-    title: 'Declare commitment protocol',
-    description: `How ${id} can take part in a multi-vendor commitment: which tools reserve, `
-      + 'confirm, cancel, execute or compensate, and whether anything here can be undone.',
-    inputSchema: { type: 'object', properties: {} },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' }, title: { type: 'string' }, origin: { type: 'string' },
-        keyId: { type: ['string', 'null'],
-          description: 'Which published key signs this participant\'s statements.' },
-        steps: { type: 'object',
-          description: 'phase -> { tool, ttlSeconds?, refund? }. The phases present are what '
-            + 'this participant can commit to, and the whole guarantee is derived from them.' },
-        irreversible: { type: 'boolean' },
-        note: { type: ['string', 'null'] },
-      },
-      required: ['id', 'origin', 'steps'],
-    },
-    annotations: { readOnlyHint: true },
-    // Declare where the key lives, not the key. Carrying the key here would
-    // put it on the same channel as the claim, which anchors nothing.
-    async execute() {
-      return {
-        id, title, keyId, origin: location.origin, ...protocol,
-        steps: { ...protocol.steps, status: { tool: 'concord.status' },
-                 nothing: { tool: 'concord.attest_nothing' } },
-      };
-    },
-  }, { exposedTo: [COORDINATOR], signal });
 
   // ── attesting to having done nothing ──────────────────────────────────────
   //
@@ -302,7 +271,7 @@ export async function participant({ id, title, protocol, steps, state, render, b
   // signature worth anything -- "I did nothing" from a party that cannot tell
   // is not a statement, it is a formality -- and the participant is the only
   // one who can check, because it is the only one holding the record.
-  await mc.registerTool({
+  await ctx.registerTool({
     name: 'concord.attest_nothing',
     title: 'Sign that this participant did nothing in a commitment',
     description: 'For a commitment this participant was named in but performed no step of, '
@@ -406,6 +375,48 @@ export async function participant({ id, title, protocol, steps, state, render, b
       },
     }, { exposedTo: [COORDINATOR], signal });
   }
+
+  // ── the declaration, published last ───────────────────────────────────────
+  //
+  // Last on purpose: it is the readiness signal. A coordinator waits for
+  // concord.protocol to appear and then binds the tools the declaration names,
+  // so publishing it before those tools exist means the declaration can be
+  // true and unusable at the same time. That is exactly what happened -- the
+  // coordinator saw the declaration, bound hold_seat before it had been
+  // registered, and the commitment failed with "fly does not expose
+  // hold_seat". Registering it here makes its presence mean "everything I
+  // named is callable".
+  await ctx.registerTool({
+    name: 'concord.protocol',
+    title: 'Declare commitment protocol',
+    description: `How ${id} can take part in a multi-vendor commitment: which tools reserve, `
+      + 'confirm, cancel, execute or compensate, and whether anything here can be undone.',
+    inputSchema: { type: 'object', properties: {} },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' }, title: { type: 'string' }, origin: { type: 'string' },
+        keyId: { type: ['string', 'null'],
+          description: 'Which published key signs this participant\'s statements.' },
+        steps: { type: 'object',
+          description: 'phase -> { tool, ttlSeconds?, refund? }. The phases present are what '
+            + 'this participant can commit to, and the whole guarantee is derived from them.' },
+        irreversible: { type: 'boolean' },
+        note: { type: ['string', 'null'] },
+      },
+      required: ['id', 'origin', 'steps'],
+    },
+    annotations: { readOnlyHint: true },
+    // Declare where the key lives, not the key. Carrying the key here would
+    // put it on the same channel as the claim, which anchors nothing.
+    async execute() {
+      return {
+        id, title, keyId, origin: location.origin, ...protocol,
+        steps: { ...protocol.steps, status: { tool: 'concord.status' },
+                 nothing: { tool: 'concord.attest_nothing' } },
+      };
+    },
+  }, { exposedTo: [COORDINATOR], signal });
 
   // ── operator surface: the switches a judge is invited to flip ─────────────
   const switches = document.getElementById('switches');

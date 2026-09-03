@@ -17,7 +17,7 @@ const state = { bookings: [], kept: 0 };
 const usd = (m) => `$${(m / 100).toFixed(2)}`;
 
 await participant({
-  id: 'shady',
+  id: 'meridian',
   brand: { hue: 300, chroma: 0.10, face: 'finance' },
   title: 'Meridian Holdings',
   protocol: {

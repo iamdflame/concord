@@ -7,7 +7,7 @@
 // WebMCP cross-origin path requires, and two functions: the key it publishes
 // and the signature it produces.
 
-import { cp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile, readFile, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VENDORS, TITLES } from '../config.mjs';
@@ -281,6 +281,18 @@ if (!appOrigin) {
   process.exit(2);
 }
 // Not rm -rf .deploy: each bundle is freshened in place so its project link survives.
+// Bundles for participants that no longer exist are removed, because
+// ship.sh deploys every .deploy/concord-* directory it finds -- and a
+// leftover from a renamed participant becomes a new project serving a stale
+// copy under a name nobody meant to publish. That has now happened once.
+const keep = new Set(['concord-app', 'concord-verify', ...VENDORS.map((id) => `concord-${id}`)]);
+for (const dir of await readdir(out).catch(() => [])) {
+  if (dir.startsWith('concord-') && !keep.has(dir)) {
+    await rm(join(out, dir), { recursive: true, force: true });
+    console.log(`  removed ${dir}, which is no longer a participant`);
+  }
+}
+
 const built = [await buildApp(appOrigin)];
 for (const id of VENDORS) built.push(await buildVendor(id, appOrigin));
 built.push(await buildVerifier());

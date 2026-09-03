@@ -23,7 +23,7 @@ export const ORIGINS = isLocal ? LOCAL : (LIVE ?? (() => {
 })());
 
 /** The commitment participants, in no particular order. */
-export const VENDORS = ['fly', 'stay', 'visa', 'permit', 'shady', 'byo'];
+export const VENDORS = ['fly', 'stay', 'visa', 'permit', 'meridian', 'byo'];
 
 export const COORDINATOR = ORIGINS.app;
 
@@ -37,7 +37,7 @@ export const TITLES = {
   stay: 'Rowan House',
   visa: 'Consular Fee',
   permit: 'Entry Permit',
-  shady: 'Meridian Holdings',
+  meridian: 'Meridian Holdings',
   byo: 'Sandbox',
   verify: 'Receipts',
 };

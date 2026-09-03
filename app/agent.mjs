@@ -15,7 +15,7 @@ const VENDOR_WORDS = [
   { id: 'stay',   words: /\b(hotel|room|stay|night|nights|accommodation|lodging)\b/i },
   { id: 'visa',   words: /\b(visa|consular|entry fee|travel fee)\b/i },
   { id: 'permit', words: /\b(permit|entry permit)\b/i },
-  { id: 'shady',  words: /\b(meridian|allocation|holdings)\b/i },
+  { id: 'meridian', words: /\b(meridian|allocation|holdings)\b/i },
   { id: 'lounge', words: /\b(lounge|skyline|pass)\b/i },
 ];
 
@@ -179,7 +179,7 @@ export async function turn({ text, reader, tool, say, confirm, refuse }) {
     { proposalId: proposal.proposalId, digest: promise.explanationDigest });
   if (out.refused) { say('agent', out.reason); return null; }
 
-  // Name businesses the way they name themselves. "shady declared it could
+  // Name businesses the way they name themselves. "meridian declared it could
   // reverse this" reads as an internal id leaking, and this sentence is an
   // accusation -- it should carry the name the vendor trades under.
   const named = Object.fromEntries(vendors.map((v) => [v.id, v.title ?? v.id]));

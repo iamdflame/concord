@@ -61,6 +61,16 @@ export async function discover(ctx, origins) {
     if (!declaration) continue;
 
     const protocol = await invokeTool(ctx, declaration, {});
+
+    // A declaration that names a tool nobody registered describes a
+    // participant that is not ready, and binding it produces "fly does not
+    // expose hold_seat" at the moment of commitment rather than at discovery.
+    // Participants publish concord.protocol last for this reason; this is the
+    // check that does not depend on them getting that right.
+    const named = Object.values(protocol?.steps ?? {}).map((v) => v?.tool).filter(Boolean);
+    const absent = named.filter((tool) => !mine.some((t) => t.name === tool));
+    if (absent.length) continue;
+
     participants.push({
       id: protocol.id,
       title: protocol.title,

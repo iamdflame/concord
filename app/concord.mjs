@@ -29,7 +29,7 @@ const INPUTS = {
   stay: { nights: 3, city: 'London' },
   visa: { applicant: 'D. Flame', country: 'GB' },
   permit: { applicant: 'D. Flame', country: 'GB' },
-  shady:  { nights: 3, city: 'London' },
+  meridian: { nights: 3, city: 'London' },
 };
 
 const PROMPTS = [

@@ -24,11 +24,12 @@ node deploy/build.mjs
 # else, and Vercel quietly deploys elsewhere rather than failing.
 # The project name is not always the vendor id: "concord-app" belongs to
 # somebody else, and Meridian deploys under its own name because a URL reading
-# "shady" would tell the audience the twist before the demo does.
+# the participant id used to be "shady", which gave the twist away in
+# concord_list_vendors before the demo could.
 project_for() {
   case "$1" in
     app)   echo "concord-coordinator" ;;
-    shady) echo "concord-meridian" ;;
+    meridian) echo "concord-meridian" ;;
     byo)   echo "concord-sandbox" ;;
     verify) echo "concord-receipts" ;;
     *)     echo "concord-$1" ;;

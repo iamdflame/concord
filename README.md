@@ -560,7 +560,6 @@ deploy/verify-live.mjs    the deployment is usable, checked from outside
 ring0/                    the capability kernel Concord was built on — a different
                           argument, kept because it is where several of these
                           ideas were worked out
-experiments/              a documented negative result
 ```
 
 ## Brand
