@@ -400,7 +400,7 @@ the native API.
 
 ## Tests
 
-**118 assertions with no browser**, six browser suites against real origins, and
+**121 assertions with no browser**, six browser suites against real origins, and
 two end-to-end round trips that had never been checked before they were written.
 
 The protocol core is pure and tested without a browser: ordering, reverse unwind,
@@ -430,6 +430,13 @@ only be a sentence in this file:
   declaring a dependency on each other made `plan()` **throw**, where every
   other unpromisable configuration returns a refusal — so a cycle reached the
   page as "I could not finish that" instead of as an answer.
+- **[`concord/simulation.test.mjs`](concord/simulation.test.mjs)** breaks every
+  step of every plan in every way a step can break — refused, thrown, silent,
+  a dead coordinator, and a vendor that declared it could reverse and will not —
+  and after each asserts the invariant the whole design exists for: *nothing is
+  left standing that the coordinator did not tell you about.* Several hundred
+  runs. Adding the failing-reversal schedule was what made a mutation that
+  always reported "unwound" fail.
 - **[`attacks/fuzz.test.mjs`](attacks/fuzz.test.mjs)** generates forgeries rather
   than listing them: seventeen structured mutations across hundreds of cases,
   and — the half that is easy to forget — three mutations that change nothing a
