@@ -8,7 +8,8 @@
 // and the signature it produces.
 
 import { cp, mkdir, rm, writeFile, readFile, readdir } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VENDORS, TITLES } from '../config.mjs';
 import { LIVE } from '../origins.mjs';
@@ -193,6 +194,7 @@ async function buildApp(appOrigin) {
     ['app/agent.mjs', 'agent.mjs'],
     ['app/agent-tools.mjs', 'agent-tools.mjs'],
     ['app/reconciler.mjs', 'reconciler.mjs'],
+    ['app/attention.mjs', 'attention.mjs'],
     // The conformance suite ships with the deployment, so anyone can point it
     // at these participants -- or their own -- without cloning anything.
     // The integration suite ships too: "the protocol against real origins" is
@@ -307,6 +309,70 @@ for (const dir of await readdir(out).catch(() => [])) {
 const built = [await buildApp(appOrigin)];
 for (const id of VENDORS) built.push(await buildVendor(id, appOrigin));
 built.push(await buildVerifier());
+
+/**
+ * Every module a bundle imports has to be in that bundle.
+ *
+ * This exists because it did not, and the consequence was as bad as it gets: a
+ * new `import './attention.mjs'` was added to the coordinator and the file was
+ * not added to the bundle. On the deployment that import 404s, the whole module
+ * fails to evaluate, `publishAgentTools` never runs, and `getTools()` returns an
+ * empty array -- for ever, silently, with no console error a visitor would see
+ * and a page that otherwise renders perfectly. The live URL was a coordinator
+ * that registered no tools at all.
+ *
+ * Nothing caught it. The suite runs against source, the dev server serves the
+ * repository rather than a bundle, and `curl /` returns 200 on a page whose
+ * agent surface is empty. A bundle is a different artefact from a source tree
+ * and has to be checked as one.
+ */
+async function everyImportResolves(bundle) {
+  const missing = [];
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) { await walk(full); continue; }
+      if (!/\.(mjs|js|html)$/.test(entry.name)) continue;
+      const text = await readFile(full, 'utf8');
+      // Static imports, dynamic imports, and module script src attributes.
+      const specs = [
+        ...text.matchAll(/(?:^|\s)(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]/g),
+        ...text.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g),
+        ...text.matchAll(/<script[^>]+type=["']module["'][^>]*\ssrc=["']([^"']+)["']/g),
+        ...text.matchAll(/(?:^|\s)import\s+['"]([^'"]+)['"]/g),
+      ].map((m) => m[1]);
+
+      for (const spec of specs) {
+        // Only what the bundle is responsible for. `node:fs` is the runtime's,
+        // a bare specifier is the package manager's, and another origin's URL is
+        // that origin's. A check that flags those is a check people switch off.
+        if (!spec.startsWith('.') && !spec.startsWith('/')) continue;
+        if (/^\/\//.test(spec)) continue;                     // protocol-relative URL
+        const target = spec.startsWith('/')
+          ? join(bundle, spec.slice(1))
+          : join(dirname(full), spec);
+        if (!existsSync(target.split('?')[0])) {
+          missing.push(`${relative(bundle, full)} imports ${spec}, which is not in the bundle`);
+        }
+      }
+    }
+  };
+  await walk(bundle);
+  return missing;
+}
+
+let broken = 0;
+for (const bundle of built) {
+  for (const problem of await everyImportResolves(bundle)) {
+    console.error(`  ✗ ${bundle.replace(root + '/', '')}: ${problem}`);
+    broken++;
+  }
+}
+if (broken) {
+  console.error(`\n${broken} unresolvable import(s). Deploying this would serve a page that `
+    + 'renders and registers nothing.');
+  process.exit(2);
+}
 
 console.log(`built ${built.length} bundles in .deploy/`);
 for (const b of built) console.log(`  ${b.replace(root + '/', '')}`);

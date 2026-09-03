@@ -490,11 +490,16 @@ cannot check you but a reader can tell the difference.
 
 # Before you hit submit
 
-1. **Deploy.** `/element.html` is referenced from the README and currently
-   **404s** — it ships only on the next deploy. Either deploy, or remove that
-   link from the README. A judge following a repo link into a 404 is the one
-   avoidable bad impression here.
-2. **Confirm the YouTube video is Public**, not Unlisted.
+1. ~~Deploy.~~ **Done.** Every judge-facing page returns 200, the surface matrix
+   passes against production, and `/native.html` reports `provider=native`.
+2. **Confirm the YouTube video is Public**, not Unlisted. This is the last thing
+   I cannot check for you — an unlisted video can disqualify. Open it in a
+   signed-out private window.
 3. Upload `demo/devpost-thumb.png` as the thumbnail.
 4. Paste the story, check the tables rendered, and check every "Try it out" link
    resolves.
+5. **The project name is yours to decide.** The organisers say not to let AI name
+   your project. "Concord" is the name the repository has carried from its first
+   commit; the subtitle "— an agent that cannot overpromise" is a line I wrote.
+   Keep it, cut it to plain "Concord", or replace it — but make it your call
+   rather than mine.
