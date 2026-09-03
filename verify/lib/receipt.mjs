@@ -41,59 +41,96 @@ export async function leafHash(entry) {
 const nodeHash = (a, b) => sha256(`node:${a}${b}`);
 
 /**
- * Build the tree, keeping every level so proofs can be cut later.
+ * The largest power of two strictly less than n.
  *
- * An odd node is promoted to the next level rather than hashed with a copy of
- * itself. Duplicating is the common shortcut and it makes two different leaf
- * sets produce one root, which turns an inclusion proof into a forgery.
+ * RFC 6962's split. It makes the shape of the tree a function of the number of
+ * leaves alone, which is what lets a proof be checked from an index and a size
+ * rather than from side markers the prover chose.
+ */
+const split = (n) => 1 << (31 - Math.clz32(n - 1));
+
+/** RFC 6962 §2.1 Merkle Tree Hash, over already-hashed leaves. */
+async function mth(leaves) {
+  if (leaves.length === 1) return leaves[0];
+  const k = split(leaves.length);
+  return nodeHash(await mth(leaves.slice(0, k)), await mth(leaves.slice(k)));
+}
+
+/**
+ * The root of a receipt's statements.
+ *
+ * Two things are load-bearing here and one of them used to be described wrongly
+ * in this comment.
+ *
+ * The first is **domain separation**: a leaf is hashed as `leaf:…` and an
+ * interior node as `node:…`, so no leaf can ever equal an interior node and no
+ * caller can pass a pre-computed subtree in as a leaf. That is what actually
+ * stops a second leaf set producing the same root, and it is what the old
+ * comment credited to promoting odd nodes instead of duplicating them.
+ * Promotion is a fine thing to do and it is not the defence: buildTree(['a',
+ * 'b', 'c']) and buildTree([node(a,b), 'c']) produced *identical roots*.
+ *
+ * The second is the **size commitment**. The root folds in the number of
+ * leaves, so a tree of three and a tree of two cannot collide however their
+ * interiors happen to line up. Without it, domain separation protects
+ * buildReceipt -- whose leaves are always real leaf hashes -- and leaves this
+ * function unsafe for anyone else who exports it.
  */
 export async function buildTree(leaves) {
   if (!leaves.length) throw new Error('a receipt needs at least one entry');
-  const levels = [leaves];
-  let level = leaves;
-
-  while (level.length > 1) {
-    const next = [];
-    for (let i = 0; i < level.length; i += 2) {
-      next.push(i + 1 < level.length ? await nodeHash(level[i], level[i + 1]) : level[i]);
-    }
-    levels.push(next);
-    level = next;
-  }
-  return { root: level[0], levels };
+  const inner = await mth(leaves);
+  return { root: await sha256(`concord-v2:${leaves.length}:${inner}`), size: leaves.length, leaves };
 }
 
-/** The sibling hashes needed to walk one leaf up to the root. */
-export function proofFor(levels, index) {
-  const proof = [];
-  let i = index;
-  for (let depth = 0; depth < levels.length - 1; depth++) {
-    const level = levels[depth];
-    const isRight = i % 2 === 1;
-    const sibling = isRight ? level[i - 1] : level[i + 1];
-    // No sibling means this node was promoted, so nothing is combined here.
-    if (sibling !== undefined) proof.push({ side: isRight ? 'left' : 'right', hash: sibling });
-    i = Math.floor(i / 2);
+/**
+ * An audit path, committing to where in the tree it sits.
+ *
+ * The old proof was a list of siblings each carrying its own `side`, and it
+ * named neither the index nor the size. A verifier could therefore be handed a
+ * path that recomputed to the root while describing a position nobody occupied.
+ * Index and size are now part of the proof and the sides are derived from them,
+ * so a prover cannot choose them.
+ */
+export async function proofFor(leaves, index) {
+  if (!Number.isInteger(index) || index < 0 || index >= leaves.length) {
+    throw new RangeError(`no leaf ${index} in a tree of ${leaves.length}`);
   }
-  return proof;
+  const path = [];
+  const walk = async (list, i) => {
+    if (list.length === 1) return;
+    const k = split(list.length);
+    if (i < k) { path.push(await mth(list.slice(k))); await walk(list.slice(0, k), i); }
+    else { path.push(await mth(list.slice(0, k))); await walk(list.slice(k), i - k); }
+  };
+  await walk(leaves, index);
+  return { index, size: leaves.length, path };
 }
 
 export async function verifyInclusion(leaf, proof, root) {
+  const { index, size, path } = proof ?? {};
+  if (!Number.isInteger(index) || !Number.isInteger(size)) return false;
+  if (index < 0 || index >= size || !Array.isArray(path)) return false;
+
+  // Walk down from the root deciding each turn from index and size, then fold
+  // back up. A path longer or shorter than the position demands is a forged
+  // one, so the length is checked rather than the loop simply running out.
+  const steps = [];
+  let i = index, n = size, p = 0;
+  while (n > 1) {
+    if (p >= path.length) return false;
+    const k = split(n);
+    if (i < k) { steps.push(['right', path[p++]]); n = k; }
+    else { steps.push(['left', path[p++]]); i -= k; n -= k; }
+  }
+  if (p !== path.length) return false;
+
   let acc = leaf;
-  for (const { side, hash } of proof) {
+  for (const [side, hash] of steps.reverse()) {
     acc = side === 'left' ? await nodeHash(hash, acc) : await nodeHash(acc, hash);
   }
-  return acc === root;
+  return (await sha256(`concord-v2:${size}:${acc}`)) === root;
 }
 
-// ── vendor statements ───────────────────────────────────────────────────────
-
-/**
- * Exactly what a vendor puts its name to. Nothing here is the coordinator's.
- *
- * origin and parties are the two fields that make the receipt stand on its own:
- * the first anchors the key to the party, the second makes an omission visible.
- */
 export function statement({ sagaId, origin, vendor, parties = [], plan = null,
                             step, idempotencyKey, result, at }) {
   return { sagaId, origin, vendor, parties: [...parties].sort(), plan, step, idempotencyKey, at, result };
@@ -145,6 +182,26 @@ export function originResolver() {
     }
     return doc.keys[keyId] ?? null;
   };
+}
+
+/**
+ * A key record, whatever shape the resolver handed back.
+ *
+ * verifyStatement has always accepted either a full record or a bare JWK, for
+ * the convenience of callers holding one key. That convenience quietly
+ * disabled every check that reads the record's metadata -- status, validity
+ * window, algorithm -- because a bare JWK has none. Normalising here means the
+ * checks run against a record that always has the fields, and a bare key is
+ * treated as a key with no stated validity rather than a key with unlimited
+ * validity.
+ */
+export function normaliseKeyRecord(record) {
+  if (!record || typeof record !== 'object') return null;
+  if (record.publicKey) return record;
+  // A bare JWK. Wrapped, and deliberately not given a status: keyValidAt
+  // decides what an unstated status means, in one place.
+  if (record.kty) return { publicKey: record, keyId: record.kid ?? null, alg: record.alg ?? null };
+  return null;
 }
 
 /**
@@ -213,9 +270,12 @@ export async function verifyStatement(entry, record) {
 
 export async function buildReceipt({ sagaId, outcome, entries, vendors }) {
   const leaves = await Promise.all(entries.map(leafHash));
-  const { root, levels } = await buildTree(leaves);
+  const { root } = await buildTree(leaves);
   return {
-    version: 1,
+    // 2: the root commits to the number of statements, and each proof to its
+    // own index. A version-1 receipt cannot be checked by this code, which is
+    // the correct outcome -- its proofs assert less than these do.
+    version: 2,
     sagaId,
     outcome,
     root,
@@ -225,7 +285,7 @@ export async function buildReceipt({ sagaId, outcome, entries, vendors }) {
     // resolves keys the same way: fetch them from the vendor that made the
     // statement, and let the origin do the vouching.
     vendors,
-    proofs: entries.map((_, i) => proofFor(levels, i)),
+    proofs: await Promise.all(entries.map((_, i) => proofFor(leaves, i))),
   };
 }
 
@@ -233,6 +293,54 @@ export async function buildReceipt({ sagaId, outcome, entries, vendors }) {
  * Verify the whole receipt: every statement signed by the vendor that made it,
  * and every entry provably part of this root.
  */
+/** The step a participant signs when it was party to a plan and did nothing. */
+export const NOTHING = 'none';
+
+const REVERSALS = new Set(['cancel', 'compensate']);
+
+export const OUTCOME_COMMITTED = 'committed';
+export const OUTCOMES = new Set(['committed', 'unwound', 'in-doubt', 'refused']);
+
+/**
+ * What these statements say happened, without asking the coordinator.
+ *
+ * The rules are the ones the executor itself follows, read backwards:
+ *
+ *   every planned step has a statement            -> committed
+ *   nothing forward stands, because each forward
+ *     step has a matching reversal                -> unwound
+ *   nothing forward happened at all               -> refused
+ *   otherwise                                     -> in-doubt
+ *
+ * "in-doubt" is the fallback on purpose. A receipt that cannot be shown to be
+ * one of the clean outcomes is not thereby clean, and the honest thing to say
+ * about evidence that does not add up is that it does not add up.
+ */
+export function deriveOutcome(plan, entries) {
+  const steps = plan?.steps ?? [];
+  const done = new Set(entries.map((e) => `${e.statement.vendor}.${e.statement.step}`));
+  if (steps.length && steps.every((s) => done.has(s))) return OUTCOME_COMMITTED;
+
+  const forward = entries.filter((e) =>
+    !REVERSALS.has(e.statement.step) && e.statement.step !== NOTHING);
+  if (!forward.length) return 'refused';
+
+  // A forward effect is answered if the same vendor also has a reversal, or --
+  // for a reservation -- if it was never confirmed and so never became a
+  // booking. Anything left standing means something is outstanding.
+  const reversed = new Set(entries.filter((e) => REVERSALS.has(e.statement.step))
+    .map((e) => e.statement.vendor));
+  const confirmed = new Set(entries.filter((e) => e.statement.step === 'confirm')
+    .map((e) => e.statement.vendor));
+  const standing = forward.filter((e) => {
+    const { vendor, step } = e.statement;
+    if (reversed.has(vendor)) return false;
+    if (step === 'reserve' && !confirmed.has(vendor)) return false;
+    return true;
+  });
+  return standing.length ? 'in-doubt' : 'unwound';
+}
+
 export async function verifyReceipt(receipt, resolve = originResolver()) {
   const findings = [];
   const complaints = [];
@@ -296,32 +404,59 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
     complaints.push('no statement attests to the shape of this commitment, so it cannot be '
       + 'shown to be complete');
   } else {
+    // ── the outcome is derived, never believed ────────────────────────────
+    //
+    // receipt.outcome is written by the coordinator and signed by nobody:
+    // statement() covers sagaId, origin, vendor, parties, plan, step,
+    // idempotencyKey, at and result, and deliberately not this. It used to
+    // decide how strictly the rest of this function checked, which meant a
+    // coordinator that had charged you could drop the charge, write "unwound"
+    // -- or "Committed", or "commited", or nothing at all -- and the receipt
+    // verified clean with ok:true and no complaints. Seven variations of that
+    // attack are in attacks/run.mjs.
+    //
+    // So every rule below runs against what the statements themselves say
+    // happened. The declared outcome is one more claim to check, not an input
+    // that relaxes the checking.
+    const derived = deriveOutcome(plan, entries);
+    if (!OUTCOMES.has(receipt.outcome)) {
+      complaints.push(`"${receipt.outcome}" is not an outcome; a receipt must claim one of `
+        + `${[...OUTCOMES].join(', ')}`);
+    } else if (receipt.outcome !== derived) {
+      complaints.push(`this receipt claims "${receipt.outcome}", but its own statements `
+        + `describe "${derived}"`);
+    }
+
+    // ── every party accounts for itself ───────────────────────────────────
+    //
+    // Silence used to be read as absence of effect, which is the one reading
+    // it cannot bear: a party that did nothing and a party whose statement was
+    // deleted look identical. So a participant that was named in the plan and
+    // performed nothing signs that too (§18), and a missing party is a
+    // complaint every time rather than a note when the outcome happens to
+    // suit.
     const present = new Set(entries.map((e) => e.statement.vendor));
     const missing = (plan.parties ?? []).filter((v) => !present.has(v));
     if (missing.length) {
-      // A party whose step failed has nothing to sign, so silence from it is
-      // only damning when the receipt claims everything succeeded.
-      const line = `no statement from ${missing.join(', ')}, who every other vendor names as party to this`;
-      if (receipt.outcome === 'committed') complaints.push(line);
-      else notes.push(`${line} — consistent with an outcome of "${receipt.outcome}"`);
+      complaints.push(`no statement of any kind from ${missing.join(', ')}, who every other `
+        + 'vendor names as party to this. A participant that did nothing signs that it did '
+        + 'nothing, so silence here is a gap in the receipt rather than evidence about the world');
     }
 
     const seen = new Set(entries.map((e) => `${e.statement.vendor}.${e.statement.step}`));
-    const REVERSALS = new Set(['cancel', 'compensate']);
     const unaccounted = (plan.steps ?? []).filter((step) => !seen.has(step));
 
-    if (receipt.outcome === 'committed' && unaccounted.length) {
-      // A commitment claimed complete must show every step it was made of.
-      complaints.push(`this claims to have committed, but ${unaccounted.join(', ')} `
-        + `${unaccounted.length === 1 ? 'has' : 'have'} no statement — the receipt does not `
-        + 'account for the whole commitment its own participants signed up to');
+    if (derived === OUTCOME_COMMITTED && unaccounted.length) {
+      complaints.push(`this accounts for every party but not for ${unaccounted.join(', ')}`);
     } else if (unaccounted.length) {
-      notes.push(`${unaccounted.join(', ')} never happened — consistent with an outcome of `
-        + `"${receipt.outcome}", which does not claim they did`);
+      // Named, not waved through: which steps did not happen is the substance
+      // of a partial outcome, and the reader has to be told them.
+      notes.push(`${unaccounted.join(', ')} never happened, which is what "${derived}" means`);
     }
 
-    const stray = entries.filter((e) => !(plan.steps ?? []).includes(`${e.statement.vendor}.${e.statement.step}`)
-      && !REVERSALS.has(e.statement.step));
+    const stray = entries.filter((e) =>
+      !(plan.steps ?? []).includes(`${e.statement.vendor}.${e.statement.step}`)
+      && !REVERSALS.has(e.statement.step) && e.statement.step !== NOTHING);
     if (stray.length) {
       complaints.push(`${stray.map((e) => `${e.statement.vendor}.${e.statement.step}`).join(', ')} `
         + 'is not a step this commitment was planned to contain');
@@ -345,14 +480,28 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
       }
     } catch (err) { why = err.message; }
 
-    let signed = jwk ? await verifyStatement(entry, jwk) : false;
-
-    // A key that verifies but was not entitled to sign at that moment is worse
-    // than no signature, because it looks like one.
+    // Fails closed. verifyStatement accepts a bare JWK as well as a full key
+    // record, so a resolver that returned one skipped the window check
+    // entirely: `jwk?.publicKey` was undefined, inForce stayed true, and a key
+    // retired last March could sign something dated this June. The shipped
+    // resolver returns full records, so this was never live -- which is
+    // precisely the kind of defect that survives, because nothing exercises
+    // the default nobody uses.
+    const record = normaliseKeyRecord(jwk);
+    let signed = false;
     let inForce = true;
-    if (signed && jwk?.publicKey) {
-      const window = keyValidAt({ ...jwk, vendor }, entry.statement?.at);
-      if (!window.ok) { inForce = false; signed = false; why = window.why; }
+    if (record && !why) {
+      if (!record.publicKey) {
+        why = `${origin} published no usable key material for ${entry.keyId}`;
+      } else {
+        signed = await verifyStatement(entry, record);
+        // A key that verifies but was not entitled to sign at that moment is
+        // worse than no signature, because it looks like one.
+        if (signed) {
+          const window = keyValidAt({ ...record, vendor }, entry.statement?.at);
+          if (!window.ok) { inForce = false; signed = false; why = window.why; }
+        }
+      }
     }
 
     findings.push({
@@ -371,8 +520,22 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
  * What a single vendor checks, holding only its own entry, its proof, and the
  * root. It learns nothing about the others -- the proof is opaque hashes.
  */
-export async function verifyOwnEntry({ entry, proof, root, jwk }) {
+export async function verifyOwnEntry({ entry, proof, root, jwk, at }) {
   const included = await verifyInclusion(await leafHash(entry), proof, root);
-  const signed = await verifyStatement(entry, jwk);
-  return { ok: included && signed, included, signed };
+  const record = normaliseKeyRecord(jwk);
+  if (!record?.publicKey) return { ok: false, included, signed: false, inForce: false,
+    why: 'no usable key material' };
+
+  const signed = await verifyStatement(entry, record);
+  // The same window check the full verifier does. A vendor checking its own
+  // entry against a key it has since retired should get the same answer as
+  // everybody else, and used to get a cheerier one.
+  const window = signed
+    ? keyValidAt({ ...record, vendor: entry.statement?.vendor }, at ?? entry.statement?.at)
+    : { ok: true };
+  return {
+    ok: included && signed && window.ok,
+    included, signed: signed && window.ok, inForce: window.ok,
+    ...(window.ok ? {} : { why: window.why }),
+  };
 }

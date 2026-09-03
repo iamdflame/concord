@@ -10,6 +10,10 @@ echo "── the protocol, no browser ──────────────
 npm test 2>&1 | grep -E "^ℹ (tests|pass|fail)" || true
 
 echo ""
+echo "── the forge: every attack must be rejected ──────"
+node attacks/run.mjs 2>&1 | sed -n '/^  [✓✗]/p;/^All\|^[0-9]* of/p' | sed 's/^/  /'
+
+echo ""
 echo "── the README describes this repository ──────────"
 node tools/check-readme.mjs
 

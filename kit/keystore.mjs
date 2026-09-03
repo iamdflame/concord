@@ -63,11 +63,20 @@ async function create(vendor) {
   try {
     await mkdir(DIR, { recursive: true });
     await writeFile(join(DIR, `${vendor}.json`), JSON.stringify(record, null, 2));
-  } catch {
-    // Read-only filesystem. Carrying on with a key that dies with this process
-    // would publish one thing and sign with another, so say so.
-    console.warn(`[concord] ${vendor} could not persist a signing key and none was supplied. `
-      + `Set CONCORD_KEY_${vendor.toUpperCase()} or receipts will not verify across restarts.`);
+  } catch (err) {
+    // Read-only filesystem, which on a serverless host is every filesystem.
+    //
+    // This used to warn and carry on. A warning goes to a log nobody reads,
+    // and the participant then served a key document from one invocation and
+    // signed with a different key in the next -- so every receipt failed to
+    // verify, silently, and only in production. A participant that cannot hold
+    // a stable key is not a participant; refusing to start is the only honest
+    // answer, and it fails in the one place somebody is looking.
+    throw new Error(
+      `${vendor} has no signing key and cannot persist a generated one (${err.message}). `
+      + `Set CONCORD_KEY_${vendor.toUpperCase()} to an EC P-256 private JWK. Serving a key `
+      + 'that changes between requests would make every receipt this participant signs '
+      + 'fail to verify, which is worse than not serving one.');
   }
   return record;
 }

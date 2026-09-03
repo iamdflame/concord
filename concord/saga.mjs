@@ -289,7 +289,39 @@ export async function runSaga({
    * so the honest outcome is to return the result and say the record is
    * incomplete.
    */
+  /**
+   * Ask every party that did nothing to sign that it did nothing.
+   *
+   * A receipt in which one participant is simply absent cannot be told apart
+   * from one a coordinator edited, so the verifier now treats any missing
+   * party as a gap. That is only a usable rule if a party which genuinely did
+   * nothing has something to contribute -- and it does: it signs its own
+   * silence, having first checked its records that it really was silent.
+   *
+   * Best-effort by construction. A participant that will not answer leaves a
+   * receipt that says so, which is the honest result and the same one the
+   * verifier reaches on its own.
+   */
+  const collectSilence = async () => {
+    const spoke = new Set((call.attestations ?? []).map((a) => a.statement?.vendor));
+    for (const id of planned.order) {
+      if (spoke.has(id)) continue;
+      const tool = byId.get(id)?.protocol?.steps?.nothing?.tool;
+      if (!tool) continue;   // an older participant; the gap will be reported
+      try {
+        emit('attesting_nothing', { id });
+        await call(id, tool, {}, { idempotencyKey: `${sagaId}.${id}.none`, step: 'nothing',
+          sagaId, parties: planned.order, plan });
+      } catch (err) {
+        emit('nothing_refused', { id, error: err.message });
+      }
+    }
+  };
+
   const settle = async (outcome) => {
+    // Before the outcome is recorded, so the receipt built from this run is
+    // complete rather than complete-except-for-whoever-stayed-quiet.
+    await collectSilence().catch(() => {});
     try { await journal?.settled(sagaId, outcome); return null; }
     catch (err) {
       emit('settle_failed', { outcome, error: err.message });

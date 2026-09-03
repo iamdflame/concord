@@ -120,8 +120,19 @@ export default async function handler(req, res) {
   const origin = \`https://\${req.headers['x-forwarded-host'] ?? req.headers.host}\`;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, max-age=300');
-  res.status(200).json(await wellKnown(${JSON.stringify(id)}, origin));
+  try {
+    const doc = await wellKnown(${JSON.stringify(id)}, origin);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.status(200).json(doc);
+  } catch (err) {
+    // No stable key. Publishing an ephemeral one would mean this participant
+    // signs with a key it does not publish, so every receipt it appears in
+    // fails to verify -- quietly, and only for whoever checks one later. A 503
+    // is loud, and the verifier reports it as "publishes no key document",
+    // which is exactly what has happened.
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(503).json({ error: err.message });
+  }
 }
 `.trimStart());
 

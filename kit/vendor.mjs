@@ -261,8 +261,47 @@ export async function participant({ id, title, protocol, steps, state, render, b
     async execute() {
       return {
         id, title, keyId, origin: location.origin, ...protocol,
-        steps: { ...protocol.steps, status: { tool: 'concord.status' } },
+        steps: { ...protocol.steps, status: { tool: 'concord.status' },
+                 nothing: { tool: 'concord.attest_nothing' } },
       };
+    },
+  }, { exposedTo: [COORDINATOR], signal });
+
+  // ── attesting to having done nothing ──────────────────────────────────────
+  //
+  // Silence in a receipt is unreadable: a participant that never acted and a
+  // participant whose statement was deleted look exactly alike, so a verifier
+  // that treats absence as evidence of absence can be robbed by deletion. The
+  // fix is that not acting is also a thing you sign.
+  //
+  // This refuses if the participant did act. That refusal is what makes the
+  // signature worth anything -- "I did nothing" from a party that cannot tell
+  // is not a statement, it is a formality -- and the participant is the only
+  // one who can check, because it is the only one holding the record.
+  await mc.registerTool({
+    name: 'concord.attest_nothing',
+    title: 'Sign that this participant did nothing in a commitment',
+    description: 'For a commitment this participant was named in but performed no step of, '
+      + 'returns a signed statement saying so, so that its silence in the receipt is provable '
+      + 'rather than merely absent. Performs nothing, and refuses if this participant did act.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sagaId: { type: 'string', description: 'The commitment it took no part in' },
+        parties: { type: 'array', items: { type: 'string' }, description: 'Every party to it' },
+        plan: { type: 'object', description: 'The shape of the whole commitment' },
+      },
+      required: ['sagaId'],
+    },
+    annotations: { readOnlyHint: true },
+    async execute({ sagaId, parties = [], plan = null }) {
+      const acted = [...seen.keys()].some((k) => String(k).startsWith(`${sagaId}.`));
+      if (acted) {
+        return { error: `${id} did act in ${sagaId}, so it will not sign that it did not`,
+                 terminal: true };
+      }
+      const args = { sagaId, parties, plan, idempotencyKey: `${sagaId}.${id}.none` };
+      return { attestation: await attest('none', args, { happened: false }) };
     },
   }, { exposedTo: [COORDINATOR], signal });
 

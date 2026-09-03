@@ -50,14 +50,51 @@ const entryFor = async (kp, vendor, step, result, over = {}) => {
 };
 
 test('every leaf proves inclusion, at every tree size', async () => {
-  for (const size of [1, 2, 3, 4, 5, 7, 8, 9]) {
+  for (const size of [1, 2, 3, 4, 5, 7, 8, 9, 16, 17]) {
     const leaves = await Promise.all([...Array(size).keys()].map((i) => leafHash({ i })));
-    const { root, levels } = await buildTree(leaves);
+    const { root } = await buildTree(leaves);
     for (const [i, leaf] of leaves.entries()) {
-      assert.ok(await verifyInclusion(leaf, proofFor(levels, i), root),
+      const proof = await proofFor(leaves, i);
+      assert.ok(await verifyInclusion(leaf, proof, root),
         `size ${size}, leaf ${i} failed to prove inclusion`);
     }
   }
+});
+
+test('a proof commits to where in the tree it sits', async () => {
+  // The old proof was a list of siblings each carrying its own side, naming
+  // neither index nor size. It could therefore recompute to the root while
+  // describing a position nobody occupied. All four mutations below produced a
+  // valid-looking proof under that scheme.
+  const leaves = await Promise.all([...Array(5).keys()].map((i) => leafHash({ i })));
+  const { root } = await buildTree(leaves);
+  const proof = await proofFor(leaves, 2);
+  assert.ok(await verifyInclusion(leaves[2], proof, root));
+
+  assert.equal(await verifyInclusion(leaves[2], { ...proof, index: 3 }, root), false,
+    'a proof must not verify at an index it was not cut for');
+  assert.equal(await verifyInclusion(leaves[2], { ...proof, size: 6 }, root), false,
+    'a proof must not verify against a tree of a different size');
+  assert.equal(await verifyInclusion(leaves[2], { ...proof, path: [...proof.path, proof.path[0]] }, root),
+    false, 'a path longer than the position demands is a forged one');
+  assert.equal(await verifyInclusion(leaves[2], { ...proof, path: proof.path.slice(1) }, root), false,
+    'and so is a shorter one');
+  assert.equal(await verifyInclusion(leaves[3], proof, root), false,
+    'another leaf must not ride in on this proof');
+});
+
+test('the root commits to how many statements there are', async () => {
+  // buildTree(['a','b','c']) and buildTree([node(a,b),'c']) used to produce
+  // the same root: identical hashes, different leaf sets. Domain separation
+  // stopped that mattering inside buildReceipt and left the exported function
+  // unsafe for anyone else. The size is now part of the root.
+  const enc = new TextEncoder();
+  const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(t)))]
+    .map((b) => b.toString(16).padStart(2, '0')).join('');
+  const three = await buildTree(['a', 'b', 'c']);
+  const two = await buildTree([await sha('node:ab'), 'c']);
+  assert.notEqual(three.root, two.root, 'two different leaf sets must not share a root');
+  assert.equal(three.size, 3);
 });
 
 test('an odd node is promoted, not hashed with a copy of itself', async () => {
@@ -105,7 +142,10 @@ test('a vendor verifies its own entry without seeing anyone else', async () => {
   const disclosed = JSON.stringify(receipt.proofs[0]);
   assert.ok(!disclosed.includes('56700'), 'the proof leaked another vendor\'s amount');
   assert.ok(!disclosed.includes('RH1'), 'the proof leaked another vendor\'s reference');
-  assert.ok(receipt.proofs[0].every((p) => /^[0-9a-f]{64}$/.test(p.hash)));
+  assert.ok(receipt.proofs[0].path.every((h) => /^[0-9a-f]{64}$/.test(h)),
+    'the audit path is opaque hashes and nothing else');
+  assert.equal(receipt.proofs[0].index, 0);
+  assert.equal(receipt.proofs[0].size, 2);
 });
 
 test('the coordinator cannot forge a statement it did not receive', async () => {
@@ -202,7 +242,7 @@ test('dropping a statement leaves the survivors testifying that one is missing',
   const trimmed = await verifyReceipt(await buildReceipt(
     { sagaId: 's1', outcome: 'committed', entries: [both[0]] }), dir);
   assert.equal(trimmed.ok, false);
-  assert.match(trimmed.complaints.join(' '), /no statement from stay/);
+  assert.match(trimmed.complaints.join(' '), /no statement of any kind from stay/);
 });
 
 test('statements that disagree about who took part are refused', async () => {
@@ -322,7 +362,7 @@ test('a coordinator cannot hide one of a vendor\'s own statements', async () => 
   });
   const out = await verifyReceipt(hidden, dir);
   assert.equal(out.ok, false);
-  assert.match(out.complaints.join(' '), /claims to have committed, but fly\.confirm/);
+  assert.match(out.complaints.join(' '), /its own statements describe|not for fly\.confirm/);
 });
 
 test('an honest unwound receipt is not failed for the steps that never ran', async () => {
@@ -343,27 +383,44 @@ test('an honest unwound receipt is not failed for the steps that never ran', asy
   assert.equal(out.complaints.length, 0);
 });
 
-test('a party that never acted is not treated as a missing statement', async () => {
-  // In an unwound commitment the vendor whose step failed has nothing to sign.
-  // Failing the receipt for its silence would make every honest failure look
-  // like a coordinator hiding something.
+test('a party that did nothing signs that it did nothing', async () => {
+  // The old rule here was that a party which never acted has nothing to sign,
+  // so its silence was read as absence of effect. That reading is exactly what
+  // a coordinator hiding a charge relies on: a deleted statement and an honest
+  // silence are the same shape. So not acting is also a thing you sign, and a
+  // party that is simply missing is a gap in the receipt every time.
   const air = await keypair();
+  const consul = await keypair();
   const parties = ['fly', 'visa'];
   const steps = ['fly.reserve', 'fly.confirm', 'visa.execute'];
-  const entries = [
-    await entryFor(air, 'fly', 'reserve', { ref: 'NW1' }, { parties, steps }),
-    await entryFor(air, 'fly', 'cancel', { released: true }, { parties, steps }),
+  const shape = { parties, steps };
+  const acted = [
+    await entryFor(air, 'fly', 'reserve', { ref: 'NW1' }, shape),
+    await entryFor(air, 'fly', 'cancel', { released: true }, shape),
   ];
-  const dir = directory({ 'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } } });
+  const silence = await entryFor(consul, 'visa', 'none', { happened: false }, shape);
+  const dir = directory({
+    'https://fly.example': { vendor: 'fly', keys: { 'k-fly': air.jwk } },
+    'https://visa.example': { vendor: 'visa', keys: { 'k-visa': consul.jwk } },
+  });
 
+  // With the consulate's signed silence, an unwound commitment verifies and
+  // says which steps never ran.
   const honest = await verifyReceipt(
-    await buildReceipt({ sagaId: 's1', outcome: 'unwound', entries }), dir);
+    await buildReceipt({ sagaId: 's1', outcome: 'unwound', entries: [...acted, silence] }), dir);
   assert.equal(honest.ok, true, 'an unwound commitment must still verify');
-  assert.match(honest.notes.join(' '), /no statement from visa/);
+  assert.match(honest.notes.join(' '), /visa\.execute never happened/);
 
-  // The same silence, under a claim that everything succeeded, is not fine.
+  // Without it, the receipt cannot show the consulate took no part, and says so
+  // rather than assuming it.
+  const quiet = await verifyReceipt(
+    await buildReceipt({ sagaId: 's1', outcome: 'unwound', entries: acted }), dir);
+  assert.equal(quiet.ok, false);
+  assert.match(quiet.complaints.join(' '), /no statement of any kind from visa/);
+
+  // And a silence attestation does not make a commitment look complete.
   const claimed = await verifyReceipt(
-    await buildReceipt({ sagaId: 's1', outcome: 'committed', entries }), dir);
-  assert.equal(claimed.ok, false);
-  assert.match(claimed.complaints.join(' '), /no statement from visa/);
+    await buildReceipt({ sagaId: 's1', outcome: 'committed', entries: [...acted, silence] }), dir);
+  assert.equal(claimed.ok, false, 'signed silence is not a substitute for a step');
+  assert.match(claimed.complaints.join(' '), /its own statements describe "unwound"/);
 });
