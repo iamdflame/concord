@@ -1,0 +1,21 @@
+mutation score: 92% (36/39 sampled, of 116 possible)
+files: concord/ladder.mjs, concord/saga.mjs, concord/receipt.mjs, concord/recover.mjs, kit/canonical.mjs
+regenerate: npm run mutants
+
+Was 77%. concord/boundaries.test.mjs closed six survivors, all of them
+boundaries: the instant a key comes into force, the instant one is reported
+stolen, the index one past the end of a tree, a vendor checking its own entry
+against a key that was not in force, a signed step outside the plan, and a
+handle returned as a bare string.
+
+Three survive, and are listed rather than hidden:
+
+  concord/saga.mjs        the overall deadline comparison, <= against <
+                          a millisecond either side of a two-minute limit
+  concord/saga.mjs        the confirmRetries argument check, >= 1 against > 1
+                          nothing calls it with exactly 1
+  concord/receipt.mjs     which of two wordings a duplicate statement gets
+                          both are complaints, so the receipt is refused either
+                          way -- an equivalent mutant rather than a gap
+
+The full run, including every survivor, is in mutation-run.txt.

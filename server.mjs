@@ -11,7 +11,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { wellKnown, sign } from './kit/keystore.mjs';
-import { LOCAL_PORTS } from './config.mjs';
+import { LOCAL_PORTS, VENDORS } from './config.mjs';
 
 // Three supervised processes, each a separate origin. One page wearing three
 // hats would prove nothing: the point is that composition crosses real trust
@@ -84,6 +84,18 @@ function serve(port) {
     // receipt fetches it from here over TLS, so the web's existing origin
     // guarantee is what binds the key to the party -- no registry to run, and
     // nothing for the coordinator to vouch for.
+    // Only participants sign, so only participants publish. Deployed, this
+    // function exists in the vendor bundles and nowhere else; locally it was
+    // served on every origin, so the coordinator and the verifier published
+    // signing keys they have no use for -- and the roll call on /judge.html,
+    // which checks that neither does, failed against the dev server while
+    // passing against production. A dev server that models the deployment
+    // loosely is a dev server that hides exactly this.
+    if (path === '/.well-known/concord.json' && !VENDORS.includes(name)) {
+      res.writeHead(404, { ...headers(TYPES['.json'], path, name),
+                           'Access-Control-Allow-Origin': '*' });
+      return res.end(JSON.stringify({ error: `${name} signs nothing, so it publishes no key` }));
+    }
     if (path === '/.well-known/concord.json') {
       const body = JSON.stringify(await wellKnown(name, origin), null, 2);
       res.writeHead(200, { ...headers(TYPES['.json'], path, name), 'Access-Control-Allow-Origin': '*',

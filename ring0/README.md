@@ -11,18 +11,16 @@ It is a **different argument** from Concord's, kept here because it is where
 several of Concord's ideas were worked out — the hash-chained transcript, the
 write-ahead journal, and the habit of refusing rather than guessing.
 
-```bash
-npm run dev                                  # ring0 runs on :5173-5176
-node tools/probe.mjs                         # interception
-URL=http://localhost:5173/phase02.html node tools/probe.mjs   # the policy gate
-URL=http://localhost:5173/phase03.html node tools/probe.mjs   # composition
-URL=http://localhost:5173/phase04.html node tools/probe.mjs   # replay
-```
+Its pages are served from this directory; its three supervised processes are
+separate origins on `:5174` (mail), `:5175` (ledger) and `:5176` (pay).
 
-Wait — `:5173` is Concord's coordinator now. Ring 0's own pages are served from
-this directory, so open them from there: the phase suites and the monitor are
-`ring0/*.html`, and its three supervised processes are on `:5174` (mail),
-`:5175` (ledger) and `:5176` (pay).
+```bash
+npm run dev            # every origin, Concord's and Ring 0's
+npm run probe:01       # interception
+npm run probe:02       # the policy gate
+npm run probe:03       # composition
+npm run probe:04       # replay
+```
 
 ## What it demonstrates
 

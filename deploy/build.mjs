@@ -205,6 +205,9 @@ async function buildApp(appOrigin) {
     ['app/conformance.mjs', 'conformance.mjs'],
     // The forge, so a judge can fire it at the deployment rather than
     // read that it exists.
+    // The five-minute path, which is the page a judge should land on.
+    ['app/judge.html', 'judge.html'],
+    ['app/judge.mjs', 'judge.mjs'],
     ['app/attack.html', 'attack.html'],
     ['app/attack.mjs', 'attack.mjs'],
     ['attacks/browser.mjs', 'attacks/browser.mjs'],

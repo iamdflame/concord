@@ -63,6 +63,13 @@ function deadline(ms, message) {
 /** The reference a later step names, as the vendor's own schema declares it. */
 const handleOf = (result) => (typeof result === 'string' ? result : result?.ref ?? null);
 
+// Exported so the string branch can be tested. A participant may answer with a
+// bare reference rather than an object carrying one, and inverting that check
+// survived mutation testing -- nothing exercised it, so a participant that
+// answered "NW-AB12" would have had its handle read as null and every later
+// step named nothing.
+export const handleForTest = handleOf;
+
 export const stepKey = (sagaId, vendor, step) => `${sagaId}.${vendor}.${step}`;
 
 export const OUTCOME = {

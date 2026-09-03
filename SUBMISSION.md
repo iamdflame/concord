@@ -1,6 +1,10 @@
 # Submission
 
+**Start here:** <https://concord-coordinator.vercel.app/judge.html> — five claims,
+each with the link that shows it, and nothing to type.
+
 **Live:** <https://concord-coordinator.vercel.app>
+**Fire forged receipts at our own verifier:** <https://concord-coordinator.vercel.app/attack.html>
 **Repository:** <https://github.com/iamdflame/concord>
 **Check a receipt on an origin that is not ours:** <https://concord-receipts.vercel.app>
 (or `npx concord-verify receipt.json` — [on npm](https://www.npmjs.com/package/concord-verify),
@@ -161,7 +165,11 @@ way it judges these.
 
 ## Numbers
 
-98 unit tests over the protocol with no browser · 6 browser suites against real
-origins · 5 participants at conformance level L3 · 8 independent HTTPS
-deployments · 0 backends in the commitment path · 1 of those eight serves
-`Permissions-Policy: tools=()`, holds no key, and exists to check the others.
+128 assertions over the protocol with no browser · 4,164 ladder configurations
+checked exhaustively rather than sampled · 92% mutation score · 14 forged
+receipts rejected, fireable at
+[/attack.html](https://concord-coordinator.vercel.app/attack.html) · 6 browser
+suites against real origins · 5 participants at conformance level L3 · 8
+independent HTTPS deployments · 0 backends in the commitment path · 1 of those
+eight serves `Permissions-Policy: tools=()`, holds no key, and exists to check
+the others.

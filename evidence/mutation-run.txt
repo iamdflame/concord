@@ -1,0 +1,17 @@
+  building the mutant list…
+  116 mutants possible, running 39
+
+  survived  concord/saga.mjs:148  flip <=
+            if (Date.now() - startedAt < sagaTimeoutMs) return;
+  survived  concord/saga.mjs:115  flip >=
+            if (!(confirmRetries > 1)) throw new TypeError('confirmRetries must be at least 1');
+  … 10/39
+  survived  concord/receipt.mjs:396  flip ===
+            complaints.push(byKey.get(key) !== body
+  … 20/39
+  … 30/39
+
+  36 of 39 mutants killed — 92%
+
+  Survivors are gaps in the tests, not necessarily bugs in the code.
+exit 0
