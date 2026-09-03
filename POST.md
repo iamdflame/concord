@@ -1,32 +1,71 @@
-# The X post, and the campaign
+# The post — two versions, because they are not the same post
 
-## Correction first
+You were right, and the rule is stricter than I had it. Verified for 2026:
 
-I told you the video was 2:45 and that X would reject it as an ad. **That was
-wrong.** I took the number from `demo/timing.mjs`, which measures the *planned*
-edit in `demo/RECORDING.md` — not the film you actually cut. Yours is **1:56**,
-which is comfortably inside X's 2:20 promoted-video limit.
+| In a **promoted** post | |
+|---|---|
+| `@mentions` | **Banned** beyond your own handle. No `@OpenAIDevs`. |
+| `#hashtags` | **Banned.** |
+| External links | Not banned, but **penalised**. X's "beautiful ads" scheme gives *lower rates* to ads with no external links and no emoji, and its policy says the offer must be clear without needing a click. |
+| Emoji | More than one lowers your quality score and **raises your price**. |
 
-**So: attach the full video. No short cut needed.** I have also corrected
-`SUBMISSION.md`, which was claiming 2:45 next to the YouTube link.
+So the ad copy has zero mentions, zero hashtags, zero links and zero emoji — not
+to be safe, but because on a $9 budget the pricing discount is a meaningful share
+of the buy.
 
-The two things from that research that *do* still hold:
-
-- **No hashtags on promoted posts.** X does not allow them. None of the copy
-  below has any.
-- **Post the video natively to X.** Upload the file. Do not post a YouTube link
-  and expect it to travel — native video is weighted far more heavily.
+**The links problem solves itself:** the last frame of your video is the end card
+with all four URLs on it. The ad does not need a link in the copy, because the
+creative already carries them.
 
 ---
 
-## The post
+# 1. The promoted ad copy
 
-Long, and it names the project in the first three words. X truncates after a
-couple of lines with a "Show more", so the opening line has to carry the hook on
-its own — this one does, and the rest rewards the click.
+Paste this into the ad. **1,538 characters** — needs X Premium on the posting
+account. Checked: no `@`, no `#`, no URL, no emoji, no unusual glyphs.
 
-**1,894 characters. This needs X Premium** (the free limit is 280). If you do not
-have it, use the short version below instead; do not try to cram this one.
+```
+Concord — an agent that cannot overpromise.
+
+WebMCP tells an agent what a site can do. Nothing tells it what a site can take back.
+
+So an agent booking your flight on one site and your hotel on another cannot know, before it starts, whether failing halfway leaves you holding a charge nobody can reverse. That gap is why a marketplace sits in the middle of nearly every transaction, taking 15-30% for the guarantee.
+
+Concord replaces it with a convention. Any site declares what it can undo: reservable (hold it, release it, nothing happened), compensable (undoable, but it leaves a mark), or irreversible (it cannot be taken back).
+
+A coordinator running in your own browser computes the strongest honest promise across every site involved before contacting any of them, and refuses when the honest answer is that no promise is available at any price.
+
+The part worth checking yourself: the tool that spends money does not exist until a person accepts the exact guarantee they were shown. Not disabled. Not registered. registerTool puts it on the surface when a human clicks; an AbortController takes it away the instant the commitment starts. There is no tool that grants that permission, and there will not be one.
+
+Every commitment ends in a receipt where each statement is signed by the counterparty that made it, with keys fetched from that vendor's own origin. The coordinator cannot forge it and cannot misreport it.
+
+8 origins. 0 backends in the commitment path. MIT, zero dependencies.
+
+Links are on the last frame of the video.
+```
+
+### Second ad for the same ad group — 245 characters, no Premium needed
+
+X's campaign health is asking for a second creative so it can test them. Same
+video, this copy. Also clean of mentions, hashtags, links and emoji.
+
+```
+Concord: the tool that spends your money does not exist until a person clicks accept.
+
+Not disabled. Not registered. registerTool puts it on the surface when a human clicks; an AbortController removes it.
+
+Built on WebMCP. 8 origins, 0 backends.
+```
+
+---
+
+# 2. The organic post — different rules, so a different post
+
+Post this from your account **as a normal tweet**, not through the ad manager.
+Here mentions and links are fine and useful, and this is the one that can be
+quoted, replied to and shared.
+
+**1,894 characters, needs Premium.**
 
 ```
 Concord — an agent that cannot overpromise.
@@ -37,9 +76,9 @@ So an agent booking your flight on one site and your hotel on another has no way
 
 Concord replaces it with a convention. Any site declares what it can undo:
 
-▸ reservable — hold it, release it, nothing happened
-▸ compensable — undoable, but it leaves a mark
-▸ irreversible — it cannot be taken back
+reservable — hold it, release it, nothing happened
+compensable — undoable, but it leaves a mark
+irreversible — it cannot be taken back
 
 A coordinator running in your own browser computes the strongest honest promise across every site involved BEFORE contacting any of them — and refuses when the honest answer is that no promise is available at any price.
 
@@ -61,7 +100,7 @@ https://github.com/iamdflame/concord
 Built for the WebMCP Challenge @OpenAIDevs
 ```
 
-### If you don't have X Premium — 259 characters
+### If you don't have Premium — 259 characters, then links in the first reply
 
 ```
 Concord: an agent that structurally cannot overpromise.
@@ -70,8 +109,6 @@ The tool that spends your money doesn't exist until a person clicks accept. Not 
 
 WebMCP. 8 origins. 0 backends.
 ```
-
-…then put the links in the first reply:
 
 ```
 Live, nothing to install:
@@ -86,87 +123,64 @@ https://github.com/iamdflame/concord
 Built for the WebMCP Challenge @OpenAIDevs
 ```
 
-### The second ad — X is asking you for it
-
-Campaign health says *"Ad groups with two or more ads let X test creatives and
-serve your best performer"*, and it is right. Make a second ad in the same ad
-group, same video, this copy. **247 characters**, so it works with or without
-Premium.
-
-```
-Meet Concord: the tool that spends your money does not exist until you click accept.
-
-Not disabled — not registered. registerTool() puts it on the surface when a human clicks; an AbortController removes it.
-
-Built on WebMCP. 8 origins, 0 backends.
-```
-
-Let both run. After a day, put the remaining budget behind whichever earns
-*replies*, not whichever earns impressions.
-
 ---
 
-# The campaign form, field by field
+# 3. The campaign form
 
-## Before you fill it in — what $9 actually buys
+## What $9 actually buys
 
-At roughly $6 CPM, **$9 is about 1,500 impressions.** That is not a typo. Your
-current targeting shows an audience of **494.7m–564.0m**, and spreading 1,500
-impressions across half a billion people is indistinguishable from not running
-the ad at all.
+At roughly $6 CPM, **$9 is about 1,500 impressions.** Your targeting currently
+shows **494.7m–564.0m** people. Spreading 1,500 impressions across half a billion
+is indistinguishable from not running the ad.
 
-So the single most important thing on this form is not the budget. It is
-**narrowing the audience until it is small enough that 1,500 impressions
-actually lands on the right feeds.** Aim for an estimate in the **low millions**,
-not hundreds of millions. Everything below is in service of that.
+The most important thing on this form is therefore not the budget. It is
+**narrowing the audience to the low millions** so those 1,500 impressions land
+somewhere that matters. Everything below serves that.
 
-And one honest thing, because you said you want this to reach the judges: **the
-judging happens on your Devpost entry, not on X.** Judges score the four criteria
-against what you submitted. An ad cannot put you in front of them in their
-judging capacity, and I am not going to pretend otherwise. What the ad is
-genuinely good for is the thing after — the @OpenAIDevs spotlight, people who
+And plainly, because you want this to reach the judges: **judging happens on your
+Devpost entry, not on X.** Judges score four criteria against what you submitted;
+an ad cannot reach them in that capacity and I will not pretend it can. What $9
+is genuinely good for is what comes after — the OpenAI Devs spotlight, people who
 work on WebMCP seeing that someone built a commitment layer on it, and anyone who
-might want to use or extend the convention. That is worth $9. Winning is worth
-the submission being right, which it now is.
+might use or extend the convention.
 
 ## Ad group
 
 | Field | Set it to | Why |
 |---|---|---|
 | **Name** | `Concord — WebMCP, dev audience` | "Ad group 1" tells you nothing in a week. |
-| **Daily budget** | `3.00` | Keep it. |
-| **Total spend cap** | `9.00` | Keep it. Three days at $3. |
-| **Start time** | leave as `Sep 3, 2026, 2:18 PM GMT+1` | Fine. Note the hackathon deadline is 1:00pm PDT = **9:00pm GMT+1 today**, so this starts about six and a half hours before it. |
-| **End time** | leave blank / Run indefinitely | The $9 cap stops it anyway. |
+| **Daily budget** | `3.00` | Keep. |
+| **Total spend cap** | `9.00` | Keep. Three days at $3. |
+| **Start time** | leave `Sep 3, 2026, 2:18 PM GMT+1` | Fine. Note the hackathon deadline is 1:00pm PDT = **9:00pm GMT+1**, so this starts 6.7 hours before it. |
+| **End time** | Run indefinitely | The $9 cap stops it anyway. |
 
 ## Demographics
 
 | Field | Set it to |
 |---|---|
-| **Locations** | **United States, United Kingdom, Canada, Germany, Netherlands, India.** If X lets you pick cities and you want to go harder: San Francisco, New York, Seattle, London. |
-| **Languages** | **English.** One language. |
-| **Gender** | **All.** Narrowing here excludes real audience and buys you nothing. |
-| **Age** | **25–54.** Skips the segment least likely to be shipping production browser code. Leave "All" if you would rather not narrow twice. |
-| **Operating system** | **All.** Do not set it. WebMCP is desktop Chrome, but people *read* X on a phone and open the link later. |
-| **Device model** | leave empty |
-| **Carrier** | leave empty |
-| **Custom audiences** | leave empty — you have no list to upload |
+| **Locations** | United States, United Kingdom, Canada, Germany, Netherlands, India. Going harder by city: San Francisco, New York, Seattle, London. |
+| **Languages** | English. Just the one. |
+| **Gender** | All. Narrowing buys nothing here. |
+| **Age** | 25–54, or leave All. |
+| **Operating system** | All — do not set it. People read X on a phone and open the link later. |
+| **Device model / Carrier** | Leave empty. |
+| **Custom audiences** | Leave empty — you have no list. |
 
 ## Delivery & placements
 
 | Field | Set it to | Why |
 |---|---|---|
-| **Optimization goal** | **Video views** — keep it | You want the film watched. That is the asset. |
-| **Pay by** | **Impressions (CPM)** — keep it | It is what the goal offers, and with automatic bidding you are not overpaying. |
-| **Bid strategy** | **Automatically maximize results at the lowest price** | Correct for a $9 test. Do not set a manual max bid; you have no data to set it from. |
-| **Placements** | Open **Advanced** and **turn off X Audience Platform / off-network placements** if they are on. Keep **Home timeline** and **Profiles**. | Off-network inventory is where a small budget goes to die. |
+| **Optimization goal** | **Video views** — keep | You want the film watched, and the film ends on the URLs. Coherent with link-free copy. |
+| **Pay by** | **Impressions (CPM)** — keep | |
+| **Bid strategy** | **Automatically maximize at lowest price** | Correct for a $9 test. Do not set a manual bid; you have no data to set one from. |
+| **Placements** | Open **Advanced** and turn **off** X Audience Platform / off-network placements if enabled. Keep Home timeline and Profiles. | Off-network inventory is where a small budget dies. |
 
-## Advanced targeting — this is the part that matters
+## Advanced targeting — the part that matters
 
-This section is currently empty, which is why the estimate reads 494.7m. Fill in
-all three and watch the number collapse.
+Empty right now, which is why the estimate reads 494.7m. Fill all three and watch
+it collapse.
 
-**Keywords** — people who have posted or engaged with these:
+**Keywords**
 
 ```
 WebMCP
@@ -180,21 +194,18 @@ function calling
 Chrome origin trial
 ```
 
-**Follower look-alikes** — target people who follow accounts like these.
-**Verify each handle exists before you add it**; a typo silently targets nobody
-or, worse, somebody else:
+**Follower look-alikes** — *targeting* these is allowed and is not the same thing
+as @mentioning them in copy. Verify each handle exists before adding it.
 
 ```
-@OpenAIDevs
-@OpenAI
-@ChromiumDev
-@ChromeDevs
-@vercel
-@Cloudflare
-@code
+OpenAIDevs
+OpenAI
+ChromiumDev
+vercel
+Cloudflare
 ```
 
-**Interests** — pick from X's list:
+**Interests**
 
 ```
 Technology → Software development
@@ -203,32 +214,31 @@ Technology → Web development
 Business → Startups
 ```
 
-**Check the estimate after each addition.** If you are still above ~20m, add more
-keywords rather than more locations. If you drop below ~500k, remove a keyword —
-too narrow and X cannot deliver the budget at all.
+**Check the estimate after each addition.** Above ~20m, add keywords rather than
+locations. Below ~500k, remove one — too narrow and X cannot spend the budget.
 
 ## The creative
 
 - **Attach the 1:56 video natively.** Upload the MP4; do not link YouTube.
-- **Alt text on the video:** *"A browser tool inspector showing five registered
-  tools; concord_commit appears only after a person clicks Accept."*
-- **Captions.** The video autoplays muted and most people never unmute. If your
-  cut has no burned-in captions, upload an SRT.
-- **Destination URL:** `https://concord-coordinator.vercel.app/judge.html` — the
-  five-minute path, not the root. It is the page built for someone arriving cold.
+- **Alt text:** *"A browser tool inspector showing five registered tools;
+  concord_commit appears only after a person clicks Accept."*
+- **Captions.** It autoplays muted and most people never unmute. Upload an SRT if
+  the cut has no burned-in captions.
+- **Do not add a website card with a link** unless you switch the objective to
+  Website traffic. With Video views, link-free copy is both compliant and cheaper,
+  and the end card already shows the URLs.
 
 ---
 
 ## After it is live
 
-**Reply to every technical reply yourself.** The algorithm weights conversation
-far above likes, and the people worth reaching are the ones who ask a sceptical
-question. Your best material is in the objections — "a vendor can lie about being
-compensable" has a real answer and it is a good one.
+**Reply to every technical reply yourself.** Conversation is weighted far above
+likes, and the people worth reaching are the sceptical ones. Your best material is
+in the objections — "a vendor can lie about being compensable" has a real answer.
 
-**Don't delete and repost** if the first hour is quiet. You lose the engagement
-history. Post the second variant as its own tweet a day later instead.
+**Don't delete and repost** on a quiet first hour; you lose the engagement
+history. Post the second variant as its own tweet a day later.
 
-**Watch replies, not impressions.** With $9 the impression count will look
-disappointing no matter what. One reply from someone who works on WebMCP is worth
-more than every number on that dashboard.
+**Watch replies, not impressions.** At $9 the impression count will look
+disappointing whatever you do. One reply from someone who works on WebMCP is
+worth more than the whole dashboard.
