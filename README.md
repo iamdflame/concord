@@ -400,7 +400,7 @@ the native API.
 
 ## Tests
 
-**102 assertions with no browser**, six browser suites against real origins, and
+**104 assertions with no browser**, six browser suites against real origins, and
 two end-to-end round trips that had never been checked before they were written.
 
 The protocol core is pure and tested without a browser: ordering, reverse unwind,
@@ -440,7 +440,7 @@ delegates `tools` to nobody and publishes no key at all.
   declaration, the ladder, guarantee computation, phase order, attestation, key
   publication, the receipt, the exact algorithm a verifier must run, and §14, the
   coordinator's surface — which tools may be registered when, normatively. Its
-  §16 is the unresolved problems, written down rather than hedged; §17 proposes
+  §18 is the unresolved problems, written down rather than hedged; §19 proposes
   the reversibility annotation upstream.
 - **[THREAT-MODEL.md](THREAT-MODEL.md)** — who is trusted for what, the attacks
   that are closed with the verifier's exact response to each, and the ones that

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concord — the forge</title>
+<meta name="description" content="Fire forged receipts at Concord's verifier and watch them be rejected.">
+<script>
+try{var t=localStorage.getItem('concord.theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
+</script>
+<link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/ui/instrument.css">
+<style>
+.instrument{max-width:860px}
+.hero{font-family:var(--display);font-size:var(--t-hero);font-weight:600;line-height:1.08;
+  letter-spacing:-0.022em;margin:6px 0 14px;max-width:20ch;text-wrap:balance}
+.hero.no{color:var(--irreversible-ink)}
+.lead{font-size:var(--t-lead);line-height:1.5;color:var(--ink-2);max-width:64ch}
+.actions{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin:28px 0 0}
+.shots{margin:34px 0 0;max-width:960px;border-top:1px solid var(--rule-firm);overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:640px}
+th{text-align:left;font-family:var(--display);font-weight:400;font-size:var(--t-cap);
+  color:var(--ink-3);padding:8px 14px 8px 0;border-bottom:1px solid var(--rule)}
+td{padding:11px 14px 11px 0;border-bottom:1px solid var(--rule);vertical-align:baseline;
+  font-size:var(--t-data);color:var(--ink-2)}
+td:first-child{padding-left:16px;border-left:3px solid transparent;font-family:var(--mono)}
+tr.rejected td:first-child{border-left-color:var(--compensable);color:var(--compensable-ink)}
+tr.accepted td:first-child{border-left-color:var(--irreversible);color:var(--irreversible-ink);
+  font-weight:600}
+td.what{font-family:var(--display);color:var(--ink)}
+td.why{color:var(--ink-3)}
+.note{margin-top:18px;font-size:var(--t-data);color:var(--ink-2);max-width:66ch}
+.count{font-family:var(--mono);font-size:var(--t-data);color:var(--ink-3)}
+</style>
+</head>
+<body>
+<a class="skip" href="#fire">Skip to the button</a>
+
+<header class="masthead" role="banner">
+  <span class="wordmark"><svg class="mark" viewBox="0 0 64 64" width="21" height="21" fill="none" aria-hidden="true"><path d="M44.53 17.06A19.5 19.5 0 1 1 22.25 15.11" stroke="currentColor" stroke-width="5.5"/><rect x="15.75" y="8.61" width="13.0" height="13.0" fill="var(--irreversible)"/></svg>Concord</span>
+  <span class="margin" id="sub">the forge</span>
+  <nav aria-label="About this project">
+    <a href="/">Coordinator</a>
+    <a href="https://github.com/iamdflame/concord/blob/main/THREAT-MODEL.md">Threat model</a>
+    <a href="/conformance.html">Conformance</a>
+    <button type="button" class="link" id="theme" aria-label="Switch between light and dark">Light / dark</button>
+  </nav>
+</header>
+
+<main>
+  <section class="instrument">
+    <p class="margin">Forged receipts, fired at the verifier this project ships</p>
+    <h1 class="hero" id="verdict">Try to get one past it.</h1>
+    <p class="lead" id="explain">Each attack below builds a <b>genuinely signed</b> receipt — real
+      P-256 keys, real signatures — and then edits it the way a coordinator with a motive would.
+      An attack that changes what the receipt means must be rejected. Seven of these were accepted
+      until an external audit found them, and the two that matter most are the ones that made a
+      deleted charge look like a commitment that never happened.</p>
+
+    <div class="actions" id="fire">
+      <button class="primary" id="run">Fire all of them</button>
+      <span class="count" id="count"></span>
+    </div>
+
+    <div class="shots"><table>
+      <thead><tr>
+        <th scope="col">Result</th><th scope="col">The attack</th><th scope="col">What the verifier said</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+
+    <p class="note">These run in this tab, against the same <code>concord/receipt.mjs</code> the
+      coordinator and <code>npx concord-verify</code> use. Nothing is sent anywhere. The same
+      forge runs headless in CI as <code>npm run attacks</code>, and a single acceptance fails the
+      build.</p>
+  </section>
+</main>
+<script type="module" src="./attack.mjs"></script>
+</body>
+</html>

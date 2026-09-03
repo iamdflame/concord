@@ -432,7 +432,7 @@ export async function verifyReceipt(receipt, resolve = originResolver()) {
     // Silence used to be read as absence of effect, which is the one reading
     // it cannot bear: a party that did nothing and a party whose statement was
     // deleted look identical. So a participant that was named in the plan and
-    // performed nothing signs that too (§18), and a missing party is a
+    // performed nothing signs that too (§15), and a missing party is a
     // complaint every time rather than a note when the outcome happens to
     // suit.
     const present = new Set(entries.map((e) => e.statement.vendor));

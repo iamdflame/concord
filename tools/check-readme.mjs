@@ -56,10 +56,20 @@ const claimed = md.match(/\*\*(\d+) assertions with no browser\*\*/)?.[1];
 want(passing && claimed === passing,
   `the README says ${claimed} assertions; the suite reports ${passing}`);
 
-// Every SPEC section cited exists, which stops a renumbering going unnoticed.
-for (const [, n] of md.matchAll(/§(\d+)/g)) {
-  want(spec.includes(`\n## ${n}. `), `README cites SPEC §${n}, which does not exist`);
+// Every SPEC section cited anywhere exists.
+//
+// Inserting a section shifts every number after it, and the citations live in
+// four files and a source comment. That has now silently gone wrong three
+// times, each time in a different file, which is exactly the kind of drift
+// worth spending twelve lines to make impossible.
+const CITING = ['README.md', 'SUBMISSION.md', 'THREAT-MODEL.md', 'concord/receipt.mjs'];
+for (const file of CITING) {
+  const text = readFileSync(file, 'utf8');
+  for (const [, n] of text.matchAll(/§(\d+)/g)) {
+    want(spec.includes(`\n## ${n}. `), `${file} cites SPEC §${n}, which does not exist`);
+  }
 }
+
 
 for (const p of problems) console.log(`  ✗ ${p}`);
 console.log(problems.length ? `README FAILED — ${problems.length}` : '  ✓ the README describes this repository');

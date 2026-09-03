@@ -39,7 +39,7 @@ And it fills a gap in the standard rather than decorating it. `inputSchema`
 describes shape. `readOnlyHint` describes whether an effect exists. **Nothing in
 WebMCP describes whether an effect can be reversed** — which is the one fact an
 agent needs in order to plan across sites rather than to act and hope.
-[SPEC.md §17](SPEC.md) proposes the annotation upstream.
+[SPEC.md §19](SPEC.md) proposes the annotation upstream.
 
 ## How it creates a better user experience
 
@@ -135,7 +135,7 @@ there is none. The saga is the easy part.
 **"A vendor can lie about being compensable."** Correct, and Concord cannot
 prevent it. Meridian Holdings does exactly that, on purpose, on the live URL.
 What Concord does is make the lie attributable: the vendor's own signature is on
-the statement it later declines to reverse. Stated in [SPEC.md §16.1](SPEC.md).
+the statement it later declines to reverse. Stated in [SPEC.md §18.1](SPEC.md).
 
 **"The safety is prompt engineering."** Open the tool inspector before anyone
 accepts anything: `concord_commit` is not in `getTools()`. It is registered by a
@@ -149,7 +149,7 @@ Deleting the prompt changes nothing.
 
 **"Confirm fan-out is not atomic."** Correct, and documented as an open question
 with the reason no in-tab protocol can fix it
-([SPEC.md §16.2](SPEC.md)).
+([SPEC.md §18.2](SPEC.md)).
 
 **"The vendors are fake."** Write one. <https://concord-sandbox.vercel.app> is
 its own origin with a text box: ten lines registers a participant the

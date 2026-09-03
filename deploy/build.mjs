@@ -203,6 +203,11 @@ async function buildApp(appOrigin) {
     ['app/native.mjs', 'native.mjs'],
     ['app/conformance.html', 'conformance.html'],
     ['app/conformance.mjs', 'conformance.mjs'],
+    // The forge, so a judge can fire it at the deployment rather than
+    // read that it exists.
+    ['app/attack.html', 'attack.html'],
+    ['app/attack.mjs', 'attack.mjs'],
+    ['attacks/browser.mjs', 'attacks/browser.mjs'],
     ['spec/conformance.mjs', 'spec/conformance.mjs'],
   ]) {
     await mkdir(join(bundle, dirname(to)), { recursive: true });

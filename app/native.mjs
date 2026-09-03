@@ -160,6 +160,58 @@ if (api?.allowsFeature) {
 }
 row(policy === 'granted' ? 'yes' : 'na', 'the "tools" permissions policy', policy);
 
+// ── the consent primitives, measured rather than assumed ──────────────────
+//
+// Concord gates its one effectful tool on registration: concord_commit does
+// not exist until a person accepts. The obvious question is why it does not
+// use the platform's own consent affordances instead, and the answer is what
+// these rows report on the browser you are actually holding.
+row(typeof mc?.requestUserInteraction === 'function' ? 'yes' : 'no',
+  'requestUserInteraction exists',
+  typeof mc?.requestUserInteraction === 'function'
+    ? 'present — Concord would use it as a second door onto the same accept'
+    : 'absent on this build; the surface is getTools, registerTool, executeTool, ontoolchange');
+
+row(typeof navigator.userActivation === 'object' ? 'yes' : 'no',
+  'navigator.userActivation is readable',
+  typeof navigator.userActivation === 'object'
+    ? `isActive=${navigator.userActivation.isActive}, hasBeenActive=${navigator.userActivation.hasBeenActive}`
+    : 'absent, so a real click cannot be told from a scripted one');
+
+// Declarative tools. A form registers, its inputSchema is derived from its
+// fields, and -- this is the interesting part -- executeTool on a form without
+// toolautosubmit fills the fields and then waits for a person to submit.
+{
+  const form = document.createElement('form');
+  form.setAttribute('toolname', 'concord_declarative_probe');
+  form.setAttribute('tooldescription', 'A probe for whether this browser registers declarative tools.');
+  form.innerHTML = '<input name="probe"><button type="submit">probe</button>';
+  form.style.display = 'none';
+  document.body.append(form);
+  await new Promise((r) => setTimeout(r, 400));
+
+  const declared = (await mc?.getTools?.() ?? []).find((t) => t.name === 'concord_declarative_probe');
+  row(declared ? 'yes' : 'no', 'a <form toolname> registers as a tool',
+    declared ? `yes, with an inputSchema derived from its fields` : 'not registered by this browser');
+
+  if (declared) {
+    // Started and deliberately not awaited: on a gated form this never
+    // settles without a person, which is the property being reported.
+    let settled = false;
+    mc.executeTool(declared, JSON.stringify({ probe: 'filled-by-the-agent' }))
+      .then(() => { settled = true; }, () => { settled = true; });
+    await new Promise((r) => setTimeout(r, 1200));
+    const filled = form.querySelector('[name=probe]').value;
+    row(!settled && filled ? 'yes' : 'na',
+      'an agent can fill a declarative form but not submit it',
+      !settled && filled
+        ? `the field now reads "${filled}" and the call is still waiting for a person`
+        : settled ? 'the call settled without a person, so this form is not a consent gate'
+          : 'the field was not filled');
+  }
+  form.remove();
+}
+
 const report = [
   `Concord native WebMCP check`,
   `${location.origin}`,

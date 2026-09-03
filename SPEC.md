@@ -339,11 +339,74 @@ Requirements:
 `toolchange` fires on every transition, so an agent observing the surface
 learns of an acceptance the same way it would learn of a new participant.
 
-## 15. Security considerations
+## 15. Attesting to having done nothing
+
+A participant named in a plan that performed no step of it SHOULD sign a
+statement saying so, with `step` set to `"none"` and a result of
+`{ "happened": false }`.
+
+It exists because silence is unreadable. A participant that never acted and a
+participant whose statement was deleted produce the same receipt, so a verifier
+that treats absence as evidence of absence can be robbed by deletion — and one
+that treats absence as suspicious fails every honest partial outcome. Neither is
+usable. Making non-participation something you sign resolves it: a missing party
+is then always a gap in the receipt.
+
+Requirements:
+
+1. A participant MUST refuse to sign that it did nothing if its own record shows
+   it honoured any idempotency key belonging to that commitment. The refusal is
+   what makes the signature worth having; the participant is the only party that
+   can perform this check, because it is the only one holding the record.
+2. A verifier MUST treat a party named in `plan.parties` with no statement of
+   any kind as a complaint, whatever outcome the receipt claims.
+3. A `"none"` statement MUST NOT satisfy a planned step. It says a participant
+   took no part; it does not say a step occurred.
+
+## 16. The coordinator's surface, and the platform's consent affordances
+
+§14 requires permission to be expressed by registering and unregistering. The
+reasonable objection is that WebMCP has consent affordances of its own, and a
+project about consent should use them. What follows is what those affordances
+actually do, measured rather than assumed —
+`/native.html` runs these checks live and reports the answer for whatever
+browser is reading it.
+
+| Affordance | Chrome 151 |
+|---|---|
+| `modelContext.requestUserInteraction` | **absent.** The surface is `getTools`, `registerTool`, `executeTool`, `ontoolchange` |
+| `<form toolname tooldescription>` | registers a tool, with `inputSchema` derived from the form's fields |
+| `executeTool` on such a form, no `toolautosubmit` | fills the fields, then **waits**; the agent cannot submit it |
+| a person clicking submit | completes the call |
+| `toolautosubmit` | the agent submits it itself, with no person involved |
+| a submit handler calling `preventDefault()` | reported by the browser as "the site has a programming error" |
+
+Two conclusions follow, and they point in different directions.
+
+**A gated declarative form is a genuine consent primitive.** An agent may
+prepare it and only a person may complete it, which is the same shape as §14's
+rule. A coordinator MAY offer one as a second door onto the same acceptance.
+
+**It is not usable for the read surface.** A declarative tool completes by
+submitting a form, and a handler that prevents that submission is a programming
+error by the platform's own account. A participant's `concord.protocol` has to
+return a declaration in-page without navigating, so it MUST be registered
+imperatively. This specification therefore does not define declarative
+equivalents for §3's tools, and an implementation should not read that as an
+oversight.
+
+Concord itself gates acceptance on registration rather than on a form, for a
+reason worth stating plainly: the form's safety is a property of the browser's
+behaviour, and absence is a property of the receipt of a `registerTool` call
+that never happened. If a future implementation submits a gated form more
+eagerly, a coordinator that relied on it has been widened without being
+changed. A coordinator that relied on absence has not.
+
+## 17. Security considerations
 
 See `THREAT-MODEL.md`.
 
-## 16. Open questions
+## 18. Open questions
 
 These are unresolved. They are written down because a specification that hides
 its limits is asking to be trusted rather than checked.
@@ -414,7 +477,7 @@ stolen key, not the participant itself.
 `concord.protocol` returns no version field. A participant changing its
 commitment surface between discovery and execution is not detected.
 
-## 17. Upstream
+## 19. Upstream
 
 This convention exists because WebMCP has no way to express reversibility. The
 natural home for it is the annotation block:

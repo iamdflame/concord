@@ -89,6 +89,10 @@ export async function publishAgentTools({ ctx, participants, inputs, journal, bi
     } catch (err) { return asRefusal(err); }
   };
 
+  // outputSchema on every tool. An agent that knows the shape of what comes
+  // back can check it rather than pattern-match prose, and for the two that
+  // matter -- the guarantee and the outcome -- the enum is the honest set of
+  // answers rather than a free string it has to interpret.
   const definitions = {
     concord_list_vendors: {
       title: 'List the vendors present',
@@ -97,6 +101,16 @@ export async function publishAgentTools({ ctx, participants, inputs, journal, bi
         + 'Contacts nobody and changes nothing.',
       inputSchema: { type: 'object', properties: {} },
       // Vendor titles are written by the vendor. They arrive here as data.
+      outputSchema: {
+        type: 'object',
+        properties: {
+          vendors: { type: 'array', items: { type: 'object', properties: {
+            id: { type: 'string' }, title: { type: 'string' }, origin: { type: 'string' },
+            steps: { type: 'array', items: { type: 'string' } },
+            canBeAskedWhatHappened: { type: 'boolean' },
+          } } },
+        },
+      },
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: guard(() => surface.listVendors()),
       refuse: asRefusal,
@@ -112,6 +126,16 @@ export async function publishAgentTools({ ctx, participants, inputs, journal, bi
         properties: { vendor: { type: 'string', description: 'A vendor id from concord_list_vendors' } },
         required: ['vendor'],
         additionalProperties: false,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' }, title: { type: 'string' }, origin: { type: 'string' },
+          note: { type: ['string', 'null'] },
+          steps: { type: 'object' },
+          canBeAskedWhatHappened: { type: 'boolean' },
+          declaresIrreversible: { type: 'boolean' },
+        },
       },
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: guard(({ vendor }) => surface.inspectVendor({ vendor })),
@@ -134,6 +158,18 @@ export async function publishAgentTools({ ctx, participants, inputs, journal, bi
         required: ['intent', 'vendors'],
         additionalProperties: false,
       },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          proposalId: { type: 'string' },
+          intent: { type: 'string' },
+          guarantee: { type: 'string', enum: ['atomic', 'compensated', 'bounded', 'refused'] },
+          committable: { type: 'boolean' },
+          order: { type: 'array', items: { type: 'string' } },
+          refusal: { type: ['string', 'null'] },
+        },
+        required: ['proposalId', 'guarantee', 'committable'],
+      },
       annotations: { readOnlyHint: true },
       execute: guard(({ intent, vendors }) => surface.propose({ intent, vendors })),
       refuse: asRefusal,
@@ -146,6 +182,16 @@ export async function publishAgentTools({ ctx, participants, inputs, journal, bi
         + 'progresses: that is the permission system, not a fault. Call this whenever a tool you '
         + 'expected is not there.',
       inputSchema: { type: 'object', properties: {} },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          registered: { type: 'array', items: { type: 'string' } },
+          absent: { type: 'array', items: { type: 'object', properties: {
+            tool: { type: 'string' }, missing: { type: 'string' } } } },
+          state: { type: 'object' },
+          note: { type: 'string' },
+        },
+      },
       annotations: { readOnlyHint: true },
       execute: guard(() => ({
         registered: reconciler.names,
@@ -171,6 +217,23 @@ export async function publishAgentTools({ ctx, participants, inputs, journal, bi
         required: ['proposalId'],
         additionalProperties: false,
       },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          proposalId: { type: 'string' },
+          guarantee: { type: 'string', enum: ['atomic', 'compensated', 'bounded', 'refused'] },
+          summary: { type: 'string' },
+          caveats: { type: 'array', items: { type: 'string' } },
+          order: { type: 'array', items: { type: 'string' } },
+          pointOfNoReturn: { type: ['string', 'null'] },
+          recoverable: { type: 'boolean' },
+          committable: { type: 'boolean' },
+          explanationDigest: { type: 'string',
+            description: 'SHA-256 of these promises. What a person accepts is this, not the id.' },
+          acceptedByPerson: { type: 'boolean' },
+        },
+        required: ['proposalId', 'guarantee', 'summary', 'explanationDigest'],
+      },
       annotations: { readOnlyHint: true },
       execute: guard(({ proposalId }) => surface.explain({ proposalId })),
       refuse: asRefusal,
@@ -192,6 +255,21 @@ export async function publishAgentTools({ ctx, participants, inputs, journal, bi
         },
         required: ['proposalId'],
         additionalProperties: false,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          proposalId: { type: 'string' },
+          outcome: { type: 'string', enum: ['committed', 'unwound', 'in-doubt', 'refused'] },
+          stands: { type: 'array', items: { type: 'string' },
+            description: 'What is still true afterwards. May be less than was asked for.' },
+          cause: { type: ['string', 'null'] },
+          stranded: { type: ['array', 'null'], items: { type: 'string' } },
+          broken: { type: 'array', items: { type: 'object' },
+            description: 'Vendors that declared a reversal and then would not perform it.' },
+          unrecorded: { type: ['string', 'null'] },
+        },
+        required: ['outcome', 'stands'],
       },
       annotations: { readOnlyHint: false },
       // The host's signal is handed to the saga, so an agent runtime that

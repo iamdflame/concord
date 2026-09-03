@@ -240,6 +240,16 @@ export async function participant({ id, title, protocol, steps, state, render, b
       properties: { lookupKey: { type: 'string', description: 'The idempotency key to look up' } },
       required: ['lookupKey'],
     },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        lookupKey: { type: 'string' },
+        happened: { type: 'boolean',
+          description: 'Whether this participant ever honoured that key. Its own record, not a guess.' },
+        result: { type: ['object', 'null'] },
+      },
+      required: ['lookupKey', 'happened'],
+    },
     annotations: { readOnlyHint: true },
     async execute({ lookupKey }) {
       const prior = seen.get(lookupKey);
@@ -255,6 +265,20 @@ export async function participant({ id, title, protocol, steps, state, render, b
     description: `How ${id} can take part in a multi-vendor commitment: which tools reserve, `
       + 'confirm, cancel, execute or compensate, and whether anything here can be undone.',
     inputSchema: { type: 'object', properties: {} },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' }, title: { type: 'string' }, origin: { type: 'string' },
+        keyId: { type: ['string', 'null'],
+          description: 'Which published key signs this participant\'s statements.' },
+        steps: { type: 'object',
+          description: 'phase -> { tool, ttlSeconds?, refund? }. The phases present are what '
+            + 'this participant can commit to, and the whole guarantee is derived from them.' },
+        irreversible: { type: 'boolean' },
+        note: { type: ['string', 'null'] },
+      },
+      required: ['id', 'origin', 'steps'],
+    },
     annotations: { readOnlyHint: true },
     // Declare where the key lives, not the key. Carrying the key here would
     // put it on the same channel as the claim, which anchors nothing.
@@ -293,6 +317,14 @@ export async function participant({ id, title, protocol, steps, state, render, b
       },
       required: ['sagaId'],
     },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        attestation: { type: 'object',
+          description: 'A signed statement that this participant performed no step.' },
+        error: { type: 'string', description: 'Present if it did act, and so will not sign.' },
+      },
+    },
     annotations: { readOnlyHint: true },
     async execute({ sagaId, parties = [], plan = null }) {
       const acted = [...seen.keys()].some((k) => String(k).startsWith(`${sagaId}.`));
@@ -314,6 +346,24 @@ export async function participant({ id, title, protocol, steps, state, render, b
         type: 'object',
         properties: { ...KEY_PARAM, ...(spec.properties ?? {}) },
         required: ['idempotencyKey', ...(spec.required ?? [])],
+      },
+      // Every commitment step answers with the same envelope: a handle later
+      // steps name, whatever the participant chose to return, and a signature
+      // over exactly what it did. An agent can check the shape rather than
+      // guess at it -- and the presence of `error` in the schema is the honest
+      // statement that a business refusal is an answer, not a fault.
+      outputSchema: {
+        type: 'object',
+        properties: {
+          ref: { type: 'string', description: 'The handle a later step names.' },
+          attestation: { type: 'object',
+            description: 'This participant\'s signature over what it just did.' },
+          replayed: { type: 'boolean',
+            description: 'True when this key was already honoured and the first answer is repeated.' },
+          error: { type: 'string',
+            description: 'A business refusal — no seats, no live hold. An answer, not a failure.' },
+          terminal: { type: 'boolean', description: 'True when retrying cannot change the answer.' },
+        },
       },
       annotations: { readOnlyHint: false },
       async execute(args) {
