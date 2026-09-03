@@ -452,13 +452,27 @@ a client you did not test.
 ## 17. Which AI tools have you leveraged?
 
 ```
-Claude Code (Claude Opus 5) for implementation, adversarial review and test
-design — including the audit that found the receipt verifier accepting 7 of 14
-forgeries, and the mutation-testing pass that found our own property tests
-passing vacuously.
+OpenAI Codex, and ChatGPT alongside it — used through the build, from working
+out the protocol design to writing and reviewing code.
+
+Claude Code (Claude Opus 5) — implementation, adversarial review and test design,
+including the audit that found the receipt verifier accepting 7 of 14 forgeries,
+and the mutation-testing pass that caught our own property tests passing
+vacuously.
+
+Using two independent models against each other turned out to be the useful part
+rather than an accident of tooling. The most valuable results in this project
+came from one of them attacking what the other had built and finding it wanting —
+the forged-receipt audit, the discovery that a sampled mutation score was
+flattering us, and the finding that a property test which registered the commit
+tool in 1% of the states it checked was passing for the wrong reason. A single
+assistant reviewing its own work agrees with itself.
 ```
 
-**[YOU]** Add anything else you actually used. Accuracy beats a longer list.
+**[YOU]** The Codex line is deliberately general, because I should not invent
+specifics about your sessions. Sharpen it — one concrete thing you had Codex do
+is worth more than three vague ones, and this is the one answer where a judge
+cannot check you but a reader can tell the difference.
 
 ---
 
