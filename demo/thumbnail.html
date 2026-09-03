@@ -28,6 +28,17 @@
        font-variant-numeric:tabular-nums}
   .t{width:1280px;height:720px;padding:52px 68px 46px;position:relative;overflow:hidden;
      display:flex;flex-direction:column}
+  /* 3:2, for Devpost's gallery card. */
+  body.wide{width:1200px}
+  body.wide .t{width:1200px;height:800px;padding:64px 72px 56px}
+  body.wide h1{font-size:112px}
+  body.wide .body{gap:44px;align-items:center}
+  /* Wide enough for the note to sit on one line: an orphaned "yes" under it
+     reads as a layout that broke rather than one that was chosen. */
+  body.wide .surface{width:452px}
+  body.wide .surface .row{padding:11px 0}
+  body.wide .eyebrow{font-size:20px;margin-bottom:30px}
+  body.wide .foot{font-size:20px;padding-top:22px}
 
   .top{display:flex;justify-content:space-between;align-items:center}
   .mark{display:flex;align-items:center;gap:14px}
@@ -141,9 +152,17 @@ const out = document.getElementById('thumbs');
 for (const [name, html] of Object.entries(THUMBS)) {
   out.insertAdjacentHTML('beforeend', `<section data-name="${name}">${html}</section>`);
 }
+// The 3:2 variants render from the same markup under a body class, so the two
+// aspect ratios cannot drift into being two different designs.
+for (const [name, html] of Object.entries(THUMBS)) {
+  if (name !== 'thumb') continue;
+  out.insertAdjacentHTML('beforeend', `<section data-name="devpost-thumb" data-wide="1">${html}</section>`);
+}
 globalThis.__CARDS__ = [...document.querySelectorAll('section')].map((s) => s.dataset.name);
 globalThis.__SHOW__ = (name) => {
   for (const s of document.querySelectorAll('section')) s.style.display = s.dataset.name === name ? '' : 'none';
+  document.body.classList.toggle('wide',
+    Boolean(document.querySelector(`[data-name="${name}"]`).dataset.wide));
   return false;  // a thumbnail is never overlaid on anything
 };
 globalThis.__READY__ = true;

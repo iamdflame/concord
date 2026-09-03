@@ -7,6 +7,7 @@
 //
 //   CHROME=/path/to/chrome node demo/build.mjs
 //   PAGE=thumbnail.html W=1280 H=720 OUT=. DOWNSCALE=1 node demo/build.mjs
+//   ONLY=devpost-thumb PAGE=thumbnail.html W=1200 H=800 OUT=. DOWNSCALE=1 node demo/build.mjs
 //
 // DOWNSCALE keeps the 2x render as supersampling and hands back a file at
 // exactly W x H, which is what YouTube asks for and what keeps a flat dark
@@ -90,7 +91,11 @@ try {
   await run('document.fonts.ready.then(() => true)');
   await sleep(400);
 
-  const names = await run('globalThis.__CARDS__');
+  // ONLY renders a subset, because one page now holds cards at two aspect
+  // ratios and rendering all of them at whichever W/H was passed silently
+  // resized the ones that were already right.
+  const only = process.env.ONLY?.split(',');
+  const names = (await run('globalThis.__CARDS__')).filter((n) => !only || only.includes(n));
   for (const name of names) {
     // --default-background-color is a flag for the browser's own painting; it
     // does not reach a CDP screenshot, which composites onto opaque white

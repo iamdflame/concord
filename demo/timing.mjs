@@ -80,5 +80,18 @@ if (!existsSync(thumb)) {
     `the thumbnail is ${(png.length / 1024).toFixed(0)}KB (ceiling 2MB)`);
 }
 
+// Devpost's gallery card is 3:2, not 16:9. Rendering both from one page means
+// one W/H can silently resize the other -- which happened -- so both are
+// measured rather than assumed.
+const card = new URL('./devpost-thumb.png', import.meta.url);
+if (!existsSync(card)) {
+  say(false, 'demo/devpost-thumb.png exists — run `npm run demo:thumb`');
+} else {
+  const png = readFileSync(card);
+  const w = png.readUInt32BE(16), h = png.readUInt32BE(20);
+  say(w / h === 1.5, `the Devpost thumbnail is ${w}x${h} (it wants 3:2)`);
+  say(png.length < 5 * 1024 * 1024, `the Devpost thumbnail is ${(png.length / 1024).toFixed(0)}KB (ceiling 5MB)`);
+}
+
 console.log(bad ? `\nDEMO FAILED — ${bad}` : '\nDEMO FITS');
 process.exit(bad ? 1 : 0);
