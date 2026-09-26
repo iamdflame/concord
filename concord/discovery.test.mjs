@@ -24,8 +24,9 @@ const ORIGINS = ['https://a.example', 'https://b.example', 'https://c.example'];
  * what a browser does for an origin it cannot reach — and returning nothing is
  * the version of this that already worked.
  */
-function context({ dead = [], slow = [] } = {}) {
+function context({ dead = [], slow = [], coldMs = 0 } = {}) {
   const calls = [];
+  const bootedAt = Date.now() + coldMs;   // a serverless origin waking from cold
   const toolsFor = (origin) => [
     { origin, name: 'concord.protocol', inputSchema: { type: 'object', properties: {} } },
     { origin, name: 'hold', inputSchema: { type: 'object', properties: {} } },
@@ -39,6 +40,9 @@ function context({ dead = [], slow = [] } = {}) {
       if (wanted.some((o) => dead.includes(o))) {
         throw new Error(`net::ERR_NAME_NOT_RESOLVED ${wanted.find((o) => dead.includes(o))}`);
       }
+      // Cold is not dead. A deployment that has been idle rejects exactly like
+      // an absent one for the first few seconds, and then answers.
+      if (Date.now() < bootedAt) throw new Error(`net::ERR_CONNECTION_TIMED_OUT ${wanted[0]}`);
       const ready = wanted.filter((o) => !slow.includes(o) || ticks++ > 4);
       return ready.flatMap(toolsFor);
     },
@@ -86,4 +90,50 @@ test('when nothing answers at all, that is reported as everything absent', async
   assert.deepEqual(present, []);
   assert.deepEqual(absent, ORIGINS);
   assert.deepEqual(await discover(ctx, ORIGINS), []);
+});
+
+
+test('an origin that is cold is not an origin that is gone', async () => {
+  // The bug this encodes cost the live deployment a failure screen.
+  //
+  // Six participants are six independent serverless deployments. Idle for a
+  // few weeks, they are six simultaneous cold starts, and for the first
+  // several seconds every one of them rejects exactly the way an origin that
+  // does not exist rejects. The coordinator waited eight seconds, concluded
+  // nobody was there, and replaced its page -- for the first visitor after a
+  // quiet period, which is the visitor it most needed to work for.
+  //
+  // Warm, these origins answer in about 3.5 seconds. That was never the
+  // problem; the problem was one window and a dead end at the end of it.
+  const ctx = context({ coldMs: 900 });
+
+  // The short window: genuinely nobody, and the caller is told so rather than
+  // being thrown at.
+  const first = await awaitParticipants(ctx, ORIGINS, 300);
+  assert.deepEqual(first.present, [], 'nothing has woken up yet');
+  assert.deepEqual(first.absent, ORIGINS);
+
+  // The second window, which is the fix. Same origins, more patience.
+  const arrivals = [];
+  const second = await awaitParticipants(ctx, ORIGINS, 4000, {
+    onProgress: (p) => arrivals.push(p.origin),
+  });
+  assert.deepEqual(second.absent, [], 'cold origins answered once given time');
+  assert.equal(second.present.length, ORIGINS.length);
+
+  // And each one was reported as it arrived, so a visitor sees progress
+  // instead of a blank page for the length of a cold start.
+  assert.deepEqual([...arrivals].sort(), [...ORIGINS].sort());
+});
+
+test('progress is reported per participant, not only at the end', async () => {
+  const ctx = context({ slow: ['https://c.example'] });
+  const seen = [];
+  await awaitParticipants(ctx, ORIGINS, 4000, { onProgress: (p) => seen.push(p) });
+
+  assert.equal(seen.length, ORIGINS.length, 'one report per participant');
+  assert.deepEqual(seen.at(-1).waiting, [], 'the last report says nobody is left');
+  assert.equal(seen.at(-1).present.length, ORIGINS.length);
+  assert.ok(seen.every((p) => typeof p.arrivedMs === 'number'),
+    'each report says how long that participant took');
 });

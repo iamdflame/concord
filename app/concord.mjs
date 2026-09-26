@@ -80,6 +80,41 @@ const duration = (s) => {
  */
 let dead = false;
 
+// Warm, every participant answers inside ~4s. These are sized for cold.
+const FIRST_WAIT_MS = 10_000;
+const COLD_WAIT_MS = 50_000;
+
+/**
+ * A non-terminal notice, for the seconds when nobody has answered yet.
+ *
+ * Deliberately not fatal(): that replaces <main> and can never be undone, which
+ * is right for "this cannot start" and wrong for "this is still starting". This
+ * appends and removes itself, so the page underneath keeps working and the
+ * commitment path is untouched.
+ */
+function waking() {
+  if (dead || document.getElementById('waking')) return;
+  const el = document.createElement('div');
+  el.id = 'waking';
+  el.setAttribute('role', 'status');
+  el.innerHTML = `<b>Waking ${VENDOR_ORIGINS.length} independent sites.</b>
+    They are separate deployments, so this is that many cold starts at once.
+    <span id="waking-count">none have answered yet</span>.`;
+  document.body.append(el);
+}
+
+/** One participant answered. Shown as it happens rather than at the end. */
+function woke({ present, waiting }) {
+  const line = document.getElementById('waking-count');
+  if (line) {
+    line.textContent = waiting.length
+      ? `${present.length} of ${present.length + waiting.length} answered`
+      : 'all of them answered';
+  }
+}
+
+function settled() { document.getElementById('waking')?.remove(); }
+
 function fatal(err, context) {
   // Terminal. fatal() replaces the whole document body, so anything that runs
   // afterwards and touches an element inside it gets null -- which is how a
@@ -95,9 +130,12 @@ function fatal(err, context) {
       <h1>${esc(context)}</h1>
       <p>${esc(detail)}</p>
       <ul>
-        <li>Not one participant answered. Concord plans over whoever is present, so it
-          only stops when there is nobody at all — with a single site here it would
-          still tell you what that site can promise.</li>
+        <li>Not one participant answered, after waiting a full minute. Concord plans
+          over whoever is present, so it only stops when there is nobody at all — with
+          a single site here it would still tell you what that site can promise.</li>
+        <li>These are ${VENDOR_ORIGINS.length} separate deployments. If they have been idle
+          they are cold, and <b>Try again</b> is very likely to work now that this
+          attempt has woken them.</li>
         <li>Locally, start them with <code>npm run dev</code>: they are separate origins
           on ${esc(VENDOR_ORIGINS.join(', '))}.</li>
         <li>Nothing was contacted and nothing is outstanding. A commitment that cannot be
@@ -181,6 +219,19 @@ function paintReach(live = []) {
 // One is visible at a time. Five live iframes tiled beside the instrument made
 // the page look like a dashboard of five equal things; it is one instrument and
 // five counterparties it does not control.
+// Open the sockets before the iframes ask for them. This does nothing about a
+// serverless cold start -- that is the server's own boot and nobody can hurry
+// it -- but DNS, TCP and TLS to six unrelated hosts is real time on a first
+// visit, and it is time that can be spent in parallel with parsing this page
+// rather than after it.
+for (const origin of VENDOR_ORIGINS) {
+  const hint = document.createElement('link');
+  hint.rel = 'preconnect';
+  hint.href = origin;
+  hint.crossOrigin = '';
+  document.head.append(hint);
+}
+
 VENDORS.forEach((id, i) => {
   const frame = document.createElement('iframe');
   frame.id = id;
@@ -225,12 +276,33 @@ try {
   // fragile as the marketplace it exists to replace. The absent ones are named
   // on the page instead, which is more useful than a failure screen and more
   // honest than pretending they were considered.
-  ({ absent } = await awaitParticipants(ctx, ALL));
+  // Two windows, not one, and the first one is not fatal.
+  //
+  // Six participants are six independent serverless deployments. After a quiet
+  // period they are six simultaneous cold starts, and a visitor is paying for
+  // all of them at once. Warm, they answer in about 3.5 seconds; cold, they can
+  // take several times that -- so an eight-second all-or-nothing budget put a
+  // failure screen in front of the first person to arrive after a quiet week,
+  // which is exactly the person it most needed to work for. That happened.
+  //
+  // So: wait the short window, and if nobody at all has answered, say plainly
+  // that they are being woken and keep waiting. Nothing about this is an error
+  // yet. A commitment is over whoever is present, and "present" is a question
+  // that deserves more than eight seconds when the answer costs a cold start.
+  ({ absent } = await awaitParticipants(ctx, ALL, FIRST_WAIT_MS, { onProgress: woke }));
+
   if (absent.length === ALL.length) {
-    throw new Error(`none of the ${ALL.length} participants answered within 8s `
-      + `(${ALL.join(', ')})`);
+    waking();
+    ({ absent } = await awaitParticipants(ctx, ALL, COLD_WAIT_MS, { onProgress: woke }));
+    settled();
+  }
+
+  if (absent.length === ALL.length) {
+    throw new Error(`none of the ${ALL.length} participants answered within `
+      + `${Math.round((FIRST_WAIT_MS + COLD_WAIT_MS) / 1000)}s (${ALL.join(', ')})`);
   }
 } catch (err) {
+  settled();
   fatal(err, 'No participant could be reached');
   throw err;
 }

@@ -61,9 +61,10 @@ export function createSuite(name) {
  * that has made itself as fragile as the marketplace it replaces. Deciding
  * what to do about an absence belongs to whoever is going to display it.
  */
-export async function awaitParticipants(ctx, origins, ms = 8000) {
+export async function awaitParticipants(ctx, origins, ms = 8000, { onProgress } = {}) {
   const deadline = Date.now() + ms;
   const present = new Map();
+  const began = Date.now();
 
   for (;;) {
     await Promise.all(origins.map(async (origin) => {
@@ -72,6 +73,16 @@ export async function awaitParticipants(ctx, origins, ms = 8000) {
         const tools = await ctx.getTools({ fromOrigins: [origin] });
         if (tools.some((t) => t.origin === origin && t.name === 'concord.protocol')) {
           present.set(origin, tools);
+          // Reported as each one arrives rather than only at the end. Six
+          // independent origins waking up is a thing worth showing somebody,
+          // and a page that shows nothing for eight seconds reads as broken
+          // well before it actually is.
+          onProgress?.({
+            origin,
+            arrivedMs: Date.now() - began,
+            present: origins.filter((o) => present.has(o)),
+            waiting: origins.filter((o) => !present.has(o)),
+          });
         }
       } catch { /* this one is not here; the others still might be */ }
     }));
